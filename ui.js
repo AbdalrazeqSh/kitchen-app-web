@@ -118,20 +118,22 @@ function render() {
   [].forEach.call(root.querySelectorAll('[style*="overflow-y:auto"]'), function (e, i) { if (scr[i] != null) e.scrollTop = scr[i]; });
   if (keep != null) { var el = root.querySelector('[data-hi="' + keep + '"]'); if (el) { el.focus(); try { if (pos) el.setSelectionRange(pos[0], pos[1]); } catch (e) {} } }
 }
+/* كل معالج نقر/إدخال داخل غلاف آمن: الخطأ يُسجَّل ويُعرض بدل أن يضيع بصمت */
+function guard(f, a) { try { f(a); } catch (er) { if (UI.onError) UI.onError(er); else throw er; } }
 function mount(el, props) {
   root = el; getProps = props;
   root.addEventListener('click', function (e) {
     var t = e.target.closest('[data-h]'); if (!t) return;
-    var f = handlers[+t.getAttribute('data-h')]; if (f) f(e);
+    var f = handlers[+t.getAttribute('data-h')]; if (f) guard(f, e);
   });
   root.addEventListener('contextmenu', function (e) {
     var t = e.target.closest('[data-hc]'); if (!t) return;
-    var f = handlers[+t.getAttribute('data-hc')]; if (f) f(e);
+    var f = handlers[+t.getAttribute('data-hc')]; if (f) guard(f, e);
   });
   root.addEventListener('input', function (e) {
     var t = e.target.closest('[data-hi]'); if (!t) return;
-    var f = handlers[+t.getAttribute('data-hi')]; if (f) f(t.value);
+    var f = handlers[+t.getAttribute('data-hi')]; if (f) guard(f, t.value);
   });
 }
-window.UI = { T: T, X: X, B: B, mount: mount, render: render, noop: noop };
+var UI = window.UI = { T: T, X: X, B: B, mount: mount, render: render, noop: noop, onError: null };
 })();

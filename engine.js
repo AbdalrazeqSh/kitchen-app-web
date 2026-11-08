@@ -75,12 +75,16 @@
       if (!(l.qty > 0)) return;
       var it = by(s.items, l.item); if (!it) throw new Error('صنف غير معروف: ' + l.item);
       var src = splitQty(s, order, l.item, l.qty);
+      if (l.mkt && src.ext) { src.mkt = src.ext; delete src.ext; } /* اشتُري مباشرة من السوق: لا يُخصم من المخزن الخارجي لكنه يُحتسب في التكلفة */
       var price = l.price != null ? l.price : it.price || 0, lc = 0;
       Object.keys(src).forEach(function (led) {
+        if (led === 'mkt') { lc += src[led] * price; return; }
         addMove(s, { date: o.date, led: led, item: l.item, q: -src[led], kind: 'batch', ref: id, note: o.dish || '' });
         if (!isFree(by(s.ledgers, led))) lc += src[led] * price;
       });
-      lines.push({ item: l.item, qty: r3(l.qty), price: price, src: src, cost: r2(lc) });
+      var ln = { item: l.item, qty: r3(l.qty), price: price, src: src, cost: r2(lc) };
+      if (l.planned != null) ln.planned = l.planned; if (l.dev) ln.dev = l.dev; if (l.extra) ln.extra = true;
+      lines.push(ln);
       cost += lc;
     });
     var b = { id: id, ts: Date.now(), date: o.date, dish: o.dish || '', recipe: o.recipeId || '', pots: o.pots || 0, kind: o.kind || 'private',
@@ -103,12 +107,14 @@
     var net = batchNet(s, id), items = {}, lines = [], cost = 0, changed = 0;
     b.lines.forEach(function (l) { items[l.item] = 1; });
     (o.lines || []).forEach(function (l) { items[l.item] = 1; });
-    var want = {}; (o.lines || []).forEach(function (l) { if (l.qty > 0) want[l.item] = (want[l.item] || 0) + l.qty; });
+    var want = {}, meta = {}; (o.lines || []).forEach(function (l) { if (l.qty > 0) { want[l.item] = (want[l.item] || 0) + l.qty; meta[l.item] = l; } });
     var dish = o.dish != null ? o.dish : b.dish;
     Object.keys(items).forEach(function (item) {
       var it = by(s.items, item); if (!it) throw new Error('صنف غير معروف: ' + item);
       var old = {}; b.order.forEach(function (l) { old[l] = net[l + '|' + item] || 0; });
-      var q = want[item] || 0, src = q > 0 ? splitQty(s, b.order, item, q, old) : {}, price = (b.lines.filter(function (l) { return l.item === item; })[0] || {}).price;
+      var q = want[item] || 0, src = q > 0 ? splitQty(s, b.order, item, q, old) : {}, mk = meta[item] || {};
+      if (mk.mkt && src.ext) { src.mkt = src.ext; delete src.ext; }
+      var price = (b.lines.filter(function (l) { return l.item === item; })[0] || {}).price;
       if (price == null) price = it.price || 0;
       var lc = 0;
       b.order.forEach(function (l) {
@@ -116,7 +122,8 @@
         if (d !== 0) { addMove(s, { date: date || b.date, led: l, item: item, q: -d, kind: 'batch', ref: id, note: 'تعديل: ' + dish }); changed++; }
         if (src[l] && !isFree(by(s.ledgers, l))) lc += src[l] * price;
       });
-      if (q > 0) { lines.push({ item: item, qty: r3(q), price: price, src: src, cost: r2(lc) }); cost += lc; }
+      if (src.mkt) lc += src.mkt * price;
+      if (q > 0) { var ln2 = { item: item, qty: r3(q), price: price, src: src, cost: r2(lc) }; if (mk.planned != null) ln2.planned = mk.planned; if (mk.dev) ln2.dev = mk.dev; if (mk.extra) ln2.extra = true; lines.push(ln2); cost += lc; }
     });
     b.lines = lines; b.cost = r2(cost); b.dish = dish; if (o.pots != null) b.pots = o.pots; b.edits = (b.edits || 0) + (changed || o.dish != null || o.pots != null ? 1 : 0);
     return b;
@@ -203,7 +210,18 @@
   }
 
   /* تسوية الوصفة لعدد القدور (إرشاد فقط) */
-  function scaleRecipe(rec, pots) { return rec.lines.map(function (l) { return { item: l.item, qty: r3(l.per * pots) }; }); }
+  /* كميات الوصفة لعدد قدور، مع ما يخص الخطة/الطبخة p: اختياري مفعّل (opts) وبديل مفعّل (alt) وصنف محذوف (del) وكمية معدّلة (over) وإضافات (extra). الثابت لا يُضرب بعدد القدور */
+  function scaleRecipe(rec, pots, p) {
+    p = p || {}; var out = [];
+    rec.lines.forEach(function (l) {
+      if (l.opt && !(p.opts && p.opts[l.item])) return;
+      var id = l.item, per = l.per; if (l.alt && p.alt && p.alt[l.item]) { id = l.alt.item; per = l.alt.per; }
+      if (p.del && p.del[id]) return;
+      out.push({ item: id, qty: p.over && p.over[id] != null ? p.over[id] : r3(l.fixed ? per : per * pots) });
+    });
+    (p.extra || []).forEach(function (e) { out.push({ item: e.item, qty: p.over && p.over[e.item] != null ? p.over[e.item] : e.qty }); });
+    return out;
+  }
 
   return { r2: r2, r3: r3, isFree: isFree, by: by, newState: newState, balance: balance, balances: balances, addMove: addMove, setOpening: setOpening,
     receive: receive, planOrder: planOrder, splitQty: splitQty, wInit: wInit, attOn: attOn, setAtt: setAtt, wEntry: wEntry, wDue: wDue, wBalance: wBalance, wSum: wSum, wDay: wDay, attAmt: attAmt, STATS: STATS, recordBatch: recordBatch, editBatch: editBatch, setBatchDate: setBatchDate, voidBatch: voidBatch, batchNet: batchNet, shortages: shortages, history: history, usage: usage,
