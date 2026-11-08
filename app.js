@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.14';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.15';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -276,8 +276,9 @@ function num(k) { var n = parseFloat(String(fv(k)).replace(/[٠-٩]/g, function 
 function goBack() {
   if (A.page === 'batch' && A.draft && A.draft.step > 1 && !A.draft.editId) { setDraft({ step: A.draft.step - 1 }); return; }
   if (A.page === 'batch' && A.draft && A.draft.editId && A.draft.step > 2) { setDraft({ step: A.draft.step - 1 }); return; }
-  var map = { order: { tab: 'stock' }, worker: { tab: 'workers' }, recipe: { tab: 'kitchen' }, batch: { tab: 'kitchen' }, backup: { tab: 'more' }, tests: { tab: 'more' }, history: { tab: 'more' }, opening: { tab: 'stock' }, funds: { tab: 'more' }, reports: { tab: 'more' }, assets: { tab: 'more' }, people: { tab: 'more' }, lists: { tab: 'more' }, admin: { tab: 'more' }, cal: { tab: 'more' } };
+  var map = { order: { tab: 'stock' }, supplies: { tab: 'stock' }, worker: { tab: 'workers' }, recipe: { tab: 'kitchen' }, batch: { tab: 'kitchen' }, backup: { tab: 'more' }, tests: { tab: 'more' }, history: { tab: 'more' }, opening: { tab: 'stock' }, funds: { tab: 'more' }, reports: { tab: 'more' }, assets: { tab: 'more' }, people: { tab: 'more' }, lists: { tab: 'more' }, admin: { tab: 'more' }, cal: { tab: 'more' } };
   if (A.page === 'fund') { open('funds'); return; }
+  if (A.page === 'supply') { open('supplies'); return; }
   open('main', map[A.page] || {});
 }
 function setDraft(p) { for (var k in p) A.draft[k] = p[k]; render(); }
@@ -1627,21 +1628,21 @@ function approveDraft() {
   var d = draftOf(A.did); if (!dReady(d)) return;
   var made = [], olds = [];
   d.lines.forEach(function (l) {
-    var it = item(l.item), mv = E.addMove(S, { date: d.date, led: d.led, item: l.item, q: l.qty, kind: 'receive', price: l.price > 0 ? l.price : undefined, note: 'مسودة توريد' });
+    var it = item(l.item), mv = E.addMove(S, { date: d.date, led: d.led, item: l.item, q: l.qty, kind: 'receive', ref: d.id, price: l.price > 0 ? l.price : undefined, note: d.src && d.src !== 'نص' ? 'توريد ' + d.src : 'مسودة توريد' });
     made.push(mv.id);
-    if (l.price > 0 && !E.isFree(led(d.led))) { olds.push([it, it.price]); it.price = l.price; }
+    if (l.price > 0 && !E.isFree(led(d.led))) { olds.push([it, it.price]); it.price = l.price; (d.olds = d.olds || []).push([it.id, l.price, olds[olds.length - 1][1]]); }
   });
-  d.done = 'approved'; d.doneAt = today();
+  d.done = 'approved'; d.doneAt = today(); d.moves = made;
   audit('اعتماد مسودة توريد: ' + d.lines.length + ' أصناف إلى ' + led(d.led).name + ' بتاريخ ' + d.date);
   A.led = d.led; open('main', { tab: 'stock' });
   mutated('اعتُمد التوريد: ' + pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف') + ' إلى ' + led(d.led).name, function () {
     S.moves = S.moves.filter(function (m) { return made.indexOf(m.id) < 0; }); olds.forEach(function (o) { o[0].price = o[1]; });
-    d.done = ''; delete d.doneAt; A.did = d.id; setState({ page: 'order', sh: null }); save();
+    d.done = ''; delete d.doneAt; delete d.moves; delete d.olds; A.did = d.id; setState({ page: 'order', sh: null }); save();
   });
 }
 function doNewDraft() {
   var lines = parseOrder(fv('otxt')); if (!lines.length) return;
-  var lid = fv('led') || 'kitchen', d = { id: newId('d', S.drafts || []), date: rcvDate() || today(), led: lid, src: 'نص', created: today(), lines: lines };
+  var lid = fv('led') || 'kitchen', d = { id: newId('d', S.drafts || []), date: rcvDate() || today(), led: lid, src: (fv('dsrc') || '').trim() || 'نص', created: today(), lines: lines };
   S.drafts = S.drafts || []; S.drafts.push(d); audit('مسودة توريد جديدة: ' + lines.length + ' أسطر');
   save(); A.did = d.id; open('order', { did: d.id });
 }
@@ -1655,7 +1656,7 @@ function orderSheet(sh) {
     case 'draftNew': {
       var lid = fv('led') || (led(A.led) && !led(A.led).arch ? A.led : 'kitchen'), ps = parseOrder(fv('otxt')), bad = ps.filter(function (x) { return x.flag || !x.item || !(x.qty > 0); }).length, rw = rcvWhen(), rdt = rcvDate();
       R = { title: 'مسودة توريد', sub: 'الصق نص الطلبية الواردة: سطر لكل صنف',
-        fields: [fArea('otxt', 'نص الطلبية', 'رز | 25 | كيلو | 4.5\nسكر 10 كيلو\nزيت 8 لتر 12'), fChips('led', 'تُسجَّل في', ledgers().map(function (x) { return [x.id, x.name]; })), rw[0], rw[1]],
+        fields: [fText('dsrc', 'المصدر ورقم الطلبية (اختياري)', 'مثال: WCK RQ24574'), fArea('otxt', 'نص الطلبية', 'رز | 25 | كيلو | 4.5\nسكر 10 كيلو\nزيت 8 لتر 12'), fChips('led', 'تُسجَّل في', ledgers().map(function (x) { return [x.id, x.name]; })), rw[0], rw[1]],
         note: { text: ps.length ? 'فُهم ' + pl(ps.length, 'سطر واحد', 'سطران', 'أسطر') + (bad ? '، منها ' + bad + ' تحتاج مراجعتك.' : ' وكلها جاهزة للمراجعة.') : 'اكتب الصنف ثم الكمية والوحدة، والسعر اختياريًا. صيغ مقبولة: «رز | 25 | كيلو | 4.5» أو «رز 25 كيلو» أو «25 كيلو رز». ما لم يُفهم تختاره بنفسك في الخطوة التالية.', tone: ps.length && !bad ? 'ok' : 'info' },
         ft: { label: 'تجهيز المسودة', ok: ps.length > 0 && !!rdt, go: function () { if (!A.form.led) A.form.led = lid; doNewDraft(); } } };
       break;
@@ -1694,6 +1695,12 @@ function orderSheet(sh) {
         ft: { label: 'حفظ', ok: !!dd && dd <= today(), go: function () { d.led = fv('led') || d.led; d.date = dd; shut(); mutated('حُدّث مكان المسودة وتاريخها'); } } };
       break;
     }
+    case 'supVoid': {
+      d = draftOf(sh.sid);
+      R = { title: 'إلغاء التوريدة؟', sub: d ? supTitle(d) : '', note: { text: 'تُزال كميات هذه التوريدة (' + (d ? d.lines.length : 0) + ' صنفًا) من المخزن، وتبقى في السجل معلّمة «أُلغيت». إن كان بعضها قد صُرف فسيظهر الرصيد بالسالب للمطالبة.', tone: 'warn' },
+        ft: { label: 'إلغاء التوريدة', ok: !!d, go: function () { voidSupply(d); } }, ft2: { label: 'رجوع', go: shut } };
+      break;
+    }
     case 'dDrop': {
       d = draftOf(sh.did);
       R = { title: 'ترك المسودة؟', sub: 'لن يتغير المخزن', note: { text: 'تُخفى من القائمة ويبقى سجلها. لا شيء يُحذف من المخزن لأنها لم تُعتمد.', tone: 'info' },
@@ -1702,6 +1709,47 @@ function orderSheet(sh) {
     }
   }
   return R;
+}
+
+/* ---------- سجل التوريدات: كل مسودة معتمدة = توريدة مستقلة بأسطرها، ويمكن إلغاؤها كاملة ---------- */
+function supplies() { return (S.drafts || []).filter(function (d) { return d.done === 'approved' || d.done === 'voided'; }).sort(function (a, b) { return (b.date + (b.doneAt || '')) < (a.date + (a.doneAt || '')) ? -1 : 1; }); }
+function supMoves(d) {
+  if (d.moves && d.moves.length) return d.moves.filter(function (id) { return E.by(S.moves, id); });
+  var used = {}, out = [];
+  (S.drafts || []).forEach(function (x) { (x.moves || []).forEach(function (id) { used[id] = 1; }); });
+  d.lines.forEach(function (l) {
+    var m = S.moves.filter(function (m) { return !used[m.id] && m.kind === 'receive' && m.date === d.date && m.led === d.led && m.item === l.item && Math.abs(m.q - l.qty) < 0.001 && (m.ref === d.id || (!m.ref && /توريد/.test(m.note || ''))); })[0];
+    if (m) { used[m.id] = 1; out.push(m.id); }
+  });
+  return out;
+}
+function supTitle(d) { return d.src && d.src !== 'نص' ? d.src : 'توريدة ' + dlabel(d.date); }
+function pgSupplies() {
+  var sp = supplies(), act = sp.filter(function (d) { return d.done === 'approved'; });
+  return [B('note', { tone: 'info', icon: 'i-truck', text: 'كل توريدة معتمدة قائمة مستقلة بأصنافها. افتح توريدة لمراجعتها أو لإلغائها كاملة.' }),
+    B('kpi', { items: [X({ label: 'التوريدات', value: act.length, sub: 'معتمدة' }), X({ label: 'الأصناف', value: act.reduce(function (a, d) { return a + d.lines.length; }, 0), sub: 'في كل التوريدات' }), X({ label: 'آخر توريدة', value: act.length ? dlabel(act[0].date) : '—', sub: act.length ? supTitle(act[0]) : '' })] }),
+    B('rows', { title: 'التوريدات', items: sp.map(function (d) {
+      return X({ icon: 'i-truck', icTone: d.done === 'voided' ? 'warn' : 'ok', title: supTitle(d), sub: dlabel(d.date) + ' · ' + (led(d.led) ? led(d.led).name : '') + ' · ' + pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف'), tag: d.done === 'voided' ? 'أُلغيت' : '', tagTone: 'warn', chev: true, go: function () { open('supply', { sid: d.id }); } });
+    }), empty: 'لا توريدات معتمدة بعد' })];
+}
+function pgSupply() {
+  var d = draftOf(A.sid), bl = [];
+  if (!d) return [B('note', { tone: 'warn', icon: 'i-alert', text: 'هذه التوريدة غير موجودة.' })];
+  var L = led(d.led), free = E.isFree(L), val = dValue(d);
+  if (d.done === 'voided') bl.push(B('note', { tone: 'warn', icon: 'i-lock', text: 'أُلغيت هذه التوريدة' + (d.voidAt ? ' بتاريخ ' + dlabel(d.voidAt) : '') + ' وأُزيلت كمياتها من المخزن.' }));
+  bl.push(B('kpi', { items: [X({ label: 'الأصناف', value: d.lines.length, sub: 'في التوريدة' }), X({ label: 'التاريخ', value: dlabel(d.date), sub: L ? L.name : '' }), X({ label: free ? 'القيمة' : 'القيمة المكتوبة', value: free ? 'عيني' : val > 0 ? money(val) : '—', sub: '' })] }));
+  bl.push(B('rows', { title: 'الأصناف', items: d.lines.map(function (l) { var it = item(l.item); return X({ title: it ? it.name : l.raw, sub: l.price > 0 && !free ? 'بسعر ' + money(l.price) : '', end: fmt(l.qty) + ' ' + (it ? it.unit : ''), endSub2: it ? packTxt(it, l.qty) : '' }); }), empty: '' }));
+  if (d.done === 'approved') bl.push(B('btns', { items: [X({ label: 'إلغاء التوريدة كاملة', icon: 'i-minus', go: function () { openSh({ t: 'supVoid', sid: d.id }); } })] }));
+  return bl;
+}
+function voidSupply(d) {
+  var ids = supMoves(d), gone = S.moves.filter(function (m) { return ids.indexOf(m.id) >= 0; });
+  S.moves = S.moves.filter(function (m) { return ids.indexOf(m.id) < 0; });
+  (d.olds || []).forEach(function (o) { var it = item(o[0]); if (it && it.price === o[1]) it.price = o[2]; });
+  d.done = 'voided'; d.voidAt = today();
+  audit('إلغاء توريدة: ' + supTitle(d) + ' (' + gone.length + ' حركة)');
+  shut(); open('supplies');
+  mutated('أُلغيت التوريدة وأُزيلت كمياتها من المخزن', function () { gone.forEach(function (m) { S.moves.push(m); }); d.done = 'approved'; delete d.voidAt; save(); render(); });
 }
 
 /* ===== 02p-admin.js ===== */
@@ -2550,6 +2598,7 @@ function pgStock() {
     return X({ icon: 'i-doc', icTone: nd ? 'warn' : 'ok', title: pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف') + ' · ' + (led(d.led) ? led(d.led).name : ''), sub: 'من ' + (d.src || 'نص') + ' · ' + dlabel(d.created || d.date), tag: nd ? nd + ' للمراجعة' : 'جاهزة', tagTone: nd ? 'warn' : 'ok', chev: true,
       go: function () { open('order', { did: d.id }); }, lp: function () { qa('مسودة توريد', pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف'), [['فتح ومراجعة', 'i-doc', function () { shut(); open('order', { did: d.id }); }], ['ترك المسودة', 'i-minus', function () { openSh({ t: 'dDrop', did: d.id }); }]]); } });
   }) }));
+  if (supplies().length) bl.push(B('rows', { items: [X({ icon: 'i-truck', icTone: 'ok', title: 'سجل التوريدات', sub: pl(supplies().filter(function (d) { return d.done === 'approved'; }).length, 'توريدة واحدة', 'توريدتان', 'توريدات') + ' · آخرها ' + dlabel(supplies()[0].date), chev: true, go: function () { open('supplies'); } })] }));
   var mkRow = function (r) {
     var al = alertable(L, r.it, r.q);
     return X({ title: r.it.name, sub: !al && L.ext ? '' : r.q > 0 ? (r.st.plan ? planTxt(r.st.plan) : usageOf(r.it.id) ? 'يكفي ' + daysTxt(r.st.days) : '') : 'لا يوجد رصيد', tag: r.st.rank < 3 && al ? r.st.t : '', tagTone: r.st.tone,
@@ -3569,6 +3618,8 @@ function shell() {
   } else if (pg === 'fund') { var fu = fund(s.fid); title = fu.name; sub = fKind(fu); blocks = pgFund();
   } else if (pg === 'order') { var od = draftOf(s.did); title = 'مسودة توريد'; sub = od ? (od.src || 'نص') + ' · ' + dlabel(od.created || od.date) : ''; blocks = pgDraft();
     ft = { label: od ? 'اعتماد التوريد' + (od.lines.length ? ' · ' + pl(od.lines.length, 'صنف واحد', 'صنفان', 'أصناف') : '') : 'اعتماد', ok: dReady(od), hint: od && od.lines.length && dNeeds(od).length ? 'راجع الأسطر المعلّمة أولًا' : od && !rcvOk(od.date) ? 'غيّر تاريخ المسودة' : 'أضف سطرًا واحدًا على الأقل', go: approveDraft };
+  } else if (pg === 'supplies') { title = 'سجل التوريدات'; sub = 'كل توريدة بأصنافها'; blocks = pgSupplies();
+  } else if (pg === 'supply') { var sd = draftOf(s.sid); title = sd ? supTitle(sd) : 'توريدة'; sub = sd ? dlabel(sd.date) + ' · ' + (led(sd.led) ? led(sd.led).name : '') : ''; blocks = pgSupply();
   } else if (pg === 'opening') { title = 'الأرصدة الافتتاحية'; sub = 'المخزن'; blocks = pgOpening(); ft = { label: S.settings.openingDone ? 'حفظ التعديلات' : 'اعتماد الأرصدة', ok: true, hint: '', go: approveOpening }; }
   var badge = 0;
   ledgers().forEach(function (l) { if (l.ext) return; itemsIn(l.id).forEach(function (it) { var q = E.balance(S, l.id, it.id); if (alertable(l, it, q) && stStatus(q, it.id).rank <= 1) badge++; }); });
@@ -3581,7 +3632,7 @@ function shell() {
   var pill = s.offline ? T.warn : T.ok;
   var f = s.sh ? shDesc() : {}, sft = f.ft || null, nt = f.note && f.note.text ? f.note : null, ntn = T[(nt && nt.tone) || 'info'], req = 'أكمل الحقول المطلوبة';
   return {
-    pageKey: pg + '|' + (pg === 'main' ? tab : pg === 'batch' ? d.step : pg === 'worker' ? s.wid : pg === 'fund' ? s.fid : pg === 'order' ? s.did : s.rid), shKey: s.sh ? s.sh.t + '|' + (s.sh.item || s.sh.id || s.sh.wid || '') : '',
+    pageKey: pg + '|' + (pg === 'main' ? tab : pg === 'batch' ? d.step : pg === 'worker' ? s.wid : pg === 'fund' ? s.fid : pg === 'order' ? s.did : pg === 'supply' ? s.sid : s.rid), shKey: s.sh ? s.sh.t + '|' + (s.sh.item || s.sh.id || s.sh.wid || '') : '',
     isMain: pg === 'main', canBack: pg !== 'main', goBack: goBack,
     title: title, sub: sub, hasSub: !!sub, hasAction: hasAction, actionLabel: '', actionGo: noop,
     offline: s.offline, pillBg: pill[0], pillFg: pill[1], pillIcon: s.offline ? 'i-wifiOff' : 'i-wifi',
