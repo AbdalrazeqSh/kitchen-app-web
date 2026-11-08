@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.12';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.13';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2257,6 +2257,36 @@ function smartSheet(sh) {
   return null;
 }
 
+/* ===== 02t-extimp.js ===== */
+/* ---------- طبخات المؤسسات المجهّزة من الشيت: تظهر في «يحتاج انتباهك» وتُسجَّل باعتمادك (بأسعار الشيت) ---------- */
+var EXTP = null;
+function loadExtProposal() { return fetch('ext-proposal.json').then(function (r) { return r.json(); }).then(function (p) { EXTP = p; }).catch(function () {}); }
+function extDone(b) { return (S.settings.extImp || []).indexOf(b.key) >= 0 || S.batches.some(function (x) { return x.imp === b.key || (!x.void && x.inst === b.inst && x.date === b.date && x.kind === 'external'); }); }
+function extPending() { return EXTP && EXTP.batches ? EXTP.batches.filter(function (b) { return inst(b.inst) && !extDone(b); }) : []; }
+function extImportOne(b) {
+  var nb = E.recordBatch(S, { date: b.date, dish: b.dish, pots: b.pots, kind: 'external', instId: b.inst, lines: b.lines.map(function (l) { return { item: l[0], qty: l[1], price: l[2], fill: false }; }) });
+  nb.done = true; nb.imp = b.key; nb.portions = 0; S.settings.extImp = (S.settings.extImp || []).concat([b.key]);
+  audit('اعتماد طبخة «' + b.dish + '» لـ' + inst(b.inst).name + ' بتاريخ ' + dlabel(b.date) + ' من الشيت'); return nb;
+}
+function doExtImport() { var ps = extPending(); if (!ps.length) { shut(); return; } ps.forEach(extImportOne); shut(); mutated('سُجّلت ' + pl(ps.length, 'طبخة واحدة', 'طبختان', 'طبخات') + ' من الشيت'); }
+function extAttn(att) {
+  var ps = extPending(); if (!ps.length) return;
+  att.push({ rank: 0.55, row: X({ icon: 'i-pot', icTone: 'warn', title: 'طبخة من الشيت بانتظار اعتمادك', sub: ps.map(function (b) { return inst(b.inst).name + ' · ' + dlabel(b.date); }).join('، '), tag: 'للاعتماد', tagTone: 'warn', chev: true, go: function () { openSh({ t: 'extimp' }); } }) });
+}
+function extSheet(sh) {
+  if (sh.t !== 'extimp') return null;
+  var ps = extPending();
+  if (!ps.length) return { title: 'طبخات من الشيت', sub: '', rows: [X({ icon: 'i-check', icTone: 'ok', title: 'لا شيء بانتظار الاعتماد' })], ft: { label: 'إغلاق', ok: true, go: shut } };
+  var rows = [];
+  ps.forEach(function (b) {
+    rows.push(X({ icon: 'i-pot', icTone: 'info', title: inst(b.inst).name + ' · ' + b.dish, sub: dlabel(b.date) + ' · ' + pl(b.pots, 'قدر واحد', 'قدران', 'قدور'), tag: money(b.total), tagTone: 'mute' }));
+    b.lines.forEach(function (l) { var it = item(l[0]); rows.push(X({ title: it ? it.name : l[0], sub: qtyU(l[1], it ? it.unit : '') + ' × ' + money(l[2]), tag: money(l[1] * l[2]), tagTone: 'mute' })); });
+  });
+  return { title: 'طبخات من الشيت', sub: 'بأسعار الشيت كما هي', rows: rows,
+    note: { text: 'تُسجَّل الطبخة بسعر كل مادة في الشيت، وتُخصم المواد من المخزن الخارجي، وما ينقص منه يبقى سالبًا. لا يتغير الشيت.', tone: 'info' },
+    ft: { label: 'اعتماد وتسجيل', ok: true, go: doExtImport } };
+}
+
 /* ===== 02x-export.js ===== */
 /* ---------- تصدير التقرير: صورة / PDF / مشاركة (يرسم «الورقة» نفسها بلا إنترنت) ---------- */
 var EXW = 420, EXS = 2.5, FONT64 = null;
@@ -2403,6 +2433,7 @@ function pgToday() {
     var b = wBal(w);
     if (b < 0) att.push({ rank: 3, row: X({ icon: 'i-wallet', icTone: 'warn', title: w.name + ' ' + balTxt(b), sub: 'دفعات أكثر من المستحق', chev: true, go: function () { open('worker', { wid: w.id }); } }) });
   });
+  extAttn(att);
   if (!S.settings.openingDone) att.push({ rank: 0.5, row: X({ icon: 'i-box', icTone: 'warn', title: 'الأرصدة الافتتاحية', sub: 'راجع الأرقام المعبّأة من الشيت ثم اعتمدها', tag: 'لم تُعتمد', tagTone: 'warn', chev: true, go: function () { open('opening'); } }) });
   if (hasData() && backupDays() >= 3) att.push({ rank: 0.6, row: X({ icon: 'i-doc', icTone: 'warn', title: 'نسخة احتياطية', sub: S.settings.lastBackup ? 'آخر نسخة قبل ' + pl(backupDays(), 'يوم', 'يومين', 'أيام') : 'لم تُصدَّر نسخة بعد: احفظها خارج الهاتف', tag: 'احفظ نسخة', tagTone: 'warn', chev: true, go: function () { exportBackup(); } }) });
   if (di.reopened) att.push({ rank: 0.2, row: X({ icon: 'i-lock', icTone: 'warn', title: 'اليوم مُعاد فتحه للتصحيح', sub: 'أغلقه ليصل المراقب التقرير المعدَّل', tag: 'مفتوح', tagTone: 'warn', chev: true, go: function () { openSh({ t: 'close' }); } }) });
@@ -3290,7 +3321,7 @@ function shDesc() {
       break;
     }
     case 'search': R = searchSheet(); break;
-    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || initSheet(sh) || smartSheet(sh) || batchxSheet(sh) || { title: '' };
+    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || initSheet(sh) || smartSheet(sh) || batchxSheet(sh) || extSheet(sh) || { title: '' };
   }
   return R;
 }
@@ -3583,7 +3614,7 @@ function onBack() {
 }
 
 /* ---------- البدء ---------- */
-load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeMoney).then(function () { return bkAdd('auto'); }).then(loadProposal).then(function () {
+load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeMoney).then(function () { return bkAdd('auto'); }).then(loadProposal).then(loadExtProposal).then(function () {
   UI.mount($('app'), shell); render();
   if (lsj('ahd_daily', false)) armDaily().catch(function () {}); // يُعاد جدولة التنبيه عند كل فتح
   armCal();
