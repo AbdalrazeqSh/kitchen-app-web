@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.6';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.7';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -146,6 +146,7 @@ function today() { return iso(); }
 function open(page, extra) { var p = { page: page, sh: null, q: '', form: {} }; for (var k in (extra || {})) p[k] = extra[k]; setState(p); }
 function openSh(sh, form) {
   if (isClosed() && LOCKT.indexOf(sh.t) >= 0) { sh = { t: 'locked', what: sh.t }; form = {}; }
+  if (A.hasUndo) { TK++; UNDO = null; A.toast = ''; A.hasUndo = false; } // فتح شاشة جديدة يُنهي فرصة التراجع كي لا يغطي الإشعار الأزرار
   setState({ sh: sh, q: '', form: form || {} });
 }
 function shut() { setState({ sh: null, q: '', form: {} }); }
@@ -164,9 +165,12 @@ function mutated(msg, undo) { save(); say(msg, undo); }
 
 /* ---------- حقول النوافذ (نفس مكونات التصميم) ---------- */
 function fText(k, label, ph, mode, hint) {
-  return { label: label, hint: hint || '', hasHint: !!hint, isText: true, isChips: false, value: String(fv(k)), ph: ph || '', mode: mode || 'text',
+  return { label: label, hint: hint || '', hasHint: !!hint, isText: true, isChips: false, value: String(fv(k)), ph: ph || '', mode: mode || 'text', itype: 'text', min: '', max: '',
     onInput: function (v) { fset(k, v); }, chips: [] };
 }
+/* حقل تاريخ بمنتقي تقويم النظام (القيمة yyyy-mm-dd). lo/hi اختياريان: أدنى وأعلى تاريخ مسموح */
+function fDate(k, label, lo, hi, hint) { var f = fText(k, label, '', 'text', hint); f.itype = 'date'; f.min = lo || ''; f.max = hi || ''; return f; }
+function fTime(k, label, hint) { var f = fText(k, label, '', 'text', hint); f.itype = 'time'; return f; }
 function fChips(k, label, opts, hint) {
   var cur = fv(k);
   return { label: label, hint: hint || '', hasHint: !!hint, isText: false, isChips: true, value: '', ph: '', mode: 'text', onInput: noop,
@@ -272,9 +276,12 @@ function wToday(w) { return (S.wl || []).filter(function (e) { return e.w === w.
 function wOpenAmt(w) { return E.wSum(S, w.id, ['open']); }
 function setStat(wid, sid) { E.setAtt(S, today(), wid, sid); save(); shut(); }
 function allPresent() {
-  var n = 0; activeW().forEach(function (w) { if (!wAtt(w)) { E.setAtt(S, today(), w.id, 'p'); n++; } });
-  if (!n) { say('كل العمال مسجَّل حضورهم'); return; }
-  mutated('سُجّل حضور ' + pl(n, 'عامل واحد', 'عاملين', 'عمال'));
+  var ids = []; activeW().forEach(function (w) { if (!wAtt(w)) { E.setAtt(S, today(), w.id, 'p'); ids.push(w.id); } });
+  if (!ids.length) { say('كل العمال مسجَّل حضورهم'); return; }
+  mutated('سُجّل حضور ' + pl(ids.length, 'عامل واحد', 'عاملين', 'عمال'), function () {
+    S.att = (S.att || []).filter(function (a) { return !(a.date === today() && a.st === 'p' && ids.indexOf(a.w) >= 0); });
+    save(); say('أُلغي تسجيل الحضور الجماعي');
+  });
 }
 
 /* ---------- الطبخة (مسودة) ---------- */
@@ -466,11 +473,13 @@ function cTime(t) { if (!t) return ''; var p = t.split(':'), h = +p[0]; return (
 function cShift(off, t, mins) { var m = +t.split(':')[0] * 60 + +t.split(':')[1] + mins, d = Math.floor(m / 1440); m = ((m % 1440) + 1440) % 1440; return { off: off + d, t: ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2) }; }
 function parseTime(txt) { var m = String(txt || '').replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 1632); }).match(/^\s*(\d{1,2})(?:[:.](\d{2}))?\s*$/); if (!m) return null; var h = +m[1], mi = m[2] ? +m[2] : 0; if (h > 23 || mi > 59) return null; return ('0' + h).slice(-2) + ':' + ('0' + mi).slice(-2); }
 function parseDate(txt) {
+  var iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(txt || '').trim()); if (iso) return cOff(+iso[1], +iso[2] - 1, +iso[3]);
   var m = String(txt || '').replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 1632); }).match(/^\s*(\d{1,2})\s*[\/\-\.]\s*(\d{1,2})\s*$/); if (!m) return null;
   var d = +m[1], mo = +m[2]; if (mo < 1 || mo > 12 || d < 1 || d > 31) return null; var y = new Date().getFullYear(), o = cOff(y, mo - 1, d); if (o < 0) o = cOff(y + 1, mo - 1, d); return o;
 }
 /* تاريخ «يوم/شهر» الأقرب: خلال آخر 45 يومًا يُعدّ ماضيًا، وغير ذلك القادم. يرجع yyyy-mm-dd أو null */
 function dateNear(txt) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(txt || '').trim())) return String(txt).trim();
   var m = String(txt || '').replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 1632); }).match(/^\s*(\d{1,2})\s*[\/\-\.]\s*(\d{1,2})\s*$/); if (!m) return null;
   var d = +m[1], mo = +m[2]; if (mo < 1 || mo > 12 || d < 1 || d > 31) return null; var y = new Date().getFullYear(), o = cOff(y, mo - 1, d); if (o < -45) o = cOff(y + 1, mo - 1, d); return cIso(o);
 }
@@ -556,7 +565,7 @@ function calFromForm() {
   var dsel = fv('dsel'), dtxt = fv('dtxt'), off = dsel !== '' ? parseInt(dsel, 10) : (dtxt ? parseDate(dtxt) : null), tNew = fv('tNew').trim(), tp = tNew ? parseTime(tNew) : null;
   return { title: fv('title').trim(), kind: fv('kind') || 'task', off: off, t: tNew ? (tp || '') : fv('t'), tBad: !!tNew && !tp, rep: fv('rep'), rem: fv('rem') || 'at', who: fv('who') || 'p1', party: fv('party').trim(), amt: num('amt'), dir: fv('dir') || 'out', note: fv('note').trim() };
 }
-function calForm(e) { return { title: e.title, kind: e.kind, dsel: '', dtxt: cDay(cFromIso(e.date)) + '/' + (cMon(cFromIso(e.date)) + 1), t: e.t || '', tNew: '', rep: e.rep || '', rem: e.rem || 'at', who: e.who || 'p1', party: e.party || '', amt: e.amt ? String(e.amt) : '', dir: e.dir || 'out', note: e.note || '' }; }
+function calForm(e) { return { title: e.title, kind: e.kind, dsel: '', dtxt: e.date, t: e.t || '', tNew: '', rep: e.rep || '', rem: e.rem || 'at', who: e.who || 'p1', party: e.party || '', amt: e.amt ? String(e.amt) : '', dir: e.dir || 'out', note: e.note || '' }; }
 function calLog(e, what) { e.log = e.log || []; e.log.unshift({ date: today(), what: what }); }
 function doSaveEv(id) {
   var c = calFromForm(), C = calS(), e = id ? E.by(C.ev, id) : null;
@@ -608,8 +617,8 @@ function calSheet(sh) {
       fl.push(fText('title', 'العنوان', 'مثال: دفعة مؤسسة أو توصيل طلبية'));
       fl.push(fChips('kind', 'النوع', [['task', 'مهمة'], ['pay', 'دفعة'], ['order', 'تسليم'], ['event', 'حدث في الأجندة']], cf.kind === 'event' ? 'الحدث علامة على ما جرى أو سيجري: لا يحتاج تنفيذًا ولا يظهر متأخرًا.' : ''));
       if (cf.kind === 'pay') { fl.push(fText('party', 'الجهة', 'مثال: مداد الخير')); fl.push(fText('amt', 'المبلغ بالشيكل (اختياري)', '0', 'decimal')); fl.push(fChips('dir', 'الاتجاه', [['in', 'لنا (نقبضها)'], ['out', 'علينا (ندفعها)']])); }
-      fl.push(fChips('dsel', 'اليوم', days)); fl.push(fText('dtxt', 'أو تاريخ آخر (يوم/شهر)', 'مثال: 25/11', 'text', fv('dtxt') && cf.off == null ? 'اكتب اليوم ثم الشهر، مثل 25/11' : ''));
-      fl.push(fChips('t', 'الوقت', [['', 'بدون وقت'], ['08:00', '8 ص'], ['12:00', '12 ظ'], ['16:00', '4 م'], ['20:00', '8 م']])); fl.push(fText('tNew', 'أو وقت آخر', 'مثال: 14:30', 'text', cf.tBad ? 'اكتب الوقت هكذا: 14:30' : ''));
+      fl.push(fChips('dsel', 'اليوم', days)); fl.push(fDate('dtxt', 'أو اختر من التقويم'));
+      fl.push(fChips('t', 'الوقت', [['', 'بدون وقت'], ['08:00', '8 ص'], ['12:00', '12 ظ'], ['16:00', '4 م'], ['20:00', '8 م']])); fl.push(fTime('tNew', 'أو وقت آخر'));
       fl.push(fChips('rep', 'التكرار', [['', 'لا يتكرر'], ['d', 'يوميًا'], ['w', 'أسبوعيًا'], ['m', 'شهريًا']])); fl.push(fChips('rem', 'التنبيه', [['none', 'بلا تنبيه'], ['at', 'وقت الموعد'], ['1h', 'قبله بساعة'], ['1d', 'قبله بيوم'], ['1d+at', 'قبله بيوم وفي الوقت']]));
       fl.push(fChips('who', 'يخص', people().filter(function (p) { return p.preset !== 'observer' && p.preset !== 'worker'; }).map(function (p) { return [p.id, p.name]; }))); fl.push(fText('note', 'ملاحظة (اختياري)', ''));
       var cfr = cf.off != null ? calFires({ t: cf.t, rem: cf.rem }, cf.off) : [];
@@ -1114,10 +1123,25 @@ function archCheck(k, id) {
   else out.push({ ok: true, title: 'الفحص', sub: 'لا شيء يمنع' });
   return out;
 }
-function doArchive(k, id, why) { var e = E.by(archSrc(k), id); e.arch = true; e.archWhy = why; audit('إنهاء التعامل مع «' + e.name + '» (' + AK[k][1] + '): ' + why); shut(); mutated('أُخفي «' + e.name + '» ويمكن استعادته من الأرشيف'); }
+function stD(x) { return /^\d{4}-\d\d-\d\d$/.test(x || '') ? dlong(x) : (x || ''); }
+function stintRows(e, prior) { // فترات العمل: من... إلى... مع السبب
+  return (e.stints || []).map(function (t) {
+    var done = !!t.to;
+    return X({ icon: 'i-calendar', icTone: done ? 'mute' : 'ok', title: done ? stD(t.from) + ' ← ' + stD(t.to) : 'منذ ' + stD(t.from), sub: t.why || (prior ? 'فترة سابقة' : done ? '' : 'فترة حالية'), tag: prior ? 'سابقة' : done ? '' : 'حالية', tagTone: prior ? 'mute' : 'ok' });
+  });
+}
+function doArchive(k, id, why) {
+  var e = E.by(archSrc(k), id); e.arch = true; e.archWhy = why;
+  e.stints = e.stints || [{ from: 'قبل الأرشفة', to: '' }];
+  var last = e.stints[e.stints.length - 1]; last.to = today(); last.why = why;
+  audit('إنهاء التعامل مع «' + e.name + '» (' + AK[k][1] + '): ' + why); shut(); mutated('أُخفي «' + e.name + '» ويمكن استعادته من الأرشيف');
+}
 function doUnarch(k, id) {
-  var e = E.by(archSrc(k), id); delete e.arch; delete e.archWhy; if (k === 'worker' && num('wage') > 0) e.daily = num('wage');
-  audit('استعادة «' + e.name + '»'); shut(); mutated('استُعيد «' + e.name + '»');
+  var e = E.by(archSrc(k), id), wage = num('wage');
+  delete e.arch; delete e.archWhy;
+  e.stints = e.stints || []; e.stints.push({ from: today(), to: '', why: '' });
+  if (k === 'worker' && wage > 0 && wage !== e.daily) { audit('تعديل يومية «' + e.name + '» من ' + money(e.daily) + ' إلى ' + money(wage)); e.daily = wage; }
+  audit('عودة «' + e.name + '» للعمل وإضافة فترة جديدة إلى سجله'); shut(); mutated('استُعيد «' + e.name + '»');
 }
 function pgAdmin() {
   var bl = [], arch = [];
@@ -1203,8 +1227,10 @@ function adminSheet(sh) {
     }
     case 'unarch': {
       var ue = E.by(archSrc(sh.k), sh.id);
-      R = { title: 'استعادة ' + ue.name, sub: AK[sh.k][1] + ' · ' + (ue.archWhy || 'انتهى التعامل'), fields: sh.k === 'worker' ? [fText('wage', 'اليومية عند العودة (₪)', '0', 'decimal')] : [], note: { text: 'يعود إلى القوائم كما كان، ولا يتأثر شيء من تاريخه.', tone: 'info' },
-        ft: { label: 'استعادة', ok: sh.k !== 'worker' || num('wage') > 0, go: function () { doUnarch(sh.k, sh.id); } } };
+      R = { title: 'عودة: ' + ue.name, sub: AK[sh.k][1] + ' يرجع بسجله القديم كاملًا، وتُضاف فترة جديدة', rows: stintRows(ue, true), empty: (ue.stints && ue.stints.length) ? '' : 'لا فترات مسجّلة قبل الأرشفة',
+        fields: sh.k === 'worker' ? [fText('wage', 'اليومية عند العودة (₪)', String(ue.daily || ''), 'decimal', 'عدّلها إن تغيّرت، وتُسجَّل في سجل التعديلات.')] : [],
+        note: { text: 'لا يُنشأ سجل جديد: كل حساباته وتقاريره السابقة تبقى كما هي.', tone: 'info' },
+        ft: { label: 'تأكيد العودة', ok: sh.k !== 'worker' || num('wage') > 0, go: function () { doUnarch(sh.k, sh.id); } } };
       break;
     }
   }
@@ -1396,7 +1422,7 @@ function repSheet(sh) {
       ft: { label: 'حفظ الخيارات', ok: true, go: function () { var v = {}; RO[sh.k].forEach(function (a) { v[a[0]] = fv(a[0]); }); if (SEC[sh.k]) v.order = secOrder(sh.k, fv('order')).join(','); S.ro = S.ro || {}; S.ro[sh.k] = v; audit('تغيير خيارات تقرير «' + rptName(sh.k) + '»'); shut(); mutated('حُفظت خيارات التقرير وتُطبَّق على كل تصدير قادم'); } } };
   } else if (sh.t === 'repDay') {
     var rdd = dateNear(fv('dtxt'));
-    R = { title: 'تاريخ التقرير', sub: 'اكتب اليوم ثم الشهر', fields: [fText('dtxt', 'التاريخ (يوم/شهر)', 'مثال: 5/11', 'text', fv('dtxt').trim() && !rdd ? 'اكتب اليوم ثم الشهر، مثل 5/11' : '')],
+    R = { title: 'تاريخ التقرير', sub: 'اختر اليوم من التقويم', fields: [fDate('dtxt', 'التاريخ', '', today())],
       note: rdd ? { text: dlabel(rdd), tone: 'info' } : null, ft: { label: 'عرض التقرير', ok: !!rdd && rdd <= today(), go: function () { shut(); setState({ rdate: rdd }); } } };
   } else if (sh.t === 'stockEvery') {
     R = { title: 'دورة تقرير المخزون للمراقب', sub: 'كل كم يوم يُجهَّز تقرير حالة المخزون', fields: [fChips('n', 'كل', [['2', 'يومين'], ['3', '3 أيام'], ['4', '4 أيام'], ['7', 'أسبوع']])],
@@ -1673,13 +1699,13 @@ function pgStock() {
   return bl;
 }
 function pgWorkers() {
-  var m = A.wmode, bl = [], W = activeW(), td = today(), wd = E.wDay(S, td);
+  var m = A.wmode, bl = [], W = activeW(), td = today(), wd = E.wDay(S, td), hol = isHol();
   bl.push(B('seg', { items: [['att', 'الحضور اليوم'], ['acc', 'الحسابات']].map(function (a) {
     return X({ label: a[1], on: m === a[0], go: function () { setState({ wmode: a[0] }); } });
   }) }));
   var owed = W.reduce(function (a, w) { var b = wBal(w); return a + (b > 0 ? b : 0); }, 0);
   bl.push(B('kpi', { items: [
-    X({ label: 'حاضرون', value: wd.present, sub: 'من ' + W.length }),
+    X({ label: 'حاضرون', value: hol ? '—' : wd.present, sub: hol ? 'عطلة اليوم' : 'من ' + W.length }),
     X({ label: 'بلا تسجيل', value: wd.none, sub: 'اليوم', endTone: wd.none ? 'warn' : 'ok' }),
     X({ label: 'مستحق لهم', value: money(owed), sub: 'مجموع الأرصدة' })
   ] }));
@@ -1695,9 +1721,10 @@ function pgWorkers() {
     var ka = (wAtt(a) ? 1 : 0) * 10 + (wBal(a) < 0 ? 0 : 1), kb = (wAtt(b) ? 1 : 0) * 10 + (wBal(b) < 0 ? 0 : 1);
     return (ka - kb) * wm.d;
   });
+  if (hol) bl.push(B('note', { tone: 'info', icon: 'i-calendar', text: 'اليوم عطلة (' + hol.reason + '): لا أجر. لمن عمل رغم العطلة افتح حسابه واختر «إضافة».' }));
   bl.push(B('rows', { title: m === 'att' ? 'سجّل حضور اليوم' : 'أرصدة العمال', sort: sortInfo('workers'), items: wl.map(function (w) {
     var a = wAtt(w), st = a ? stat(a.st) : null, b = wBal(w);
-    if (w.arch) return X({ title: w.name, sub: 'مؤرشف', tag: 'مؤرشف', tagTone: 'mute' });
+    if (w.arch) return X({ title: w.name, sub: 'مؤرشف · ' + (w.archWhy || ''), tag: 'مؤرشف', tagTone: 'mute', chev: true, go: function () { openSh({ t: 'unarch', k: 'worker', id: w.id }, { wage: String(w.daily || '') }); } });
     if (m === 'att') {
       return X({ title: w.name, sub: money(w.daily) + ' يوميًا', tag: st ? st.name : 'لم يُسجَّل', tagTone: st ? st.tone : 'mute',
         end: st && st.id !== 'h' ? money(E.attAmt(a)) : '', chev: true, go: function () { openSh({ t: 'status', wid: w.id }); }, lp: function () { wQa(w); } });
@@ -1850,6 +1877,7 @@ function pgWorker() {
     var t = stat(h.st) || {};
     return X({ title: dlabel(h.date) === 'اليوم' ? 'اليوم' : dlong(h.date).replace(/ \d{4}$/, ''), tag: t.name, tagTone: t.tone, end: h.st === 'h' ? '' : money(E.attAmt(h)) });
   }), empty: 'لا أيام سابقة بعد' }));
+  if (w.stints && w.stints.length) bl.push(B('rows', { title: 'فترات العمل', items: stintRows(w, false) }));
   bl.push(B('btns', { items: [X({ label: 'إرسال كشف الحساب للعامل', icon: 'i-send', go: function () { shareStatement(w); } })] }));
   return bl;
 }
@@ -2169,6 +2197,7 @@ function shDesc() {
       nm = fv('name').trim(); dup = dupOf(S.workers || [], nm);
       R = { title: 'عامل جديد', sub: 'يظهر فورًا في الحضور والحسابات', fields: [fText('name', 'اسم العامل', 'الاسم'), fText('wage', 'اليومية بالشيكل', '50', 'decimal')],
         dup: dupMsg(dup, 'عامل'), ft: { label: 'حفظ العامل', ok: nm.length > 1 && num('wage') > 0 && !dup, go: function () { doAddWorker(sh.then); } } };
+      if (dup && dup.arch) R.add = { label: 'استعادة «' + dup.name + '» وإكمال سجله', go: function () { openSh({ t: 'unarch', k: 'worker', id: dup.id }, { wage: String(dup.daily || '') }); } };
       break;
     }
     case 'entry': {
@@ -2330,10 +2359,11 @@ function shDesc() {
       break;
     }
     case 'bwhen': case 'bdate': {
-      var bwb = sh.t === 'bdate' ? E.by(S.batches, sh.id) : null, bwd = bwDate(), bwf = bwWhen(sh.t === 'bdate'), bwOk = !!bwd && (sh.t !== 'bdate' || (bwd <= today() && !((S.days || {})[bwd] || {}).closed)) && (sh.t === 'bdate' || !(bwd <= today() && ((S.days || {})[bwd] || {}).closed));
-      R = { title: sh.t === 'bdate' ? 'تاريخ الطبخة' : 'متى هذه الطبخة؟', sub: sh.t === 'bdate' ? batchName(bwb) + ' · الآن ' + dlabel(bwb.date) : 'اليوم أو قادمة أو سابقة نسيت تسجيلها', fields: bwf,
-        note: bwd ? { text: bwd > today() ? (sh.t === 'bdate' ? 'الطبخة المسجّلة لا تُنقل إلى المستقبل. للمستقبل أنشئ طبخة جديدة مجدولة.' : 'ستُحفظ مجدولة ولا تُخصم المواد الآن.') : ((S.days || {})[bwd] || {}).closed ? 'هذا اليوم مُغلق.' : 'التاريخ: ' + dlabel(bwd), tone: bwd > today() && sh.t === 'bdate' || ((S.days || {})[bwd] || {}).closed ? 'warn' : 'info' } : null,
-        ft: { label: 'تأكيد التاريخ', ok: bwOk, go: function () { if (sh.t === 'bdate') doSetBatchDate(bwb.id, bwd); else { A.draft.date = bwd; shut(); } } } };
+      var isE = sh.t === 'bdate', bwb = isE ? E.by(S.batches, sh.id) : null, bwd = bwDate(), bwf = bwWhen(isE ? 'edit' : ''), bwCl = !!bwd && !!((S.days || {})[bwd] || {}).closed, canPlan = !isE || !!(bwb && rec(bwb.recipe));
+      var bwFut = !!bwd && bwd > today(), bwOk = !!bwd && !bwCl && (!isE || !bwFut || canPlan);
+      R = { title: isE ? 'تاريخ الطبخة' : 'متى هذه الطبخة؟', sub: isE ? batchName(bwb) + ' · الآن ' + dlabel(bwb.date) : 'اليوم أو قادمة أو سابقة نسيت تسجيلها', fields: bwf,
+        note: bwd ? (bwCl ? { text: 'هذا اليوم مُغلق.', tone: 'warn' } : bwFut ? (isE ? (canPlan ? { text: 'ستتحوّل إلى طبخة مخططة في ' + dlabel(bwd) + '، وتُعاد موادها إلى المخزن الآن وتُخصم عند بدئها في يومها.', tone: 'info' } : { text: 'لا وصفة مرتبطة بهذه الطبخة فلا يمكن جدولتها.', tone: 'warn' }) : { text: 'ستُحفظ مجدولة ولا تُخصم المواد الآن.', tone: 'info' }) : { text: 'التاريخ: ' + dlabel(bwd), tone: 'info' }) : null,
+        ft: { label: isE && bwFut ? 'تحويل إلى طبخة مخططة' : 'تأكيد التاريخ', ok: bwOk, go: function () { if (isE) { if (bwFut) doBatchToPlan(bwb.id, bwd); else doSetBatchDate(bwb.id, bwd); } else { A.draft.date = bwd; shut(); } } } };
       break;
     }
     case 'planDate': {
@@ -2448,9 +2478,9 @@ function rcvDate() {
 function rcvOk(d) { return !!d && d <= today() && (d === today() || !((S.days || {})[d] || {}).closed); }
 function rcvWhen() {
   if (A.form.day === undefined && !A.form.dtxt) A.form.day = '0';
-  var d = rcvDate(), dch = fChips('day', 'تاريخ الحركة', [['0', 'اليوم'], ['-1', 'أمس'], ['-2', 'قبل يومين']]);
+  var dch = fChips('day', 'تاريخ الحركة', [['-2', 'قبل يومين'], ['-1', 'أمس'], ['0', 'اليوم']]);
   dch.chips.forEach(function (c) { var g0 = c.go; c.go = function () { A.form.dtxt = ''; g0(); }; });
-  var dtf = fText('dtxt', 'أو تاريخ آخر (يوم/شهر)', 'مثال: 25/11', 'text', fv('dtxt').trim() && !d ? 'اكتب اليوم ثم الشهر، مثل 25/11' : ''); var di0 = dtf.onInput; dtf.onInput = function (v) { A.form.day = ''; di0(v); };
+  var dtf = fDate('dtxt', 'أو اختر من التقويم', '', today()); var di0 = dtf.onInput; dtf.onInput = function (v) { A.form.day = ''; di0(v); };
   return [dch, dtf];
 }
 function rcvNote(d) { return !d ? null : d > today() ? { text: 'لا يُسجَّل بتاريخ مستقبلي.', tone: 'warn' } : !rcvOk(d) ? { text: 'هذا اليوم مُغلق.', tone: 'warn' } : d !== today() ? { text: 'سيُسجَّل بتاريخ ' + dlabel(d) + '.', tone: 'info' } : null; }
@@ -2480,7 +2510,7 @@ function doIssue(it, l) {
 }
 function doAddWorker(then) {
   var name = fv('name').trim(), wage = num('wage'), id = newId('w', S.workers);
-  S.workers.push({ id: id, name: name, daily: wage });
+  S.workers.push({ id: id, name: name, daily: wage, stints: [{ from: today(), to: '', why: '' }] });
   save();
   if (then) setState({ sh: { t: 'entry', wid: id }, q: '', form: { type: 'دفعة نقدية', amt: '', note: '', sev: 'warn' } }); else { shut(); }
   say('أُضيف العامل «' + name + '»');
@@ -2571,13 +2601,13 @@ function restoreFile(file) {
 /* ---------- الخطة ---------- */
 /* تاريخ الطبخة المخططة: من الأزرار السريعة أو من «يوم/شهر»؛ لا يُخصم شيء إلا عند بدء الطبخة */
 function planDate() {
-  var t = fv('dtxt').trim(); if (t) { var o = parseDate(t); return o == null ? null : cIso(o); }
+  var t = fv('dtxt').trim(); if (t) { var o = parseDate(t); return o == null || o < 0 ? null : cIso(o); }
   var d = fv('day'); return d === '' ? null : dayOff(+d || 0);
 }
 function planWhen() {
-  var pdt = planDate(), dch = fChips('day', 'متى؟', [['0', 'اليوم'], ['1', 'غدًا'], ['2', 'بعد غد'], ['3', 'بعد 3 أيام'], ['7', 'بعد أسبوع']]);
+  var dch = fChips('day', 'متى؟', [['0', 'اليوم'], ['1', 'غدًا'], ['2', 'بعد غد'], ['3', 'بعد 3 أيام'], ['7', 'بعد أسبوع']]);
   dch.chips.forEach(function (c) { var g0 = c.go; c.go = function () { A.form.dtxt = ''; g0(); }; });
-  var dtf = fText('dtxt', 'أو تاريخ آخر (يوم/شهر)', 'مثال: 25/11', 'text', fv('dtxt').trim() && pdt == null ? 'اكتب اليوم ثم الشهر، مثل 25/11' : 'لا يُخصم شيء من المخزن عند التخطيط، بل عند بدء الطبخة في يومها.'); var di0 = dtf.onInput; dtf.onInput = function (v) { A.form.day = ''; di0(v); };
+  var dtf = fDate('dtxt', 'أو اختر من التقويم', today(), '', 'لا يُخصم شيء من المخزن عند التخطيط، بل عند بدء الطبخة في يومها.'); var di0 = dtf.onInput; dtf.onInput = function (v) { A.form.day = ''; di0(v); };
   return [dch, dtf];
 }
 /* تاريخ الطبخة في المعالج وفي تعديل طبخة قائمة */
@@ -2585,11 +2615,23 @@ function bwDate() {
   var t = fv('dtxt').trim(); if (t) return dateNear(t);
   var d = fv('day'); return d === '' ? null : dayOff(+d || 0);
 }
-function bwWhen(past) {
-  var bwd = bwDate(), opts = [['-1', 'أمس'], ['0', 'اليوم']].concat(past ? [['-2', 'قبل يومين']] : [['1', 'غدًا'], ['2', 'بعد غد'], ['3', 'بعد 3 أيام'], ['7', 'بعد أسبوع']]);
+/* mode: 'past' (تسجيل طبخة سابقة) | 'edit' (تعديل تاريخ طبخة مسجّلة: أمس/اليوم/غدًا، والغد يحوّلها إلى مخططة) | غير ذلك (طبخة جديدة) */
+function bwWhen(mode) {
+  var bwd = bwDate(), opts = mode === 'edit' ? [['-1', 'أمس'], ['0', 'اليوم'], ['1', 'غدًا']] : [['-1', 'أمس'], ['0', 'اليوم']].concat(mode === 'past' ? [['-2', 'قبل يومين']] : [['1', 'غدًا'], ['2', 'بعد غد'], ['3', 'بعد 3 أيام'], ['7', 'بعد أسبوع']]);
   var dch = fChips('day', 'متى؟', opts); dch.chips.forEach(function (c) { var g0 = c.go; c.go = function () { A.form.dtxt = ''; g0(); }; });
-  var dtf = fText('dtxt', 'أو تاريخ آخر (يوم/شهر)', 'مثال: 25/11', 'text', fv('dtxt').trim() && bwd == null ? 'اكتب اليوم ثم الشهر، مثل 25/11' : ''); var di0 = dtf.onInput; dtf.onInput = function (v) { A.form.day = ''; di0(v); };
+  var dtf = fDate('dtxt', 'أو اختر من التقويم', '', mode === 'past' ? today() : ''); var di0 = dtf.onInput; dtf.onInput = function (v) { A.form.day = ''; di0(v); };
   return [dch, dtf];
+}
+/* تحويل طبخة مسجّلة إلى طبخة مخططة في تاريخ قادم: تُعاد موادها الآن وتُخصم عند بدئها في يومها */
+function doBatchToPlan(id, dt) {
+  var b = E.by(S.batches, id), r = rec(b.recipe), over = {}, del = {}, extra = [], inR = {};
+  r.lines.forEach(function (l) { inR[l.item] = 1; });
+  b.lines.forEach(function (l) { over[l.item] = l.qty; if (!inR[l.item]) extra.push({ item: l.item, qty: l.qty }); });
+  r.lines.forEach(function (l) { if (!b.lines.some(function (x) { return x.item === l.item; })) del[l.item] = true; });
+  var inst = E.by(S.insts || [], b.inst);
+  E.voidBatch(S, id, today());
+  S.plans = S.plans || []; S.plans.push({ id: newId('p', S.plans), date: dt, recipeId: r.id, pots: b.pots, kind: b.kind, inst: b.inst || '', init: !!(inst && inst.init), portions: b.portions || '', over: over, del: del, extra: extra });
+  audit('تحويل «' + batchName(b) + '» إلى طبخة مخططة ليوم ' + dlabel(dt)); shut(); mutated('صارت «' + batchName(b) + '» طبخة مخططة ' + dlabel(dt) + '، وأُعيدت موادها الآن');
 }
 function doAddPlan(r, pots) {
   S.plans = S.plans || []; var k = fv('kind') || (r.kinds.indexOf('private') >= 0 ? 'private' : 'external'), dt = planDate();
