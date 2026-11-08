@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.13';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.14';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -40,7 +40,7 @@ var DB = null, saveT = null;
 function idb() { return new Promise(function (res) { try { var r = indexedDB.open('kitchen', 1); r.onupgradeneeded = function () { r.result.createObjectStore('kv'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; } catch (e) { res(null); } }); }
 function dbGet(k) { return new Promise(function (res) { if (!DB) return res(null); var q = DB.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); }
 function dbPut(k, v) { return new Promise(function (res) { if (!DB) return res(); var t = DB.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = res; }); }
-function save() { clearTimeout(saveT); saveT = setTimeout(function () { var j = JSON.stringify(S); dbPut('state', j); try { localStorage.setItem('kitchen_state_bak', j); } catch (e) {} }, 150); }
+function save() { clearTimeout(saveT); if (typeof syncSoon === 'function') syncSoon(); saveT = setTimeout(function () { var j = JSON.stringify(S); dbPut('state', j); try { localStorage.setItem('kitchen_state_bak', j); } catch (e) {} }, 150); }
 function load() {
   return idb().then(function (d) { DB = d; return dbGet('state'); }).then(function (j) {
     if (!j) { try { j = localStorage.getItem('kitchen_state_bak'); } catch (e) {} }
@@ -2433,7 +2433,7 @@ function pgToday() {
     var b = wBal(w);
     if (b < 0) att.push({ rank: 3, row: X({ icon: 'i-wallet', icTone: 'warn', title: w.name + ' ' + balTxt(b), sub: 'دفعات أكثر من المستحق', chev: true, go: function () { open('worker', { wid: w.id }); } }) });
   });
-  extAttn(att);
+  extAttn(att); syncAttn(att);
   if (!S.settings.openingDone) att.push({ rank: 0.5, row: X({ icon: 'i-box', icTone: 'warn', title: 'الأرصدة الافتتاحية', sub: 'راجع الأرقام المعبّأة من الشيت ثم اعتمدها', tag: 'لم تُعتمد', tagTone: 'warn', chev: true, go: function () { open('opening'); } }) });
   if (hasData() && backupDays() >= 3) att.push({ rank: 0.6, row: X({ icon: 'i-doc', icTone: 'warn', title: 'نسخة احتياطية', sub: S.settings.lastBackup ? 'آخر نسخة قبل ' + pl(backupDays(), 'يوم', 'يومين', 'أيام') : 'لم تُصدَّر نسخة بعد: احفظها خارج الهاتف', tag: 'احفظ نسخة', tagTone: 'warn', chev: true, go: function () { exportBackup(); } }) });
   if (di.reopened) att.push({ rank: 0.2, row: X({ icon: 'i-lock', icTone: 'warn', title: 'اليوم مُعاد فتحه للتصحيح', sub: 'أغلقه ليصل المراقب التقرير المعدَّل', tag: 'مفتوح', tagTone: 'warn', chev: true, go: function () { openSh({ t: 'close' }); } }) });
@@ -2613,6 +2613,7 @@ function pgMore() {
     X({ icon: 'i-lock', icTone: 'bad', title: 'الأرشيف والإدارة', sub: 'للمدير التنفيذي: إنهاء التعامل، استعادة، سجل التعديلات', chev: true, go: function () { open('admin'); } }),
     X({ icon: 'i-lock', icTone: 'mute', title: 'إغلاق اليوم', sub: isClosed() ? 'أُغلق اليوم' : 'قائمة تحقق قبل الإغلاق', chev: true, go: function () { openSh({ t: 'close' }); } })
   ] }), B('rows', { title: 'هذا الجهاز', items: [
+    X({ icon: 'i-wifi', icTone: 'info', title: 'الحساب والمزامنة', sub: syncSub(), tag: syncTag().t, tagTone: syncTag().tone, chev: true, go: function () { openSh({ t: 'sync' }, { email: '', pw: '' }); } }),
     X({ icon: 'i-box', icTone: 'warn', title: 'الأرصدة الافتتاحية', sub: S.settings.openingDone ? 'اعتُمدت: يمكنك مراجعتها' : 'لم تُعتمد بعد: راجع المعبّأ من الشيت', tag: S.settings.openingDone ? '' : 'مطلوب', tagTone: 'warn', chev: true, go: function () { open('opening'); } }),
     X({ icon: 'i-doc', icTone: 'info', title: 'نسخة احتياطية', sub: S.settings.lastBackup ? 'آخر نسخة قبل ' + pl(backupDays(), 'يوم', 'يومين', 'أيام') + ' · شاركها أو احفظها خارج الهاتف' : 'لم تُصدَّر بعد: احفظ نسخة خارج الهاتف', chev: true, go: function () { exportBackup(); } }),
     X({ icon: 'i-doc', icTone: 'mute', title: 'استعادة نسخة احتياطية', sub: 'تستبدل بيانات هذا الجهاز بما في ملف النسخة', chev: true, go: function () { openSh({ t: 'restore' }); } }),
@@ -3321,7 +3322,7 @@ function shDesc() {
       break;
     }
     case 'search': R = searchSheet(); break;
-    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || initSheet(sh) || smartSheet(sh) || batchxSheet(sh) || extSheet(sh) || { title: '' };
+    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || initSheet(sh) || smartSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || { title: '' };
   }
   return R;
 }
@@ -3615,7 +3616,7 @@ function onBack() {
 
 /* ---------- البدء ---------- */
 load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeMoney).then(function () { return bkAdd('auto'); }).then(loadProposal).then(loadExtProposal).then(function () {
-  UI.mount($('app'), shell); render();
+  UI.mount($('app'), shell); render(); syncStart();
   if (lsj('ahd_daily', false)) armDaily().catch(function () {}); // يُعاد جدولة التنبيه عند كل فتح
   armCal();
   if (P.App && P.App.addListener) P.App.addListener('backButton', onBack);
@@ -3624,7 +3625,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { back: goBack, state: function () { return S; }, ui: function () { return A; }, render: render };
+window.__kitchen = { back: goBack, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
@@ -3654,6 +3655,118 @@ function checkUpdate(force) {
       say('تحديث ' + v.ver + ' جاهز: يعمل عند فتح التطبيق في المرة القادمة');
     });
   }).catch(function () { if (force) say('تعذّر فحص التحديث، حاول لاحقًا'); });
+}
+
+/* ===== 06v-sync.js ===== */
+/* ---------- المزامنة بين الأجهزة (Supabase): نسخة كاملة بمراجعة رقمية وحماية من التعارض ----------
+   المفتاح العلني (publishable) علني بطبيعته؛ الحماية في صلاحيات القاعدة. لا تُحفظ كلمة السر: الجلسة فقط. */
+var SYNC_URL = (function () { try { return localStorage.getItem('kitchen_sync_url'); } catch (e) { return ''; } })() || 'https://cwylaspgbeqlazwordxo.supabase.co', SYNC_KEY = 'sb_publishable_VN4Zs0NHVkTC_mW6jgmQ9w_be2Fmgyl';
+var SYNC_SK = 'kitchen_sync_sess', SYNCBUSY = false, SYNCMSG = '', SYNC_T = 0;
+function syncNative() { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
+function syncDevice() { return syncNative() ? 'الهاتف' : 'الويب'; }
+function syncSess() { try { return JSON.parse(localStorage.getItem(SYNC_SK) || 'null'); } catch (e) { return null; } }
+function syncSetSess(s) { try { if (s) localStorage.setItem(SYNC_SK, JSON.stringify(s)); else localStorage.removeItem(SYNC_SK); } catch (e) {} }
+function syncHead(tok) { return { apikey: SYNC_KEY, Authorization: 'Bearer ' + (tok || SYNC_KEY), 'Content-Type': 'application/json' }; }
+function syncStore(j) { return { access_token: j.access_token, refresh_token: j.refresh_token, exp: Date.now() + (j.expires_in || 3600) * 1000 - 60000, email: (j.user && j.user.email) || (syncSess() || {}).email || '' }; }
+function syncLogin(email, pw) {
+  return fetch(SYNC_URL + '/auth/v1/token?grant_type=password', { method: 'POST', headers: syncHead(), body: JSON.stringify({ email: email, password: pw }) })
+    .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error_description || j.msg || 'فشل الدخول'); return j; }); })
+    .then(function (j) { syncSetSess(syncStore(j)); });
+}
+function syncToken() {
+  var s = syncSess(); if (!s) return Promise.reject(new Error('no-session'));
+  if (Date.now() < s.exp) return Promise.resolve(s.access_token);
+  return fetch(SYNC_URL + '/auth/v1/token?grant_type=refresh_token', { method: 'POST', headers: syncHead(), body: JSON.stringify({ refresh_token: s.refresh_token }) })
+    .then(function (r) { return r.json().then(function (j) { if (!r.ok) { syncSetSess(null); throw new Error('انتهت الجلسة: ادخل من جديد'); } return j; }); })
+    .then(function (j) { var n = syncStore(j); n.email = s.email; syncSetSess(n); return n.access_token; });
+}
+function syncApi(path, opt) {
+  return syncToken().then(function (tok) {
+    opt = opt || {}; opt.headers = syncHead(tok);
+    return fetch(SYNC_URL + path, opt).then(function (r) { return r.text().then(function (t) { var j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {} if (!r.ok) { var m = (j && (j.message || j.error_description)) || t || 'خطأ'; throw new Error(m); } return j; }); });
+  });
+}
+/* بصمة محتوى البيانات (بدون حقول المزامنة نفسها) */
+function syncPayload() { var c = JSON.parse(JSON.stringify(S)); Object.keys(c.settings || {}).forEach(function (k) { if (k.indexOf('sync') === 0) delete c.settings[k]; }); return c; }
+function syncHash(txt) { var h = 5381; for (var i = 0; i < txt.length; i++) h = ((h << 5) + h + txt.charCodeAt(i)) | 0; return String(h) + ':' + txt.length; }
+function syncDirty(txt) { return syncHash(txt) !== (S.settings.syncHash || ''); }
+function syncMark(rev, txt) { S.settings.syncRev = rev; S.settings.syncHash = syncHash(txt); S.settings.syncAt = Date.now(); S.settings.syncConflict = 0; save(); }
+function syncPull(rev, data) {
+  var keep = {}; Object.keys(S.settings || {}).forEach(function (k) { if (k.indexOf('sync') === 0) keep[k] = S.settings[k]; });
+  return bkAdd('pre').then(function () {
+    var prev = S;
+    try { S = data; S.settings = Object.assign(S.settings || {}, keep); runMigrations(); } catch (er) { S = prev; throw er; }
+    syncMark(rev, JSON.stringify(syncPayload())); resetCaches(); OPV = null; return mergeHistory().then(mergeMoney).then(function () { render(); });
+  });
+}
+function syncNow(manual) {
+  if (SYNCBUSY || !S || !syncSess()) return Promise.resolve();
+  if (!navigator.onLine) { SYNCMSG = 'لا اتصال'; return Promise.resolve(); }
+  SYNCBUSY = true;
+  var txt = JSON.stringify(syncPayload()), base = S.settings.syncRev || 0, dirty = syncDirty(txt);
+  return syncApi('/rest/v1/app_state?id=eq.1&select=rev,device,updated_at').then(function (rows) {
+    var rem = rows && rows[0] ? rows[0] : null, rr = rem ? rem.rev : 0;
+    if (!rem) { // الخادم فارغ: نرفع ما عندنا إن كان فيه بيانات
+      if (!hasData() && !manual) return;
+      return syncApi('/rest/v1/rpc/push_state', { method: 'POST', body: JSON.stringify({ p_base: 0, p_data: JSON.parse(txt), p_device: syncDevice() }) }).then(function (rev) { syncMark(rev, txt); SYNCMSG = 'رُفعت بياناتك'; });
+    }
+    if (rr === base) {
+      if (!dirty) { S.settings.syncAt = Date.now(); SYNCMSG = 'متزامن'; return; }
+      return syncApi('/rest/v1/rpc/push_state', { method: 'POST', body: JSON.stringify({ p_base: base, p_data: JSON.parse(txt), p_device: syncDevice() }) }).then(function (rev) { syncMark(rev, txt); SYNCMSG = 'رُفع آخر تعديل'; });
+    }
+    // الخادم أحدث
+    if (!dirty || (!hasData() && base === 0)) {
+      return syncApi('/rest/v1/app_state?id=eq.1&select=rev,data').then(function (r2) { return syncPull(r2[0].rev, r2[0].data); }).then(function () { SYNCMSG = 'وصلت تحديثات من ' + (rem.device || 'جهاز آخر'); });
+    }
+    S.settings.syncConflict = rr; save(); SYNCMSG = 'تعارض: عدّلتَ هنا وعلى جهاز آخر'; render();
+  }).catch(function (er) { SYNCMSG = (er && er.message) || 'تعذّرت المزامنة'; if (/conflict/.test(SYNCMSG)) { S.settings.syncConflict = -1; save(); SYNCMSG = 'تعارض: عدّلتَ هنا وعلى جهاز آخر'; } if (manual) say(SYNCMSG); })
+    .then(function () { SYNCBUSY = false; if (manual && SYNCMSG && !/تعارض/.test(SYNCMSG)) say(SYNCMSG); try { render(); } catch (e) {} });
+}
+function syncSoon() { if (!syncSess()) return; clearTimeout(SYNC_T); SYNC_T = setTimeout(function () { syncNow(false); }, 8000); }
+function syncStart() {
+  if (!syncSess()) return;
+  syncNow(false);
+  window.addEventListener('online', function () { syncNow(false); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) syncNow(false); });
+  setInterval(function () { if (!document.hidden) syncNow(false); }, 60000);
+}
+function syncTag() { var s = syncSess(); return !s ? { t: 'غير مفعّل', tone: 'mute' } : S.settings.syncConflict ? { t: 'تعارض', tone: 'bad' } : { t: 'مفعّل', tone: 'ok' }; }
+function syncSub() { var s = syncSess(); if (!s) return 'ادخل بحسابك ليتزامن الهاتف والويب تلقائيًا'; return s.email + (S.settings.syncAt ? ' · آخر مزامنة ' + new Date(S.settings.syncAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) : '') + (SYNCMSG ? ' · ' + SYNCMSG : ''); }
+function syncAttn(att) { if (syncSess() && S.settings.syncConflict) att.push({ rank: 0.1, row: X({ icon: 'i-clock', icTone: 'bad', title: 'تعارض في المزامنة', sub: 'عدّلتَ هنا وعلى جهاز آخر: اختر أي نسخة تُعتمد', tag: 'اختر', tagTone: 'bad', chev: true, go: function () { openSh({ t: 'syncc' }); } }) }); }
+function doSyncLogin() {
+  var em = fv('email').trim(), pw = fv('pw'); if (!em || !pw) { say('اكتب البريد وكلمة السر'); return; }
+  say('جارٍ الدخول…'); syncLogin(em, pw).then(function () { A.form.pw = ''; shut(); syncStart(); return syncNow(true); }).catch(function (er) { say((er && er.message) || 'فشل الدخول'); });
+}
+function doSyncOut() { syncSetSess(null); S.settings.syncConflict = 0; save(); shut(); mutated('خرجتَ من الحساب. تبقى بياناتك على هذا الجهاز'); }
+function doSyncChoose(mine) {
+  var txt = JSON.stringify(syncPayload()); shut();
+  if (mine) {
+    syncApi('/rest/v1/app_state?id=eq.1&select=rev').then(function (r) { var rev = r && r[0] ? r[0].rev : 0; return syncApi('/rest/v1/rpc/push_state', { method: 'POST', body: JSON.stringify({ p_base: rev, p_data: JSON.parse(txt), p_device: syncDevice() }) }); })
+      .then(function (rev) { syncMark(rev, txt); mutated('اعتُمدت نسخة هذا الجهاز'); }).catch(function (er) { say((er && er.message) || 'تعذّر الحفظ'); });
+  } else {
+    syncApi('/rest/v1/app_state?id=eq.1&select=rev,data').then(function (r) { return syncPull(r[0].rev, r[0].data); }).then(function () { say('اعتُمدت نسخة الخادم. لقطة بيانات هذا الجهاز محفوظة في «لقطات تلقائية»'); }).catch(function (er) { say((er && er.message) || 'تعذّر السحب'); });
+  }
+}
+function syncSheet(sh) {
+  if (sh.t === 'sync') {
+    var s = syncSess();
+    if (!s) {
+      var pw = fText('pw', 'كلمة السر', '', 'text'); pw.itype = 'password';
+      return { title: 'الحساب والمزامنة', sub: 'ادخل مرة واحدة على كل جهاز', fields: [fText('email', 'البريد', 'name@example.com', 'email'), pw],
+        note: { text: 'تُحفظ الجلسة فقط ولا تُحفظ كلمة السر. بعد الدخول يتزامن التطبيق تلقائيًا مع كل اتصال بالإنترنت.', tone: 'info' },
+        ft: { label: 'دخول', ok: !!(fv('email').trim() && fv('pw')), go: doSyncLogin } };
+    }
+    return { title: 'الحساب والمزامنة', sub: s.email,
+      rows: [X({ icon: 'i-check', icTone: S.settings.syncConflict ? 'bad' : 'ok', title: S.settings.syncConflict ? 'تعارض بانتظار قرارك' : SYNCMSG || 'متزامن', sub: (S.settings.syncAt ? 'آخر مزامنة ' + new Date(S.settings.syncAt).toLocaleString('ar') : 'لم تتم بعد') + ' · مراجعة ' + (S.settings.syncRev || 0) }),
+        X({ title: 'ما يُزامَن', sub: 'كل بيانات التطبيق. الصور تبقى على الجهاز الذي التُقطت عليه' })],
+      ft: { label: 'مزامنة الآن', ok: true, go: function () { syncNow(true); } }, ft2: { label: 'تسجيل الخروج', go: doSyncOut } };
+  }
+  if (sh.t === 'syncc') {
+    return { title: 'تعارض في المزامنة', sub: 'عدّلتَ هنا وعلى جهاز آخر',
+      rows: [X({ icon: 'i-clock', icTone: 'bad', title: 'اختر النسخة التي تُعتمد', sub: 'الأخرى تُحفظ لقطة قبل أن تُستبدل، فلا يضيع شيء' })],
+      ft: { label: 'اعتماد نسخة هذا الجهاز', ok: true, go: function () { doSyncChoose(true); } }, ft2: { label: 'اعتماد نسخة الخادم', go: function () { doSyncChoose(false); } } };
+  }
+  return null;
 }
 
 })();
