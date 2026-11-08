@@ -74,7 +74,7 @@
     (o.lines || []).forEach(function (l) {
       if (!(l.qty > 0)) return;
       var it = by(s.items, l.item); if (!it) throw new Error('صنف غير معروف: ' + l.item);
-      var src = splitQty(s, order, l.item, l.qty);
+      var src = splitQty(s, l.fill === false ? order.slice(0, 1) : order, l.item, l.qty); /* fill===false: النقص يبقى سالبًا في المخزن الأول ولا يُكمَل من غيره */
       if (l.mkt && src.ext) { src.mkt = src.ext; delete src.ext; } /* اشتُري مباشرة من السوق: لا يُخصم من المخزن الخارجي لكنه يُحتسب في التكلفة */
       var price = l.price != null ? l.price : it.price || 0, lc = 0;
       Object.keys(src).forEach(function (led) {
@@ -112,7 +112,7 @@
     Object.keys(items).forEach(function (item) {
       var it = by(s.items, item); if (!it) throw new Error('صنف غير معروف: ' + item);
       var old = {}; b.order.forEach(function (l) { old[l] = net[l + '|' + item] || 0; });
-      var q = want[item] || 0, src = q > 0 ? splitQty(s, b.order, item, q, old) : {}, mk = meta[item] || {};
+      var q = want[item] || 0, mk = meta[item] || {}, src = q > 0 ? splitQty(s, mk.fill === false ? b.order.slice(0, 1) : b.order, item, q, old) : {};
       if (mk.mkt && src.ext) { src.mkt = src.ext; delete src.ext; }
       var price = (b.lines.filter(function (l) { return l.item === item; })[0] || {}).price;
       if (price == null) price = it.price || 0;
