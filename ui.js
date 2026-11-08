@@ -1,0 +1,137 @@
+/* طبقة الواجهة: تعرض قوالب التصميم المعتمد كما هي (design/m1-m3) ببيانات التطبيق الحقيقية.
+   لا أنماط هنا: كل الأنماط داخل القوالب نفسها. */
+(function () {
+'use strict';
+var T = { ok: ['#DFF1E7', '#14563A'], warn: ['#FFF1D6', '#6B3F00'], bad: ['#FDE7E4', '#8E1B10'], info: ['#E6EBFA', '#243C8F'], mute: ['#ECEEEA', '#46504B'] };
+var noop = function () {};
+
+/* ---- عنصر عام وكتلة (نفس مفاتيح التصميم) ---- */
+function X(o) {
+  var tg = T[o.tagTone] || T.mute, ic = T[o.icTone] || T.mute, tn = T[o.tone], on = !!o.on;
+  return {
+    title: o.title || '', sub: o.sub || '', hasSub: !!o.sub,
+    tag: o.tag || '', hasTag: !!o.tag, tagBg: tg[0], tagFg: tg[1],
+    end: o.end || '', endSub: o.endSub || '', endSub2: o.endSub2 || '', hasEnd: !!(o.end || o.endSub), hasEndSub: !!o.endSub, hasEndSub2: !!o.endSub2,
+    endFg: o.endTone ? T[o.endTone][1] : '#1B2421',
+    icon: o.icon || 'i-dot', hasIcon: !!o.icon, icBg: ic[0], icFg: ic[1],
+    chev: !!o.chev, go: o.go || noop, lp: o.lp ? function (e) { if (e && e.preventDefault) e.preventDefault(); o.lp(); } : noop, isBtn: !o.step, isStep: !!o.step, ph: !!o.ph,
+    minus: o.minus || noop, plus: o.plus || noop, edit: o.edit || noop, val: o.val == null ? '' : String(o.val), unit: o.unit || '',
+    warn: o.warn || '', hasWarn: !!o.warn,
+    rbg: o.rbg || (o.sel ? '#EAF5EE' : '#FFFFFF'), sel: !!o.sel,
+    label: o.label || '', value: o.value == null ? '' : String(o.value),
+    on: on, count: o.count == null ? '' : String(o.count), hasCount: o.count != null,
+    segBg: on ? '#FFFFFF' : 'transparent', segFg: on ? '#14563A' : '#46504B', segSh: on ? '0 1px 3px rgba(0,0,0,.14)' : 'none',
+    bg: on ? '#1B2421' : (tn ? tn[0] : '#FFFFFF'), fg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
+    bd: on ? '#1B2421' : (tn ? tn[1] : 'rgba(27,36,33,.22)')
+  };
+}
+function B(t, o) {
+  o = o || {};
+  var tn = T[o.tone] || T.info, pick = t === 'pick', unfilled = o.filled === false;
+  return {
+    isKpi: t === 'kpi', isSeg: t === 'seg', isChips: t === 'chips', isRows: t === 'rows', isGrid: t === 'grid', isNote: t === 'note',
+    isPaper: t === 'paper', pap: o.pap || { org: '', title: '', date: '', sub: '', lead: '', hasLead: false, hasTiles: false, tiles: [], secs: [], notes: [], foot: '' },
+    isMonth: t === 'month', mon: o.mon || { title: '', prev: noop, next: noop, head: [], cells: [] },
+    isBig: t === 'big', isBtns: t === 'btns', isPre: t === 'pre', isPick: pick, isStepper: t === 'stepper', isInput: t === 'input',
+    items: o.items || [],
+    hasSort: !!o.sort, sortLabel: o.sort ? o.sort.label : '', sortRot: o.sort && o.sort.asc ? 'rotate(180deg)' : 'none', sortGo: o.sort ? o.sort.go : noop,
+    title: o.title || '', hasTitle: !!o.title, actLabel: o.act || '', hasAct: !!o.act, actGo: o.actGo || noop,
+    emptyText: o.empty || '', hasEmpty: !!o.empty && !(o.items && o.items.length),
+    text: o.text || '', label: o.label || '', value: o.value == null ? '' : String(o.value),
+    bg: tn[0], fg: pick ? (unfilled ? '#5B6660' : '#1B2421') : tn[1], icon: o.icon || 'i-alert',
+    go: o.go || noop, minus: o.minus || noop, plus: o.plus || noop, edit: o.edit || noop, onInput: o.onInput || noop, ph: o.ph || '', mode: o.mode || 'text',
+    bd: unfilled ? 'rgba(27,36,33,.35)' : 'rgba(27,36,33,.12)'
+  };
+}
+
+/* ---- محرك القوالب (sc-if / sc-for / {{مسار}}) ---- */
+var tplRoot = null, handlers = [];
+function parseTpl() {
+  if (tplRoot) return;
+  var t = document.createElement('template'); t.innerHTML = window.UI_TPL; tplRoot = t.content;
+}
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function escA(s) { return esc(s).replace(/"/g, '&quot;'); }
+function look(scope, path) {
+  var p = path.trim().split('.'), v = scope;
+  for (var i = 0; i < p.length; i++) { if (v == null) return undefined; v = v[p[i]]; }
+  return v;
+}
+function interp(str, scope) {
+  return str.replace(/\{\{([^}]+)\}\}/g, function (_, e) { var v = look(scope, e); return v == null ? '' : String(v); });
+}
+var VOID = { input: 1, br: 1, hr: 1, img: 1 };
+function walk(node, scope) {
+  var out = '', c;
+  if (node.nodeType === 3) return esc(interp(node.nodeValue, scope));
+  if (node.nodeType !== 1) return '';
+  var tag = node.localName;
+  if (tag === 'sc-if') {
+    var m = /^\{\{([^}]+)\}\}$/.exec(node.getAttribute('value') || ''), v = m ? look(scope, m[1]) : false;
+    if (v) for (c = node.firstChild; c; c = c.nextSibling) out += walk(c, scope);
+    return out;
+  }
+  if (tag === 'sc-for') {
+    var lm = /^\{\{([^}]+)\}\}$/.exec(node.getAttribute('list') || ''), list = lm ? look(scope, lm[1]) : [], as = node.getAttribute('as');
+    (list || []).forEach(function (it) {
+      var s2 = Object.create(scope); s2[as] = it;
+      for (c = node.firstChild; c; c = c.nextSibling) out += walk(c, s2);
+    });
+    return out;
+  }
+  var attrs = '';
+  for (var i = 0; i < node.attributes.length; i++) {
+    var a = node.attributes[i], n = a.name, val = a.value;
+    if (n.indexOf('hint-placeholder') === 0) continue;
+    if (n === 'oncontextmenu') { /* ضغطة مطوّلة: تُربط فقط للصفوف التي لها إجراءات */
+      var mc = /^\{\{([^}]+)\}\}$/.exec(val), fc = mc ? look(scope, mc[1]) : null;
+      if (typeof fc === 'function' && fc !== noop) { handlers.push(fc); attrs += ' data-hc="' + (handlers.length - 1) + '"'; }
+      continue;
+    }
+    if (n === 'onclick' || n === 'oninput') {
+      var mm = /^\{\{([^}]+)\}\}$/.exec(val), fn = mm ? look(scope, mm[1]) : null;
+      if (typeof fn === 'function') { handlers.push(fn); attrs += ' data-' + (n === 'onclick' ? 'h' : 'hi') + '="' + (handlers.length - 1) + '"'; }
+      continue;
+    }
+    attrs += ' ' + n + '="' + escA(interp(val, scope)) + '"';
+  }
+  if (VOID[tag]) return '<' + tag + attrs + '>';
+  for (c = node.firstChild; c; c = c.nextSibling) out += walk(c, scope);
+  return '<' + tag + attrs + '>' + out + '</' + tag + '>';
+}
+
+/* ---- العرض مع حفظ التركيز والتمرير ---- */
+var root = null, getProps = null, lastPK = null, lastSK = null;
+function render() {
+  if (!root) return;
+  parseTpl(); handlers = [];
+  var props = getProps(), ae = document.activeElement, keep = ae && ae.getAttribute && ae.getAttribute('data-hi'), pos = null;
+  if (keep != null) { try { pos = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} }
+  var scr = [].map.call(root.querySelectorAll('[style*="overflow-y:auto"]'), function (e) { return e.scrollTop; });
+  /* تمرير الصفحة يُصفَّر عند تغيّر الصفحة، وتمرير النافذة عند تغيّر النافذة */
+  var pk = props.pageKey, sk = props.shKey;
+  if (pk !== lastPK) { scr[0] = 0; } if (sk !== lastSK) { for (var si = 1; si < scr.length; si++) scr[si] = 0; if (props.shOn === false) scr.length = Math.min(scr.length, 1); }
+  lastPK = pk; lastSK = sk;
+  var out = '';
+  for (var c = tplRoot.firstChild; c; c = c.nextSibling) out += walk(c, props);
+  root.innerHTML = out;
+  [].forEach.call(root.querySelectorAll('[style*="overflow-y:auto"]'), function (e, i) { if (scr[i] != null) e.scrollTop = scr[i]; });
+  if (keep != null) { var el = root.querySelector('[data-hi="' + keep + '"]'); if (el) { el.focus(); try { if (pos) el.setSelectionRange(pos[0], pos[1]); } catch (e) {} } }
+}
+function mount(el, props) {
+  root = el; getProps = props;
+  root.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-h]'); if (!t) return;
+    var f = handlers[+t.getAttribute('data-h')]; if (f) f(e);
+  });
+  root.addEventListener('contextmenu', function (e) {
+    var t = e.target.closest('[data-hc]'); if (!t) return;
+    var f = handlers[+t.getAttribute('data-hc')]; if (f) f(e);
+  });
+  root.addEventListener('input', function (e) {
+    var t = e.target.closest('[data-hi]'); if (!t) return;
+    var f = handlers[+t.getAttribute('data-hi')]; if (f) f(t.value);
+  });
+}
+window.UI = { T: T, X: X, B: B, mount: mount, render: render, noop: noop };
+})();
