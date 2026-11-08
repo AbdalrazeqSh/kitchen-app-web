@@ -101,9 +101,10 @@ function walk(node, scope) {
 }
 
 /* ---- العرض مع حفظ التركيز والتمرير ---- */
-var root = null, getProps = null, lastPK = null, lastSK = null;
+var root = null, getProps = null, lastPK = null, lastSK = null, typing = false, typTimer = 0;
 function render() {
   if (!root) return;
+  if (typing) return; /* أثناء الكتابة لا نعيد رسم الشاشة مع كل حرف (يُبطئ الكتابة ويُفلت الأحرف): تُرسم بعد توقف قصير */
   parseTpl(); handlers = [];
   var props = getProps(), ae = document.activeElement, keep = ae && ae.getAttribute && ae.getAttribute('data-hi'), pos = null;
   if (keep != null) { try { pos = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} }
@@ -132,7 +133,9 @@ function mount(el, props) {
   });
   root.addEventListener('input', function (e) {
     var t = e.target.closest('[data-hi]'); if (!t) return;
-    var f = handlers[+t.getAttribute('data-hi')]; if (f) guard(f, t.value);
+    var f = handlers[+t.getAttribute('data-hi')]; if (!f) return;
+    typing = true; try { guard(f, t.value); } finally { typing = false; }
+    clearTimeout(typTimer); typTimer = setTimeout(render, 250);
   });
 }
 var UI = window.UI = { T: T, X: X, B: B, mount: mount, render: render, noop: noop, onError: null };
