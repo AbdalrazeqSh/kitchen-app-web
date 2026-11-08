@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.10';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.11';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2588,7 +2588,7 @@ function pgMore() {
     X({ icon: 'i-clock', icTone: 'info', title: 'لقطات تلقائية', sub: bkSub(), chev: true, go: function () { openSh({ t: 'snaps' }); } }),
     X({ icon: 'i-lock', icTone: 'mute', title: 'سجل الأخطاء', sub: ERRS.length ? pl(ERRS.length, 'خطأ واحد', 'خطآن', 'أخطاء') + ' مسجّلة' : 'لا أخطاء مسجّلة', tag: ERRS.length ? String(ERRS.length) : '', tagTone: 'bad', chev: true, go: function () { openSh({ t: 'errlog' }); } }),
     X({ icon: 'i-clock', icTone: 'mute', title: 'تنبيه الثامنة صباحًا', sub: lsj('ahd_daily', false) ? 'مفعّل ويُعاد ضبطه عند كل فتح' : 'غير مفعّل', tag: lsj('ahd_daily', false) ? 'مفعّل' : 'متوقف', tagTone: lsj('ahd_daily', false) ? 'ok' : 'warn', chev: true, go: function () { openSh({ t: 'daily' }); } }),
-    X({ icon: 'i-lock', icTone: 'mute', title: 'عن التطبيق', sub: 'المطبخ · الإصدار ' + VERSION + (updPending() ? ' · تحديث ' + updPending() + ' جاهز: أغلق التطبيق وافتحه' : '') + ' · البيانات محفوظة على هذا الجهاز', chev: false })
+    X({ icon: 'i-lock', icTone: 'mute', title: 'عن التطبيق', sub: 'المطبخ · الإصدار ' + VERSION + (updPending() ? ' · تحديث ' + updPending() + ' جاهز: أغلق التطبيق وافتحه' : '') + ' · البيانات محفوظة على هذا الجهاز', chev: false, go: function () { checkUpdate(true); } })
   ] })];
 }
 
@@ -3606,11 +3606,14 @@ function updPending() { try { var u = JSON.parse(localStorage.getItem(UPD_K) || 
 function checkUpdate(force) {
   var base = ''; try { base = localStorage.getItem('kitchen_upd_url') || UPD_URL; } catch (e) { base = UPD_URL; }
   var native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()), hook = false; try { hook = !!localStorage.getItem('kitchen_upd_url'); } catch (e) {}
-  if (!(native || hook)) return Promise.resolve(); // في المتصفح والاختبارات لا يُجلب شيء إلا بتحديد عنوان تجريبي صراحةً
-  if (!base || !navigator.onLine || !window.crypto || !crypto.subtle) return Promise.resolve();
-  try { if (!force && Date.now() - (+localStorage.getItem('kitchen_upd_chk') || 0) < 6 * 36e5) return Promise.resolve(); localStorage.setItem('kitchen_upd_chk', String(Date.now())); } catch (e) { return Promise.resolve(); }
+  if (!(native || hook)) { if (force) say('التحديث الصامت يعمل داخل التطبيق على الهاتف'); return Promise.resolve(); } // في المتصفح والاختبارات لا يُجلب شيء إلا بتحديد عنوان تجريبي صراحةً
+  if (!base || !navigator.onLine || !window.crypto || !crypto.subtle) { if (force) say('لا اتصال بالإنترنت الآن'); return Promise.resolve(); }
+  try { if (!force && Date.now() - (+localStorage.getItem('kitchen_upd_chk') || 0) < 30 * 6e4) return Promise.resolve(); localStorage.setItem('kitchen_upd_chk', String(Date.now())); } catch (e) { return Promise.resolve(); }
   return fetch(base + 'version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('v'); return r.json(); }).then(function (v) {
-    if (!v || !v.ver || !v.files || vcmp(v.ver, VERSION) <= 0 || vcmp(window.PKG_VER || '0.0.0', v.minPkg || '0.0.0') < 0 || updPending() === v.ver) return;
+    if (!v || !v.ver || !v.files) return;
+    if (vcmp(window.PKG_VER || '0.0.0', v.minPkg || '0.0.0') < 0) { if (force) say('الإصدار ' + v.ver + ' يحتاج تثبيت APK جديد'); return; }
+    if (updPending() === v.ver) { if (force) say('التحديث ' + v.ver + ' جاهز: أغلق التطبيق وافتحه'); return; }
+    if (vcmp(v.ver, VERSION) <= 0) { if (force) say('أنت على أحدث إصدار (' + VERSION + ')'); return; }
     var names = Object.keys(v.files);
     return Promise.all(names.map(function (n) {
       return fetch(base + n + '?v=' + v.ver, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(n); return r.text(); }).then(function (t) { return sha256hex(t).then(function (h) { if (h !== v.files[n]) throw new Error('hash ' + n); return [n, t]; }); });
@@ -3619,7 +3622,7 @@ function checkUpdate(force) {
       localStorage.setItem(UPD_K, JSON.stringify({ ver: v.ver, f: f })); localStorage.removeItem(UPD_K + '_bad');
       say('تحديث ' + v.ver + ' جاهز: يعمل عند فتح التطبيق في المرة القادمة');
     });
-  }).catch(function () {});
+  }).catch(function () { if (force) say('تعذّر فحص التحديث، حاول لاحقًا'); });
 }
 
 })();
