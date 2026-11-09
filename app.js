@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.38';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.39';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1742,7 +1742,7 @@ function orderSheet(sh) {
     case 'draftNew': {
       var lid = fv('led') || (led(A.led) && !led(A.led).arch ? A.led : 'kitchen'), ps = parseOrder(fv('otxt')), bad = ps.filter(function (x) { return x.flag || !x.item || !(x.qty > 0); }).length, rw = rcvWhen(), rdt = rcvDate();
       R = { title: 'مسودة توريد', sub: 'الصق نص الطلبية الواردة: سطر لكل صنف',
-        fields: [fText('dsrc', 'المصدر ورقم الطلبية (اختياري)', 'مثال: WCK RQ24574'), fArea('otxt', 'نص الطلبية', 'رز | 25 | كيلو | 4.5\nسكر 10 كيلو\nزيت 8 لتر 12'), fChips('led', 'تُسجَّل في', ledgers().map(function (x) { return [x.id, x.name]; })), rw[0], rw[1]],
+        fields: [fText('dsrc', 'المصدر ورقم الطلبية (اختياري)', 'مثال: WCK RQ24574'), fArea('otxt', 'نص الطلبية', 'رز | 25 | كيلو | 4.5\nسكر 10 كيلو\nزيت 8 لتر 12'), fChips('led', 'تُسجَّل في', ledgers().map(function (x) { return [x.id, x.name]; })), rw[0]],
         note: { text: ps.length ? 'فُهم ' + pl(ps.length, 'سطر واحد', 'سطران', 'أسطر') + (bad ? '، منها ' + bad + ' تحتاج مراجعتك.' : ' وكلها جاهزة للمراجعة.') : 'اكتب الصنف ثم الكمية والوحدة، والسعر اختياريًا. صيغ مقبولة: «رز | 25 | كيلو | 4.5» أو «رز 25 كيلو» أو «25 كيلو رز». ما لم يُفهم تختاره بنفسك في الخطوة التالية.', tone: ps.length && !bad ? 'ok' : 'info' },
         ft: { label: 'تجهيز المسودة', ok: ps.length > 0 && !!rdt, go: function () { if (!A.form.led) A.form.led = lid; doNewDraft(); } } };
       break;
@@ -1777,7 +1777,7 @@ function orderSheet(sh) {
     }
     case 'dmeta': {
       d = draftOf(sh.did); var rw2 = rcvWhen(), dd = rcvDate();
-      R = { title: 'مكان وتاريخ التوريد', sub: 'يُطبَّقان على كل أسطر المسودة', fields: [fChips('led', 'المخزن', ledgers().map(function (x) { return [x.id, x.name]; })), rw2[0], rw2[1]], note: rcvNote(dd),
+      R = { title: 'مكان وتاريخ التوريد', sub: 'يُطبَّقان على كل أسطر المسودة', fields: [fChips('led', 'المخزن', ledgers().map(function (x) { return [x.id, x.name]; })), rw2[0]], note: rcvNote(dd),
         ft: { label: 'حفظ', ok: !!dd && dd <= today(), go: function () { d.led = fv('led') || d.led; d.date = dd; shut(); mutated('حُدّث مكان المسودة وتاريخها'); } } };
       break;
     }
@@ -2868,7 +2868,7 @@ function batchRow(b) {
     go: function () { openSh({ t: 'bview', id: b.id }); },
     lp: function () {
       var a = [['فتح الطبخة', 'i-pot', function () { openSh({ t: 'bview', id: b.id }); }]];
-      if (!b.void) { a.push(['تغيير تاريخ الطبخة', 'i-calendar', function () { openSh({ t: 'bdate', id: b.id }, { day: '', dtxt: '' }); }]); if (b.kind === 'private') a.push(['توزيع القدور', 'i-users', function () { openSh({ t: 'dist', id: b.id }, distForm(b)); }]); }
+      if (!b.void) { a.push(['تغيير تاريخ الطبخة', 'i-calendar', function () { openSh({ t: 'bdate', id: b.id }, { day: '', dtxt: b.date }); }]); if (b.kind === 'private') a.push(['توزيع القدور', 'i-users', function () { openSh({ t: 'dist', id: b.id }, distForm(b)); }]); }
       qa(batchName(b), dlabel(b.date), a);
     }
   });
@@ -3472,7 +3472,7 @@ function shDesc() {
       fl.push(fChips('unitMode', 'الوحدة المستلمة', [['base', it.unit]].concat(pks.map(function (p, i) { return ['p' + i, p.name + ' · ' + fmt(p.n) + ' ' + it.unit]; }))));
       fl.push(fText('qty', 'الكمية المستلمة', '0', 'decimal'));
       if (paid) fl.push(fText('price', 'سعر ' + it.unit + ' (اختياري)', 'الآن ' + fmt(it.price || 0), 'decimal', 'يحدّث آخر سعر شراء، وتُحسب به الطبخات القادمة.'));
-      var rdw = rcvWhen(), rd = rcvDate(), ral = rcvAlerts(it, lid, r3(rq), num('price')); fl.push(rdw[0]); fl.push(rdw[1]); fl.push(fPhoto('صورة فاتورة المورّد (اختياري)'));
+      var rdw = rcvWhen(), rd = rcvDate(), ral = rcvAlerts(it, lid, r3(rq), num('price')); fl.push(rdw[0]); fl.push(fPhoto('صورة فاتورة المورّد (اختياري)'));
       R = { title: 'استلام: ' + it.name, sub: 'الرصيد الآن ' + fmt(cur0) + ' ' + it.unit, fields: fl,
         note: rcvNote(rd) || (ral.notes.length ? { text: ral.notes.join('. ') + '.', tone: 'warn' } : { text: rq > 0 ? 'الرصيد بعد الاستلام: ' + fmt(cur0 + rq) + ' ' + it.unit + (pim > 0 ? '. وسيصبح هذا الحجم هو الحجم الحالي للصنف.' : '') : '', tone: 'info' }),
         ft: { label: ral.dup ? 'تسجيل الاستلام رغم التشابه' : 'تسجيل الاستلام', ok: rq > 0 && rcvOk(rd), go: function () { doRecv(it, lid); } } };
@@ -3495,7 +3495,7 @@ function shDesc() {
       if (ap.length) afl.push(fChips('unitMode', 'الوحدة', [['base', it.unit]].concat(ap.map(function (p, i) { return ['p' + i, p.name + ' · ' + fmt(p.n) + ' ' + it.unit]; }))));
       afl.push(fText('qty', ac.how === 'cnt' ? 'الرصيد الفعلي بعد العدّ' : 'الكمية', '0', 'decimal'));
       afl.push(fText('note', 'ملاحظة (اختياري)', 'مثال: انتهت صلاحيته'));
-      var adw = rcvWhen(), ad = rcvDate(); afl.push(adw[0]); afl.push(adw[1]);
+      var adw = rcvWhen(), ad = rcvDate(); afl.push(adw[0]);
       var aOk = ac.dq !== 0 && rcvOk(ad) && ac.after >= 0 && (ac.how === 'cnt' || !!ac.wn);
       R = { title: 'تسوية: ' + it.name, sub: 'الرصيد المسجّل ' + fmt(ac.bal) + ' ' + it.unit + ' في ' + led(al).name, fields: afl,
         note: rcvNote(ad) || (ac.dq ? { text: (ac.dq > 0 ? 'يزيد ' : 'ينقص ') + fmt(Math.abs(ac.dq)) + ' ' + it.unit + (ac.wn ? ' (' + ac.wn + ')' : '') + ' · الرصيد بعد التسوية ' + fmt(ac.after) + ' ' + it.unit + (ac.after < 0 ? ' — أكبر من الرصيد الموجود' : '') + '. لا تُحسب استهلاكًا في التقارير.', tone: ac.after < 0 ? 'warn' : 'info' } : (ac.how === 'cnt' && fv('qty') !== '' ? { text: 'الرصيد الفعلي مطابق للمسجّل: لا حاجة لتسوية.', tone: 'ok' } : null)),
@@ -3655,7 +3655,7 @@ function shDesc() {
         ft: unc ? { label: 'تأكيد الكميات كما هي', ok: true, go: function () { doConfirmBatch(b.id); } } : canEdit ? { label: 'تعديل الكميات', ok: true, go: function () { startEdit(b); } } : { label: 'إغلاق', ok: true, go: function () { shut(); } },
         ft2: unc ? (canEdit ? { label: 'تعديل الكميات', go: function () { startEdit(b); } } : null) : b.void ? null : { label: 'إلغاء الطبخة', go: function () { openSh({ t: 'voidB', id: b.id }); } } };
       if (!b.void) {
-        bacts.push(X({ title: 'التاريخ', icon: 'i-calendar', go: function () { openSh({ t: 'bdate', id: b.id }, { day: '', dtxt: '' }); } }));
+        bacts.push(X({ title: 'التاريخ', icon: 'i-calendar', go: function () { openSh({ t: 'bdate', id: b.id }, { day: '', dtxt: b.date }); } }));
         if (b.kind === 'private') bacts.push(X({ title: distLeft(b) > 0 ? 'التوزيع · ' + fmt(distLeft(b)) : 'التوزيع', icon: 'i-users', go: function () { openSh({ t: 'dist', id: b.id }, distForm(b)); } }));
         bacts.push(X({ title: 'الأصناف والأسعار', icon: 'i-pencil', go: function () { fixOpen(b); } }));
         bacts.push(X({ title: 'نسخة للشيف', icon: 'i-send', go: function () { shareChefBatch(b); } }));
@@ -3773,8 +3773,8 @@ function shDesc() {
         break;
       }
       var pr = rec(sh.rec), pp = Math.max(0, parseInt(fv('pots'), 10) || 0), shortN = pp ? planShort({ recipeId: pr.id, pots: pp }) : 0;
-      var pdt = planDate(), pw = planWhen(), dch = pw[0], dtf = pw[1];
-      var pf = [dch, dtf, fText('pots', 'عدد القدور', '3', 'numeric')];
+      var pdt = planDate(), pw = planWhen(), dch = pw[0];
+      var pf = [dch, fText('pots', 'عدد القدور', '3', 'numeric')];
       if (pr.kinds.length === 2) pf.push(fChips('kind', 'النوع', [['private', 'طبخ'], ['external', 'طبخ خارجي']]));
       R = { title: pr.name, sub: (pdt ? dlabel(pdt) : 'اختر التاريخ') + ' · ' + (pp ? pl(pp, 'قدر واحد', 'قدران', 'قدور') : 'اكتب عدد القدور'), fields: pf,
         note: pp ? { text: shortN ? 'يوجد ' + pl(shortN, 'صنف واحد ينقص', 'صنفان ينقصان', 'أصناف تنقص') + ' عن هذه الطبخة وحدها بحسب الرصيد الآن.' : 'المواد الحالية تكفي هذه الطبخة.', tone: shortN ? 'warn' : 'ok' } : null,
@@ -3798,7 +3798,7 @@ function shDesc() {
     case 'planView': {
       var pv = E.by(S.plans, sh.id), prv = rec(pv.recipeId), sc = E.scaleRecipe(prv, pv.pots, pv);
       var aft = planAfter(pv), isPriv = (pv.kind || 'private') === 'private';
-      var pacts = [X({ title: 'التاريخ', icon: 'i-calendar', go: function () { openSh({ t: 'planDate', id: pv.id }, { day: '', dtxt: '' }); } })];
+      var pacts = [X({ title: 'التاريخ', icon: 'i-calendar', go: function () { openSh({ t: 'planDate', id: pv.id }, { day: '', dtxt: pv.date }); } })];
       if (isPriv) pacts.push(X({ title: 'التوزيع', icon: 'i-users', go: function () { var f = {}, d0 = pv.dist || {}; bens().forEach(function (g) { f['d_' + g.id] = d0[g.id] ? String(d0[g.id]) : ''; }); openSh({ t: 'pdist', id: pv.id }, f); } }));
       pacts.push(X({ title: 'تعديل', icon: 'i-pencil', go: function () { editPlan(pv); } }));
       pacts.push(X({ title: 'ملخص الشيف', icon: 'i-image', go: function () { shareChefPlan(pv); } }));
@@ -3906,11 +3906,8 @@ function rcvDate() {
 }
 function rcvOk(d) { return !!d && d <= today() && (d === today() || !((S.days || {})[d] || {}).closed); }
 function rcvWhen() {
-  if (A.form.day === undefined && !A.form.dtxt) A.form.day = '0';
-  var dch = fChips('day', 'تاريخ الحركة', [['-2', 'قبل يومين'], ['-1', 'أمس'], ['0', 'اليوم']]);
-  dch.chips.forEach(function (c) { var g0 = c.go; c.go = function () { A.form.dtxt = ''; g0(); }; });
-  var dtf = fDate('dtxt', 'أو اختر من التقويم', '', today()); var di0 = dtf.onInput; dtf.onInput = function (v) { A.form.day = ''; di0(v); };
-  return [dch, dtf];
+  if (!fv('dtxt')) A.form.dtxt = fv('day') !== '' && fv('day') !== undefined && fv('day') !== null ? dayOff(+fv('day') || 0) : today();
+  return [fDate('dtxt', 'تاريخ الحركة', '', today())];
 }
 function rcvNote(d) { return !d ? null : d > today() ? { text: 'لا يُسجَّل بتاريخ مستقبلي.', tone: 'warn' } : !rcvOk(d) ? { text: 'هذا اليوم مُغلق.', tone: 'warn' } : d !== today() ? { text: 'سيُسجَّل بتاريخ ' + dlabel(d) + '.', tone: 'info' } : null; }
 function doRecv(it, l) {
@@ -4026,14 +4023,12 @@ function restoreFile(file) {
 /* ---------- الخطة ---------- */
 /* تاريخ الطبخة المخططة: من الأزرار السريعة أو من «يوم/شهر»؛ لا يُخصم شيء إلا عند بدء الطبخة */
 function planDate() {
-  var t = fv('dtxt').trim(); if (t) { var o = parseDate(t); return o == null || o < 0 ? null : cIso(o); }
+  var t = fv('dtxt').trim(); if (t) { var d1 = dateNear(t); return d1 && d1 >= today() ? d1 : null; }
   var d = fv('day'); return d === '' ? null : dayOff(+d || 0);
 }
 function planWhen() {
-  var dch = fChips('day', 'متى؟', [['0', 'اليوم'], ['1', 'غدًا'], ['2', 'بعد غد'], ['3', 'بعد 3 أيام'], ['7', 'بعد أسبوع']]);
-  dch.chips.forEach(function (c) { var g0 = c.go; c.go = function () { A.form.dtxt = ''; g0(); }; });
-  var dtf = fDate('dtxt', 'أو اختر من التقويم', today(), '', 'لا يُخصم شيء من المخزن عند التخطيط، بل عند بدء الطبخة في يومها.'); var di0 = dtf.onInput; dtf.onInput = function (v) { A.form.day = ''; di0(v); };
-  return [dch, dtf];
+  if (!fv('dtxt')) A.form.dtxt = dayOff(fv('day') === '' || fv('day') == null ? 1 : (+fv('day') || 0));
+  return [fDate('dtxt', 'تاريخ الطبخة', today(), '', 'لا يُخصم شيء من المخزن عند التخطيط، بل عند بدء الطبخة في يومها.')];
 }
 /* تاريخ الطبخة في المعالج وفي تعديل طبخة قائمة */
 function bwDate() {
@@ -4042,10 +4037,8 @@ function bwDate() {
 }
 /* mode: 'past' (تسجيل طبخة سابقة) | 'edit' (تعديل تاريخ طبخة مسجّلة: أمس/اليوم/غدًا، والغد يحوّلها إلى مخططة) | غير ذلك (طبخة جديدة) */
 function bwWhen(mode) {
-  var bwd = bwDate(), opts = mode === 'edit' ? [['-1', 'أمس'], ['0', 'اليوم'], ['1', 'غدًا']] : [['-1', 'أمس'], ['0', 'اليوم']].concat(mode === 'past' ? [['-2', 'قبل يومين']] : [['1', 'غدًا'], ['2', 'بعد غد'], ['3', 'بعد 3 أيام'], ['7', 'بعد أسبوع']]);
-  var dch = fChips('day', 'متى؟', opts); dch.chips.forEach(function (c) { var g0 = c.go; c.go = function () { A.form.dtxt = ''; g0(); }; });
-  var dtf = fDate('dtxt', 'أو اختر من التقويم', '', mode === 'past' ? today() : ''); var di0 = dtf.onInput; dtf.onInput = function (v) { A.form.day = ''; di0(v); };
-  return [dch, dtf];
+  if (!fv('dtxt')) A.form.dtxt = fv('day') === '' || fv('day') == null ? today() : dayOff(+fv('day') || 0);
+  return [fDate('dtxt', 'تاريخ الطبخة', '', mode === 'past' ? today() : '')];
 }
 /* تحويل طبخة مسجّلة إلى طبخة مخططة في تاريخ قادم: تُعاد موادها الآن وتُخصم عند بدئها في يومها */
 function doBatchToPlan(id, dt) {
