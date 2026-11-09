@@ -20,6 +20,12 @@
     for (var i = 0; i < s.moves.length; i++) { var m = s.moves[i]; if (m.led === led && m.item === item && m.kind !== 'hist') t += m.q; }
     return r3(t);
   }
+  /* الرصيد في نهاية يوم معين (الحركات حتى ذلك التاريخ فقط) */
+  function balanceAt(s, led, item, date) {
+    var t = 0;
+    for (var i = 0; i < s.moves.length; i++) { var m = s.moves[i]; if (m.led === led && m.item === item && m.kind !== 'hist' && m.date <= date) t += m.q; }
+    return r3(t);
+  }
   function balances(s, led) {
     var o = {};
     s.moves.forEach(function (m) { if (m.led === led && m.kind !== 'hist') o[m.item] = (o[m.item] || 0) + m.q; });
@@ -225,7 +231,7 @@
     return out;
   }
 
-  return { r2: r2, r3: r3, isFree: isFree, by: by, newState: newState, balance: balance, balances: balances, addMove: addMove, setOpening: setOpening,
+  return { r2: r2, r3: r3, isFree: isFree, by: by, newState: newState, balance: balance, balanceAt: balanceAt, balances: balances, addMove: addMove, setOpening: setOpening,
     receive: receive, planOrder: planOrder, splitQty: splitQty, wInit: wInit, attOn: attOn, setAtt: setAtt, wEntry: wEntry, wDue: wDue, wBalance: wBalance, wSum: wSum, wDay: wDay, attAmt: attAmt, STATS: STATS, recordBatch: recordBatch, editBatch: editBatch, setBatchDate: setBatchDate, voidBatch: voidBatch, batchNet: batchNet, shortages: shortages, history: history, usage: usage,
     coverageDays: coverageDays, scaleRecipe: scaleRecipe };
 });
