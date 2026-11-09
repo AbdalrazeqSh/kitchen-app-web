@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.16';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.17';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2525,6 +2525,9 @@ function pgToday() {
   var bn = buyList(); if (bn.length) att.push({ rank: 2.8, row: X({ icon: 'i-truck', icTone: 'warn', title: 'قائمة المشتريات', sub: pl(bn.length, 'صنف واحد ينقص', 'صنفان ينقصان', 'أصناف تنقص') + ' للأيام القادمة', chev: true, go: function () { openSh({ t: 'buy' }); } }) });
   var aw = assetAttention();
   if (aw.length) att.push({ rank: 3, row: X({ icon: 'i-box', icTone: 'warn', title: 'الموجودات: ' + pl(aw.length, 'نوع واحد يحتاج', 'نوعان يحتاجان', 'أنواع تحتاج') + ' انتباهًا', sub: aw.filter(function (a) { return a.bad > 0; }).length + ' فيها معطّل · ' + aw.filter(aStale).length + ' يلزم جردها', tag: 'الموجودات', tagTone: 'warn', chev: true, go: function () { open('assets'); } }) });
+  var hid = S.settings.attHide || {}, td0 = today();
+  att = att.filter(function (a) { return hid[a.row.title] !== td0; });
+  att.forEach(function (a) { var k = a.row.title; a.row.hasX = true; a.row.xGo = function () { S.settings.attHide = S.settings.attHide || {}; S.settings.attHide[k] = td0; Object.keys(S.settings.attHide).forEach(function (z) { if (S.settings.attHide[z] !== td0) delete S.settings.attHide[z]; }); mutated('أُخفي التنبيه حتى الغد', function () { delete S.settings.attHide[k]; save(); render(); }); }; });
   att.sort(function (a, b) { return a.rank - b.rank; });
   var ALIM = 3, aOpen = !!A.attOpen, aItems = (aOpen ? att : att.slice(0, ALIM)).map(function (a) { return a.row; });
   if (att.length > ALIM) aItems.push(X({ icon: aOpen ? 'i-minus' : 'i-chevD', icTone: 'mute', title: aOpen ? 'طيّ القائمة' : 'عرض ' + (att.length - ALIM) + ' أخرى', sub: aOpen ? '' : 'مرتّبة بالأهمية', chev: false, go: function () { setState({ attOpen: !aOpen }); } }));
