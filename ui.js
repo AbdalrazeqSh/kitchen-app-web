@@ -15,7 +15,7 @@ function X(o) {
     hasCols: !!o.c1, c0: o.c0 || '', c1: o.c1 || '', c1s: o.c1s || '', c2: o.c2 || '', c2s: o.c2s || '', c2Fg: o.c2Tone ? T[o.c2Tone][1] : '#1B2421',
     endFg: o.endTone ? T[o.endTone][1] : '#1B2421',
     icon: o.icon || 'i-dot', hasIcon: !!o.icon, icBg: ic[0], icFg: ic[1],
-    chev: !!o.chev, go: o.go || noop, lp: o.lp ? function (e) { if (e && e.preventDefault) e.preventDefault(); o.lp(); } : noop, isBtn: !o.step, isStep: !!o.step, ph: !!o.ph,
+    chev: !!o.chev, hasGo: !!o.go, cur: o.go ? 'pointer' : 'default', go: o.go || noop, lp: o.lp ? function (e) { if (e && e.preventDefault) e.preventDefault(); o.lp(); } : noop, isBtn: !o.step, isStep: !!o.step, ph: !!o.ph,
     minus: o.minus || noop, plus: o.plus || noop, edit: o.edit || noop, val: o.val == null ? '' : String(o.val), unit: o.unit || '',
     warn: o.warn || '', hasWarn: !!o.warn, hasHintGo: !!o.hintGo, hintTxt: o.hintTxt || '', hintGo: o.hintGo || noop, hasX: !!o.x, xGo: o.x ? function (e) { if (e && e.stopPropagation) e.stopPropagation(); o.x(); } : noop,
     rbg: o.rbg || (o.sel ? '#EAF5EE' : '#FFFFFF'), sel: !!o.sel,
@@ -89,6 +89,11 @@ function walk(node, scope) {
       if (typeof fc === 'function' && fc !== noop) { handlers.push(fc); attrs += ' data-hc="' + (handlers.length - 1) + '"'; }
       continue;
     }
+    if (n === 'onkeydown' || n === 'onmousedown') {
+      var mk = /^\{\{([^}]+)\}\}$/.exec(val), fk = mk ? look(scope, mk[1]) : null;
+      if (typeof fk === 'function' && fk !== noop) { handlers.push(fk); attrs += ' data-' + (n === 'onkeydown' ? 'hk' : 'hm') + '="' + (handlers.length - 1) + '"'; }
+      continue;
+    }
     if (n === 'onclick' || n === 'oninput') {
       var mm = /^\{\{([^}]+)\}\}$/.exec(val), fn = mm ? look(scope, mm[1]) : null;
       if (typeof fn === 'function') { handlers.push(fn); attrs += ' data-' + (n === 'onclick' ? 'h' : 'hi') + '="' + (handlers.length - 1) + '"'; }
@@ -108,7 +113,7 @@ function render() {
   if (typing) return; /* أثناء الكتابة لا نعيد رسم الشاشة مع كل حرف (يُبطئ الكتابة ويُفلت الأحرف): تُرسم بعد توقف قصير */
   parseTpl(); handlers = [];
   var props = getProps(), ae = document.activeElement, keep = ae && ae.getAttribute && ae.getAttribute('data-hi'), pos = null;
-  if (keep != null) { try { pos = [ae.selectionStart, ae.selectionEnd]; } catch (e) {} }
+  if (keep != null) { try { pos = [ae.selectionStart, ae.selectionEnd]; if (pos[0] === ae.value.length && pos[1] === pos[0]) pos = 'end'; } catch (e) {} }
   var scr = [].map.call(root.querySelectorAll('[style*="overflow-y:auto"]'), function (e) { return e.scrollTop; });
   /* تمرير الصفحة يُصفَّر عند تغيّر الصفحة، وتمرير النافذة عند تغيّر النافذة */
   var pk = props.pageKey, sk = props.shKey;
@@ -118,7 +123,7 @@ function render() {
   for (var c = tplRoot.firstChild; c; c = c.nextSibling) out += walk(c, props);
   root.innerHTML = out;
   [].forEach.call(root.querySelectorAll('[style*="overflow-y:auto"]'), function (e, i) { if (scr[i] != null) e.scrollTop = scr[i]; });
-  if (keep != null) { var el = root.querySelector('[data-hi="' + keep + '"]'); if (el) { el.focus(); try { if (pos) el.setSelectionRange(pos[0], pos[1]); } catch (e) {} } }
+  if (keep != null) { var el = root.querySelector('[data-hi="' + keep + '"]'); if (el) { el.focus(); try { if (pos === 'end') el.setSelectionRange(el.value.length, el.value.length); else if (pos) el.setSelectionRange(pos[0], pos[1]); } catch (e) {} } }
 }
 /* كل معالج نقر/إدخال داخل غلاف آمن: الخطأ يُسجَّل ويُعرض بدل أن يضيع بصمت */
 function guard(f, a) { try { f(a); } catch (er) { if (UI.onError) UI.onError(er); else throw er; } }
@@ -132,6 +137,13 @@ function mount(el, props) {
     var t = e.target.closest('[data-hc]'); if (!t) return;
     var f = handlers[+t.getAttribute('data-hc')]; if (f) guard(f, e);
   });
+  root.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return; var t = e.target.closest('[data-hk]'); if (!t) return;
+    var f = handlers[+t.getAttribute('data-hk')]; if (f) { e.preventDefault(); guard(f, e); }
+  });
+  root.addEventListener('mousedown', function (e) {
+    var t = e.target.closest('[data-hm]'); if (t) e.preventDefault(); /* يبقي التركيز في الخانة فلا تُغلق لوحة المفاتيح */
+  });
   root.addEventListener('input', function (e) {
     var t = e.target.closest('[data-hi]'); if (!t) return;
     var f = handlers[+t.getAttribute('data-hi')]; if (!f) return;
@@ -139,5 +151,6 @@ function mount(el, props) {
     clearTimeout(typTimer); typTimer = setTimeout(render, 250);
   });
 }
+try { var st = document.createElement('style'); st.textContent = '.fw{position:relative}.fw .cs{display:none;position:absolute;bottom:100%;right:0;margin-bottom:4px;z-index:20;background:#F3F4F1;padding:6px;border-radius:999px;box-shadow:0 6px 18px rgba(27,36,33,.22)}.fw:focus-within .cs{display:flex}'; document.head.appendChild(st); } catch (e) {}
 var UI = window.UI = { T: T, X: X, B: B, mount: mount, render: render, noop: noop, onError: null };
 })();
