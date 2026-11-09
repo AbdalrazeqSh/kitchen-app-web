@@ -3,6 +3,7 @@
 (function () {
 'use strict';
 var T = { ok: ['#DFF1E7', '#14563A'], warn: ['#FFF1D6', '#6B3F00'], bad: ['#FDE7E4', '#8E1B10'], info: ['#E6EBFA', '#243C8F'], mute: ['#ECEEEA', '#46504B'] };
+var SOL = { ok: '#14563A', bad: '#B3261E', warn: '#8A5A00', info: '#243C8F' }; /* لون الزر الأساسي/المحدّد حسب وظيفته: أخضر الهوية افتراضيًا، أحمر للصرف، إلخ */
 var noop = function () {};
 
 /* ---- عنصر عام وكتلة (نفس مفاتيح التصميم) ---- */
@@ -22,8 +23,8 @@ function X(o) {
     label: o.label || '', value: o.value == null ? '' : String(o.value),
     on: on, count: o.count == null ? '' : String(o.count), hasCount: o.count != null,
     segBg: on ? '#FFFFFF' : 'transparent', segFg: on ? '#14563A' : '#46504B', segSh: on ? '0 1px 3px rgba(0,0,0,.14)' : 'none',
-    bg: on ? '#1B2421' : (tn ? tn[0] : '#FFFFFF'), fg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
-    bd: on ? '#1B2421' : (tn ? tn[1] : 'rgba(27,36,33,.22)')
+    bg: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[0] : '#FFFFFF'), fg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
+    bd: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[1] : 'rgba(27,36,33,.22)')
   };
 }
 function B(t, o) {
@@ -33,7 +34,7 @@ function B(t, o) {
     isKpi: t === 'kpi', isSeg: t === 'seg', isChips: t === 'chips', isRows: t === 'rows', isGrid: t === 'grid', isNote: t === 'note',
     isPaper: t === 'paper', pap: o.pap || { org: '', title: '', date: '', sub: '', lead: '', hasLead: false, hasTiles: false, tiles: [], secs: [], notes: [], foot: '' },
     isMonth: t === 'month', mon: o.mon || { title: '', prev: noop, next: noop, head: [], cells: [] },
-    isBig: t === 'big', isBtns: t === 'btns', isPre: t === 'pre', isPick: pick, isStepper: t === 'stepper', isInput: t === 'input',
+    isBig: t === 'big', isBtns: t === 'btns', isActs: t === 'acts', isPre: t === 'pre', isPick: pick, isStepper: t === 'stepper', isInput: t === 'input',
     items: o.items || [],
     hasSort: !!o.sort, sortLabel: o.sort ? o.sort.label : '', sortRot: o.sort && o.sort.asc ? 'rotate(180deg)' : 'none', sortGo: o.sort ? o.sort.go : noop,
     title: o.title || '', hasTitle: !!o.title, actLabel: o.act || '', hasAct: !!o.act, actGo: o.actGo || noop,
