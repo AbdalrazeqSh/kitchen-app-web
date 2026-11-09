@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.35';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.36';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1445,7 +1445,7 @@ function doXfer() {
   var o = { id: mid(S.fm, 'm'), date: d, h: f.id, dir: 'out', cur: cur, amt: a, ils: 0, rate: 0, note: 'تحويل إلى ' + t.name, x: true };
   if (cur === 'usd' && dc === 'ils') { o.ils = got; o.rate = r3(got / a); }
   phTag(o, phTake()); S.fm.push(o);
-  var i2 = { id: mid(S.fm, 'm'), date: d, h: t.id, dir: 'in', cur: dc, amt: got, ils: 0, rate: 0, note: 'تحويل من ' + f.name + (dc === cur && got < a ? ' · بعد عمولة ' + fTxt(cur, r2(a - got)) : ''), x: true, pair: o.id };
+  var i2 = { id: mid(S.fm, 'm'), date: d, h: t.id, dir: 'in', cur: dc, amt: got, ils: 0, rate: 0, note: 'تحويل من ' + f.name + (dc === cur && got < a ? ' · وصل ' + fTxt(cur, got) + ' من ' + fTxt(cur, a) : ''), x: true, pair: o.id };
   o.pair = i2.id; S.fm.push(i2);
   shut(); mutated('حُوّل ' + fTxt(cur, a) + ' من «' + f.name + '» إلى «' + t.name + '»');
 }
@@ -1497,11 +1497,11 @@ function moneySheet(sh) {
       var cu = fv('cur') || (fo ? fMain(fo) : 'ils'), am = num('amt'), dc = to ? (hasCur(to, cu) ? cu : fMain(to)) : cu, diff = dc !== cu;
       if (fo && fo.curs.length > 1) fl2.push(fChips('cur', 'العملة المرسلة', fo.curs.map(function (c) { return [c, c === 'usd' ? 'دولار' : 'شيكل']; })));
       fl2.push(fText('amt', cu === 'usd' ? 'المرسل بالدولار' : 'المرسل بالشيكل', '0', 'decimal'));
-      if (to) fl2.push(fText('got', dc === 'usd' ? 'الواصل بالدولار' : 'الواصل بالشيكل' + (diff ? '' : ' (اختياري)'), '0', 'decimal', diff ? 'يُحسب سعر الصرف من الرقمين' : 'اتركه فارغًا إن وصل كاملًا، أو اكتب الواصل بعد العمولة'));
+      if (to) fl2.push(fText('got', dc === 'usd' ? 'الواصل بالدولار' : 'الواصل بالشيكل' + (diff ? '' : ' (اختياري)'), '0', 'decimal', diff ? 'يُحسب سعر الصرف من الرقمين' : 'اتركه فارغًا إن وصل كاملًا، أو اكتب ما وصل فعلًا'));
       fl2 = fl2.concat(dayFields()); fl2.push(fPhoto('صورة الوصل (اختياري)'));
       var gt = num('got') || (diff ? 0 : am), fee = diff ? 0 : r2(am - gt);
       R = { title: 'تحويل بين الأرصدة', sub: fo ? fo.name + ' · ' + fBalTxt(fo) : 'اختر الرصيدين', fields: fl2,
-        note: fo && to && am > 0 && gt > 0 ? { text: diff ? 'سعر الصرف ' + r3(gt / am) + '. «' + fo.name + '» بعدها ' + fTxt(cu, r2(fBal(fo.id, cu) - am)) : (fee > 0 ? 'عمولة ' + fTxt(cu, fee) + '. ' : '') + '«' + fo.name + '» بعدها ' + fTxt(cu, r2(fBal(fo.id, cu) - am)), tone: fBal(fo.id, cu) - am < 0 || fee < 0 ? 'warn' : 'info' } : null,
+        note: fo && to && am > 0 && gt > 0 ? { text: diff ? 'سعر الصرف ' + r3(gt / am) + '. «' + fo.name + '» بعدها ' + fTxt(cu, r2(fBal(fo.id, cu) - am)) : (fee > 0 ? 'سيصل ' + fTxt(cu, gt) + ' من ' + fTxt(cu, am) + '. ' : '') + '«' + fo.name + '» بعدها ' + fTxt(cu, r2(fBal(fo.id, cu) - am)), tone: fBal(fo.id, cu) - am < 0 || fee < 0 ? 'warn' : 'info' } : null,
         ft: { label: 'تحويل', ok: !!fo && !!to && fo.id !== to.id && am > 0 && gt > 0 && fee >= 0 && dayOk(), go: doXfer } };
       break;
     }
