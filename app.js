@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.19';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.20';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -693,6 +693,21 @@ function shareChefBatch(b) {
   if (P.Share) P.Share.share({ title: batchName(b), text: text, dialogTitle: 'نسخة للشيف' }).catch(function () {});
   else if (navigator.share) navigator.share({ title: batchName(b), text: text }).catch(function () {});
   else copyText(text, 'نُسخت الكميات بلا أسعار، الصقها حيث تشاء');
+}
+
+/* ملخص طبخة مخططة للشيف: المكونات (إجمالي وللقدر) والتوزيع المخطط، بلا أسعار */
+function planChefText(p) {
+  var r = rec(p.recipeId), sc = E.scaleRecipe(r, p.pots, p), L = [r.name + ' — ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور') + ' · ' + dlabel(p.date), '', 'المكوّنات:'];
+  sc.forEach(function (l) { var it = item(l.item), pk = packFull(it, l.qty); L.push('• ' + it.name + ': ' + qtyU(l.qty, it.unit) + (pk ? ' (= ' + pk + ')' : '') + (p.pots > 1 && !l.fixed ? ' — للقدر ' + qtyU(r2(l.qty / p.pots), it.unit) : '')); });
+  var dt = planDistTxt(p); if ((p.kind || 'private') === 'private' && p.dist && dt !== 'لم يُخطَّط بعد') L.push('', 'التوزيع على المخيمات:', dt.split(' · ').map(function (x) { return '• ' + x + ' قدر'; }).join('\n'));
+  if (r.water) L.push('', 'الماء: ' + r.water + ' لترًا لكل قدر' + (r.wnote ? ' (' + r.wnote + ')' : '')); if (r.note) L.push('', r.note);
+  return L.join('\n');
+}
+function shareChefPlan(p) {
+  var r = rec(p.recipeId), text = planChefText(p);
+  if (P.Share) P.Share.share({ title: r.name, text: text, dialogTitle: 'ملخص للشيف' }).catch(function () {});
+  else if (navigator.share) navigator.share({ title: r.name, text: text }).catch(function () {});
+  else copyText(text, 'نُسخ الملخص بلا أسعار، الصقه حيث تشاء');
 }
 
 /* ---------- نافذة بند التكلفة ---------- */
@@ -2561,6 +2576,8 @@ function pgToday() {
       lp: function () { var g = E.by(S.bens || [], x.ben); if (g) benQa(g); } })); });
     bl.push(B('rows', { title: 'توزيع القدور', act: 'توزيع', actGo: function () { openSh({ t: 'distDay' }, { ben: '', pots: '', dish: distDish0() }); }, items: drows }));
   }
+  var tmw = iso(new Date(Date.now() + 864e5)), pdr = planDistRows(plans().filter(function (p) { return p.date <= tmw; }));
+  if (pdr.length) bl.push(B('rows', { title: 'توزيع الطبخات المخططة', items: pdr }));
   if (!hol && !di.closed) bl.push(B('btns', { items: [X({ label: 'اليوم عطلة', icon: 'i-calendar', go: function () { openSh({ t: 'holiday' }, { reason: S.settings.weekHol && S.settings.weekHol !== 'لا يوجد' ? 'الجمعة' : 'الجمعة', other: '' }); } })] }));
   var ready = [hol || !wd.none, true].filter(Boolean).length;
   bl.push(B('note', { tone: di.closed ? 'ok' : di.reopened ? 'warn' : 'info', icon: 'i-lock',
@@ -2579,6 +2596,13 @@ function planAfter(p) {
   return left;
 }
 function planDistTxt(p) { var d = p.dist || {}, o = Object.keys(d).filter(function (k) { return d[k] > 0; }); return o.length ? o.map(function (k) { return benName(k) + ' ' + fmt(d[k]); }).join(' · ') : 'لم يُخطَّط بعد'; }
+function planDistRows(ps) {
+  return ps.filter(function (p) { return (p.kind || 'private') === 'private'; }).map(function (p) {
+    var has = Object.keys(p.dist || {}).length > 0;
+    return X({ icon: 'i-users', icTone: has ? 'info' : 'warn', title: rec(p.recipeId).name + ' · ' + dlabel(p.date), sub: planDistTxt(p) + ' · ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'), tag: has ? '' : 'لم يُخطَّط', tagTone: 'warn', chev: true,
+      go: function () { var f = {}, d0 = p.dist || {}; bens().forEach(function (g) { f['d_' + g.id] = d0[g.id] ? String(d0[g.id]) : ''; }); openSh({ t: 'pdist', id: p.id }, f); } });
+  });
+}
 function planShort(p) { // عدد أصناف الخطة التي ينقص رصيدها لهذه الطبخة وحدها
   return E.scaleRecipe(rec(p.recipeId), p.pots, p).filter(function (l) { return E.balance(S, 'kitchen', l.item) + E.balance(S, 'ext', l.item) < l.qty - 0.0001; }).length;
 }
@@ -2593,8 +2617,9 @@ function pgKitchen() {
       var r = rec(p.recipeId), short = planShort(p);
       return X({ icon: 'i-calendar', icTone: short ? 'warn' : 'info', title: r.name, sub: dlabel(p.date).replace(/^(اليوم|أمس)$/, '$1') + ' · ' + KN[p.kind || 'private'] + ' · ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'),
         tag: short ? 'ينقص ' + pl(short, 'صنف', 'صنفان', 'أصناف') : 'المواد تكفي', tagTone: short ? 'warn' : 'ok', chev: true, go: function () { openSh({ t: 'planView', id: p.id }); },
-        lp: function () { qa(r.name, dlabel(p.date), [['عرض ما يلزم', 'i-calendar', function () { openSh({ t: 'planView', id: p.id }); }], ['تغيير التاريخ', 'i-calendar', function () { openSh({ t: 'planDate', id: p.id }, { day: '', dtxt: '' }); }], ['ابدأ هذه الطبخة', 'i-pot', function () { shut(); startFromPlan(p); }]].concat(p.date <= today() ? [['بدء سريع بكميات الوصفة', 'i-check', function () { quickStartPlan(p); }]] : [])); } });
+        lp: function () { qa(r.name, dlabel(p.date), [['عرض ما يلزم', 'i-calendar', function () { openSh({ t: 'planView', id: p.id }); }], ['إرسال ملخص للشيف', 'i-send', function () { shut(); shareChefPlan(p); }], ['تغيير التاريخ', 'i-calendar', function () { openSh({ t: 'planDate', id: p.id }, { day: '', dtxt: '' }); }], ['ابدأ هذه الطبخة', 'i-pot', function () { shut(); startFromPlan(p); }]].concat(p.date <= today() ? [['بدء سريع بكميات الوصفة', 'i-check', function () { quickStartPlan(p); }]] : [])); } });
     }), empty: 'لا طبخات مخططة. خطّط لتعرف ما ينقص قبل أن تطبخ.' }));
+  if (k === 'private' && planDistRows(plans()).length) bl.push(B('rows', { title: 'توزيع الطبخات المخططة', items: planDistRows(plans()) }));
   bl.push(B('rows', { title: 'الطبخات', sort: sortInfo('batches'), items: sortedBatches(batchesOf(k)).map(batchRow), empty: 'لا طبخات بعد' }));
   if (k === 'external') {
     bl.push(B('rows', { title: 'المؤسسات', act: 'مؤسسة', actGo: function () { openSh({ t: 'addInst' }, { name: '', src: 'own' }); },
@@ -3399,6 +3424,7 @@ function shDesc() {
       var aft = planAfter(pv);
       var prows = [X({ icon: 'i-calendar', icTone: 'info', title: 'تاريخ الطبخة', sub: dlabel(pv.date), tag: 'تغيير', chev: true, go: function () { openSh({ t: 'planDate', id: pv.id }, { day: '', dtxt: '' }); } })];
       if ((pv.kind || 'private') === 'private') prows.push(X({ icon: 'i-users', icTone: 'info', title: 'توزيع القدور على المخيمات', sub: planDistTxt(pv), tag: 'تخطيط', chev: true, go: function () { var f = {}, d0 = pv.dist || {}; bens().forEach(function (g) { f['d_' + g.id] = d0[g.id] ? String(d0[g.id]) : ''; }); openSh({ t: 'pdist', id: pv.id }, f); } }));
+      prows.push(X({ icon: 'i-send', icTone: 'ok', title: 'إرسال ملخص للشيف', sub: 'المكوّنات بإجمالي الطبخة وللقدر، والتوزيع المخطط، بلا أسعار', tag: 'إرسال', chev: true, go: function () { shareChefPlan(pv); } }));
       prows = prows.concat(sc.map(function (l) {
         var it2 = item(l.item), rem = aft[l.item] != null ? aft[l.item] : 0, lack = r2(-rem), pkN = packFull(it2, l.qty), pkR = rem > 0 ? packFull(it2, rem) : '';
         return X({ title: it2.name, sub: (pv.pots > 1 ? 'للقدر ' + qtyU(r2(l.qty / pv.pots), it2.unit) + ' · ' : '') + 'يلزم ' + qtyU(l.qty, it2.unit) + (pkN ? ' = ' + pkN : '') + (rem > 0 ? ' · يبقى ' + qtyU(rem, it2.unit) + (pkR ? ' = ' + pkR : '') : ''), tag: lack > 0.0001 ? 'ينقص ' + qtyU(lack, it2.unit) : 'يكفي', tagTone: lack > 0.0001 ? 'warn' : 'ok' });
