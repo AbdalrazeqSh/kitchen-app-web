@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.20';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.21';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -283,8 +283,8 @@ function evalNum(v) {
 function hasOp(v) { return /[×xX*÷\/+]/.test(String(v || '').replace(/^\s*-/, '')) && /\d/.test(String(v)); }
 function num(k) { return evalNum(fv(k)); }
 function goBack() {
-  if (A.page === 'batch' && A.draft && A.draft.step > 1 && !A.draft.editId) { setDraft({ step: A.draft.step - 1 }); return; }
-  if (A.page === 'batch' && A.draft && A.draft.editId && A.draft.step > 2) { setDraft({ step: A.draft.step - 1 }); return; }
+  if (A.page === 'batch' && A.draft && A.draft.step > 1 && !A.draft.editId && !A.draft.planEdit) { setDraft({ step: A.draft.step - 1 }); return; }
+  if (A.page === 'batch' && A.draft && (A.draft.editId || A.draft.planEdit) && A.draft.step > 2) { setDraft({ step: A.draft.step - 1 }); return; }
   var map = { order: { tab: 'stock' }, supplies: { tab: 'stock' }, worker: { tab: 'workers' }, recipe: { tab: 'kitchen' }, batch: { tab: 'kitchen' }, backup: { tab: 'more' }, tests: { tab: 'more' }, history: { tab: 'more' }, opening: { tab: 'stock' }, funds: { tab: 'more' }, reports: { tab: 'more' }, assets: { tab: 'more' }, people: { tab: 'more' }, lists: { tab: 'more' }, admin: { tab: 'more' }, cal: { tab: 'more' } };
   if (A.page === 'fund') { open('funds'); return; }
   if (A.page === 'supply') { open('supplies'); return; }
@@ -632,6 +632,16 @@ function planFromDraft(d, id) {
   var p = { id: id, date: d.date, recipeId: d.rec, pots: d.pots, kind: d.kind, inst: d.inst || '', init: !!d.init, portions: d.portions, extra: (d.extra || []).slice(), pm: d.pm || 'items', lump: d.lump || '', xl: cp(d.xl || []) };
   PLAN_KEYS.forEach(function (k) { p[k] = Object.assign({}, d[k] || {}); });
   return p;
+}
+/* تغيير عدد القدور مع إبقاء تعديلاتك متناسبة: ما عدّلته للقدر يُضرب بالعدد الجديد (الثابت والإضافي لا يتغيران) */
+function potsPatch(d, n) {
+  var r = rec(d.rec), keep = {}, over = {}; (r ? r.lines : []).forEach(function (l) { if (l.fixed) { keep[l.item] = 1; if (l.alt) keep[l.alt.item] = 1; } }); (d.extra || []).forEach(function (e) { keep[e.item] = 1; });
+  Object.keys(d.over || {}).forEach(function (id) { over[id] = keep[id] || !(d.pots > 0) ? d.over[id] : r2(d.over[id] * n / d.pots); });
+  return { pots: n, over: over };
+}
+function editPlan(p) {
+  var d = draftFromPlan(p, newDraft(p.kind || 'private', !!p.init)); d.date = p.date; d.step = 2; d.planEdit = p.id; delete d.planId;
+  shut(); open('batch', { draft: d });
 }
 function draftFromPlan(p, d) {
   d.rec = p.recipeId; d.pots = p.pots; d.planId = p.id;
@@ -2790,9 +2800,9 @@ function pgBatch() {
   }
   var lines = dLines(), short = lines.filter(function (l) { return l.after < 0; }).length;
   if (d.step === 2) {
-    bl.push(B('stepper', { label: 'عدد القدور', text: r.name + ': الكميات المقترحة من الوصفة × عدد القدور', value: d.pots, edit: function () { openSh({ t: 'potsSet' }, { n: String(A.draft.pots) }); },
-      minus: function () { setDraft({ pots: Math.max(1, A.draft.pots - 1), over: {} }); },
-      plus: function () { setDraft({ pots: A.draft.pots + 1, over: {} }); } }));
+    bl.push(B('stepper', { label: 'عدد القدور', text: r.name + ': الكميات من الوصفة × عدد القدور، وما عدّلته يتناسب مع العدد', value: d.pots, edit: function () { openSh({ t: 'potsSet' }, { n: String(A.draft.pots) }); },
+      minus: function () { setDraft(potsPatch(A.draft, Math.max(1, A.draft.pots - 1))); },
+      plus: function () { setDraft(potsPatch(A.draft, A.draft.pots + 1)); } }));
     bl.push(B('note', { tone: 'info', icon: 'i-pencil', text: 'الوصفة نقطة بداية فقط. عدّل الكمية بـ + و−، أو اضغط على الرقم لكتابتها أو لإزالة الصنف. كل تعديل لهذه الطبخة وحدها، والوصفة تبقى كما هي.' }));
     var mkRow = function (l) {
       return X({ step: true, edit: function () { openSh({ t: 'bline', id: l.id }, { qty: String(l.actual), by: 'all' }); }, title: l.name + (l.fixed ? ' (ثابت)' : '') + (l.extra ? ' (إضافي)' : '') + (l.swap ? ' · قابل للاستبدال' : ''), val: fmt(l.actual), unit: l.unit,
@@ -3319,8 +3329,8 @@ function shDesc() {
     case 'potsSet': {
       var pn = parseInt(fv('n'), 10);
       R = { title: 'عدد القدور', sub: 'اكتب العدد مباشرة', fields: [fText('n', 'عدد القدور', '0', 'numeric')],
-        note: { text: 'تتغير الكميات حسب الوصفة، وتُمسح تعديلات الكميات التي أجريتها قبل ذلك.', tone: 'info' },
-        ft: { label: 'تطبيق', ok: pn >= 1 && pn <= 500, go: function () { A.draft = Object.assign({}, A.draft, { pots: pn, over: {} }); shut(); } } };
+        note: { text: 'الكميات التي عدّلتها تتناسب مع العدد الجديد (الثابت والإضافي لا يتغيران).', tone: 'info' },
+        ft: { label: 'تطبيق', ok: pn >= 1 && pn <= 500, go: function () { A.draft = Object.assign({}, A.draft, potsPatch(A.draft, pn)); shut(); } } };
       break;
     }
     case 'bline': {
@@ -3424,6 +3434,7 @@ function shDesc() {
       var aft = planAfter(pv);
       var prows = [X({ icon: 'i-calendar', icTone: 'info', title: 'تاريخ الطبخة', sub: dlabel(pv.date), tag: 'تغيير', chev: true, go: function () { openSh({ t: 'planDate', id: pv.id }, { day: '', dtxt: '' }); } })];
       if ((pv.kind || 'private') === 'private') prows.push(X({ icon: 'i-users', icTone: 'info', title: 'توزيع القدور على المخيمات', sub: planDistTxt(pv), tag: 'تخطيط', chev: true, go: function () { var f = {}, d0 = pv.dist || {}; bens().forEach(function (g) { f['d_' + g.id] = d0[g.id] ? String(d0[g.id]) : ''; }); openSh({ t: 'pdist', id: pv.id }, f); } }));
+      prows.push(X({ icon: 'i-pencil', icTone: 'info', title: 'تعديل الخطة', sub: 'عدد القدور والكميات بآخر قيمك', tag: 'تعديل', chev: true, go: function () { editPlan(pv); } }));
       prows.push(X({ icon: 'i-send', icTone: 'ok', title: 'إرسال ملخص للشيف', sub: 'المكوّنات بإجمالي الطبخة وللقدر، والتوزيع المخطط، بلا أسعار', tag: 'إرسال', chev: true, go: function () { shareChefPlan(pv); } }));
       prows = prows.concat(sc.map(function (l) {
         var it2 = item(l.item), rem = aft[l.item] != null ? aft[l.item] : 0, lack = r2(-rem), pkN = packFull(it2, l.qty), pkR = rem > 0 ? packFull(it2, rem) : '';
@@ -3604,6 +3615,11 @@ function startEdit(b) {
 }
 function saveBatch() {
   var d = A.draft, r = rec(d.rec);
+  if (d.planEdit) {
+    var pi = (S.plans || []).findIndex(function (x) { return x.id === d.planEdit; });
+    if (pi >= 0) { var np = planFromDraft(d, d.planEdit); np.kind = S.plans[pi].kind; S.plans[pi] = np; }
+    audit('تعديل خطة «' + r.name + '» ليوم ' + dlabel(d.date)); setState({ page: 'main', tab: 'kitchen', kk: d.kind, draft: null, sh: null }); mutated('حُفظ تعديل خطة «' + r.name + '»'); return;
+  }
   if (d.editId) {
     var b = E.editBatch(S, d.editId, { dish: r.name, pots: d.pots, lines: batchLinesOut(dLines()) });
     b.portions = Number(d.portions) || 0; applyPricing(b, d);
@@ -3697,12 +3713,12 @@ function shell() {
     title = tt[0]; sub = tt[1];
     blocks = tab === 'today' ? pgToday() : tab === 'kitchen' ? pgKitchen() : tab === 'stock' ? pgStock() : tab === 'workers' ? pgWorkers() : pgMore();
   } else if (pg === 'batch') {
-    var ed = !!d.editId, k = d.step - (ed ? 1 : 0), n = ed ? 2 : 3;
-    title = ed ? 'تعديل طبخة' : KNF[d.kind] + ' جديدة'; sub = 'الخطوة ' + k + ' من ' + n; blocks = pgBatch();
+    var ed = !!(d.editId || d.planEdit), k = d.step - (ed ? 1 : 0), n = ed ? 2 : 3;
+    title = d.planEdit ? 'تعديل الخطة' : ed ? 'تعديل طبخة' : KNF[d.kind] + ' جديدة'; sub = 'الخطوة ' + k + ' من ' + n; blocks = pgBatch();
     var nl = dLines().length;
     if (d.step === 1) ft = { label: 'التالي: الكميات', ok: !!d.rec && (d.kind === 'private' || !!d.inst), hint: 'اختر الطبخة' + (d.kind === 'external' ? ' والمؤسسة' : '') + ' أولًا', go: function () { setDraft({ step: 2 }); } };
     else if (d.step === 2) ft = { label: 'التالي: مراجعة', ok: nl > 0, hint: 'أضف مكوّنًا واحدًا على الأقل', go: function () { setDraft({ step: 3 }); } };
-    else ft = { label: ed ? 'حفظ التعديل' : d.date > today() ? 'جدولة الطبخة (بلا خصم الآن)' : 'حفظ وخصم من المخزن', ok: ed || !((S.days || {})[d.date] || {}).closed, hint: 'هذا اليوم مُغلق', go: saveBatch };
+    else ft = { label: d.planEdit ? 'حفظ تعديل الخطة' : ed ? 'حفظ التعديل' : d.date > today() ? 'جدولة الطبخة (بلا خصم الآن)' : 'حفظ وخصم من المخزن', ok: ed || !((S.days || {})[d.date] || {}).closed, hint: 'هذا اليوم مُغلق', go: saveBatch };
   } else if (pg === 'worker') { var ww = wk(s.wid); title = ww.name; sub = money(ww.daily) + ' يوميًا'; blocks = pgWorker();
   } else if (pg === 'recipe') { var rc = rec(s.rid); title = rc.name; sub = rc.draft ? 'وصفة مبدئية' : 'وصفة معتمدة'; blocks = pgRecipe();
   } else if (pg === 'reports') { title = 'التقارير'; sub = 'اختر تقريرًا، ثم شارك أو انسخ'; blocks = pgReports();
