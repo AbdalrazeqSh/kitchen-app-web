@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.30';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.31';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1570,9 +1570,7 @@ function initSheet(sh) {
       (ni.pay || []).forEach(function (c) { rows.push(phRow({ title: 'دفعة' + (c.note ? ': ' + c.note : ''), sub: c.date ? dlabel(c.date) : '', tag: '− ' + money(c.amt), tagTone: 'ok' }, c, 'دفعة من ' + ni.name)); });
       rows.push(X({ title: 'المتبقي', tag: money(na.due), tagTone: na.due > 0 ? 'warn' : 'ok' }));
       na.bs.forEach(function (b) { rows.push(X({ icon: 'i-pot', icTone: 'warn', title: batchName(b), sub: dlabel(b.date) + ' · ' + pl(b.pots || 0, 'قدر واحد', 'قدران', 'قدور'), tag: batchCostTxt(b), tagTone: 'mute', chev: true, go: function () { openSh({ t: 'bview', id: b.id }); } })); });
-      rows.push(X({ icon: 'i-doc', icTone: 'info', title: 'كشف الحساب بالشهر', sub: 'تعديل الطبخات ومشاركة الكشف', chev: true, go: function () { openSh({ t: 'stmt', id: ni.id }, { m: '' }); } }));
-      rows.push(X({ title: 'إضافة مبلغ على الحساب', sub: 'أجرة أو خدمة غير المواد', chev: true, go: function () { openSh({ t: 'iniChg', id: ni.id }, { amt: '', note: '' }); } }));
-      return { title: ni.name, sub: ni.occ || 'مبادرة', rows: rows,
+      return { acts: [X({ title: 'كشف الحساب', icon: 'i-doc', go: function () { openSh({ t: 'stmt', id: ni.id }, { m: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { openSh({ t: 'iniChg', id: ni.id }, { amt: '', note: '' }); } })], title: ni.name, sub: ni.occ || 'مبادرة', rows: rows,
         ft: { label: 'تسجيل دفعة', ok: true, go: function () { openSh({ t: 'iniPay', id: ni.id }, { fund: '', amt: '', note: '', rate: '' }); } },
         ft2: { label: 'طبخة جديدة', go: function () { startIniBatch(ni.id); } } };
     }
