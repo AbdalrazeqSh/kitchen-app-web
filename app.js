@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.17';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.18';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -651,7 +651,7 @@ function batchLinesOut(lines) { return lines.filter(function (l) { return l.actu
 /* تسجيل طبخة جديدة من مسودة. done=false: بدء سريع بالوصفة وتنتظر تأكيد الكميات */
 function commitBatch(d, done) {
   var r = rec(d.rec), nb = E.recordBatch(S, { date: d.date || today(), dish: r.name, recipeId: r.id, pots: d.pots, kind: d.kind, instId: d.inst, lines: batchLinesOut(dLines()) });
-  var p0 = d.planId && E.by(S.plans || [], d.planId); if (p0) p0.done = true;
+  var p0 = d.planId && E.by(S.plans || [], d.planId); if (p0) { p0.done = true; if (p0.dist && d.kind === 'private') { nb.dist = Object.assign({}, p0.dist); nb.distPlan = true; } }
   nb.portions = Number(d.portions) || 0; nb.done = done !== false; applyPricing(nb, d);
   return nb;
 }
@@ -2555,6 +2555,17 @@ function pgToday() {
     act: di.closed ? '' : 'مراجعة وإغلاق اليوم', actGo: function () { openSh({ t: 'close' }); } }));
   return bl;
 }
+/* ما يبقى من كل صنف بعد هذه الطبخة المخططة وبعد الطبخات المخططة التي قبلها */
+function planAfter(p) {
+  var left = {}, ps = plans(), i, k, sc;
+  for (i = 0; i < ps.length; i++) {
+    sc = E.scaleRecipe(rec(ps[i].recipeId), ps[i].pots, ps[i]);
+    sc.forEach(function (l) { if (!(l.item in left)) left[l.item] = E.balance(S, 'kitchen', l.item) + E.balance(S, 'ext', l.item); left[l.item] = r2(left[l.item] - l.qty); });
+    if (ps[i].id === p.id) break;
+  }
+  return left;
+}
+function planDistTxt(p) { var d = p.dist || {}, o = Object.keys(d).filter(function (k) { return d[k] > 0; }); return o.length ? o.map(function (k) { return benName(k) + ' ' + fmt(d[k]); }).join(' · ') : 'لم يُخطَّط بعد'; }
 function planShort(p) { // عدد أصناف الخطة التي ينقص رصيدها لهذه الطبخة وحدها
   return E.scaleRecipe(rec(p.recipeId), p.pots, p).filter(function (l) { return E.balance(S, 'kitchen', l.item) + E.balance(S, 'ext', l.item) < l.qty - 0.0001; }).length;
 }
@@ -2747,7 +2758,7 @@ function pgBatch() {
     bl.push(B('note', { tone: 'info', icon: 'i-pencil', text: 'الوصفة نقطة بداية فقط. عدّل الكمية بـ + و−، أو اضغط على الرقم لكتابتها أو لإزالة الصنف. كل تعديل لهذه الطبخة وحدها، والوصفة تبقى كما هي.' }));
     var mkRow = function (l) {
       return X({ step: true, edit: function () { openSh({ t: 'bline', id: l.id }, { qty: String(l.actual), by: 'all' }); }, title: l.name + (l.fixed ? ' (ثابت)' : '') + (l.extra ? ' (إضافي)' : '') + (l.swap ? ' · قابل للاستبدال' : ''), val: fmt(l.actual), unit: l.unit,
-        sub: (l.dev ? l.dev + ' · ' : '') + (packTxt(item(l.id), l.actual) ? '= ' + packTxt(item(l.id), l.actual) + ' · ' : '') + (Object.keys(l.src).length > 1 ? srcTxt(l) : (l.extra ? 'مضاف لهذا اليوم' : l.note ? l.note : 'حسب الوصفة ' + fmt(l.planned))) + ' · يبقى ' + fmt(l.after),
+        sub: (l.dev ? l.dev + ' · ' : '') + (packTxt(item(l.id), l.actual) ? '= ' + packTxt(item(l.id), l.actual) + ' · ' : '') + (Object.keys(l.src).length > 1 ? srcTxt(l) : (l.extra ? 'مضاف لهذا اليوم' : l.note ? l.note : 'حسب الوصفة ' + fmt(l.planned))) + ' · يبقى ' + fmt(l.after) + (l.after > 0 && packTxt(item(l.id), l.after) ? ' = ' + packTxt(item(l.id), l.after) : ''),
         warn: l.after < 0 ? 'ينقص ' + fmt(-l.after) + ' ' + l.unit + ' عن رصيد ' + l.lastName : '',
         minus: function () { nudge(l.id, -1); }, plus: function () { nudge(l.id, 1); } });
     };
@@ -3372,13 +3383,24 @@ function shDesc() {
     }
     case 'planView': {
       var pv = E.by(S.plans, sh.id), prv = rec(pv.recipeId), sc = E.scaleRecipe(prv, pv.pots, pv);
-      var prows = [X({ icon: 'i-calendar', icTone: 'info', title: 'تاريخ الطبخة', sub: dlabel(pv.date), tag: 'تغيير', chev: true, go: function () { openSh({ t: 'planDate', id: pv.id }, { day: '', dtxt: '' }); } })].concat(sc.map(function (l) {
-        var it2 = item(l.item), have = E.balance(S, 'kitchen', l.item) + E.balance(S, 'ext', l.item), lack = r2(l.qty - have);
-        return X({ title: it2.name, sub: 'يلزم ' + qtyU(l.qty, it2.unit) + ' · المتوفر ' + qtyU(Math.max(have, 0), it2.unit), tag: lack > 0.0001 ? 'ينقص ' + qtyU(lack, it2.unit) : 'يكفي', tagTone: lack > 0.0001 ? 'warn' : 'ok' });
+      var aft = planAfter(pv);
+      var prows = [X({ icon: 'i-calendar', icTone: 'info', title: 'تاريخ الطبخة', sub: dlabel(pv.date), tag: 'تغيير', chev: true, go: function () { openSh({ t: 'planDate', id: pv.id }, { day: '', dtxt: '' }); } })];
+      if ((pv.kind || 'private') === 'private') prows.push(X({ icon: 'i-users', icTone: 'info', title: 'توزيع القدور على المخيمات', sub: planDistTxt(pv), tag: 'تخطيط', chev: true, go: function () { var f = {}, d0 = pv.dist || {}; bens().forEach(function (g) { f['d_' + g.id] = d0[g.id] ? String(d0[g.id]) : ''; }); openSh({ t: 'pdist', id: pv.id }, f); } }));
+      prows = prows.concat(sc.map(function (l) {
+        var it2 = item(l.item), rem = aft[l.item] != null ? aft[l.item] : 0, lack = r2(-rem), pkN = packTxt(it2, l.qty), pkR = rem > 0 ? packTxt(it2, rem) : '';
+        return X({ title: it2.name, sub: 'يلزم ' + qtyU(l.qty, it2.unit) + (pkN ? ' = ' + pkN : '') + ' · يبقى ' + qtyU(Math.max(rem, 0), it2.unit) + (pkR ? ' = ' + pkR : ''), tag: lack > 0.0001 ? 'ينقص ' + qtyU(lack, it2.unit) : 'يكفي', tagTone: lack > 0.0001 ? 'warn' : 'ok' });
       }).sort(function (a, b) { return (b.tagTone === 'warn' ? 1 : 0) - (a.tagTone === 'warn' ? 1 : 0); }));
       R = { title: prv.name, sub: dlabel(pv.date) + ' · ' + KN[pv.kind || 'private'] + ' · ' + pl(pv.pots, 'قدر واحد', 'قدران', 'قدور'), rows: prows,
-        note: { text: 'ما يلزم بحسب الوصفة، وليس ما ستستعمله فعلًا. الكميات الفعلية تُسجَّل عند الطبخ.', tone: 'info' },
+        note: { text: 'ما يلزم بحسب الوصفة، وليس ما ستستعمله فعلًا. «يبقى» بعد هذه الطبخة والطبخات المخططة قبلها. الكميات الفعلية تُسجَّل عند الطبخ.', tone: 'info' },
         ft: { label: 'ابدأ هذه الطبخة', ok: true, go: function () { startFromPlan(pv); } }, ft2: { label: 'إلغاء من الخطة', go: function () { pv.off = true; shut(); mutated('أُلغيت من الخطة'); } } };
+      break;
+    }
+    case 'pdist': {
+      var pp = E.by(S.plans, sh.id), pgs = bens(), ptot = r2(pgs.reduce(function (a, g) { return a + num('d_' + g.id); }, 0));
+      R = { title: 'توزيع ' + rec(pp.recipeId).name, sub: pl(pp.pots, 'قدر واحد', 'قدران', 'قدور') + ' · خطّط عدد القدور لكل مخيم',
+        fields: pgs.map(function (g) { return fText('d_' + g.id, g.name, '0', 'decimal'); }),
+        note: { text: ptot > pp.pots ? 'المجموع ' + fmt(ptot) + ' أكبر من قدور الطبخة (' + fmt(pp.pots) + ')' : 'المخطَّط ' + fmt(ptot) + ' من ' + fmt(pp.pots) + (ptot < pp.pots ? ' · يبقى ' + fmt(r2(pp.pots - ptot)) + ' بلا تخطيط' : ' · موزّعة كلها') + '. عند بدء الطبخة يُوضع هذا التوزيع مقترحًا وتعدّله أو تؤكده.', tone: ptot > pp.pots ? 'warn' : 'info' },
+        ft: { label: 'حفظ التخطيط', ok: ptot <= pp.pots, go: function () { var v = {}; pgs.forEach(function (g) { var x = num('d_' + g.id); if (x > 0) v[g.id] = x; }); pp.dist = v; audit('تخطيط توزيع قدور طبخة مخططة'); shut(); mutated('حُفظ تخطيط التوزيع'); } } };
       break;
     }
     case 'restore': {
