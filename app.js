@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.28';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.29';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -733,12 +733,12 @@ function planChefCanvas(p) {
   x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 40px ' + F; x.fillText(r.name, W - PAD, 62);
   x.font = '500 25px ' + F; x.fillText(dlabel(p.date) + ' · ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'), W - PAD, 104);
   var y = hdr + 40; x.fillStyle = '#5B6660'; x.font = '600 22px ' + F;
-  x.textAlign = 'right'; x.fillText('الصنف', W - PAD, y); x.textAlign = 'center'; x.fillText('المطلوب', W * 0.5, y); x.fillText('للقدر', W * 0.28, y); x.textAlign = 'left'; x.fillText('المتبقي', PAD, y); y += 16;
+  x.textAlign = 'right'; x.fillText('الصنف', W - PAD, y); x.textAlign = 'center'; x.fillText('للقدر', W * 0.56, y); x.fillText('الإجمالي', W * 0.36, y); x.textAlign = 'left'; x.fillText('المتبقي', PAD, y); y += 16;
   rows.forEach(function (rw, i) {
     if (i % 2 === 0) { x.fillStyle = '#F4F6F2'; x.fillRect(0, y, W, RH); }
     x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '700 28px ' + F; x.fillText(rw[0], W - PAD, y + 38);
-    x.textAlign = 'center'; x.font = '600 25px ' + F; x.fillText(rw[1], W * 0.5, y + (rw[2] ? 30 : 38)); if (rw[2]) { x.fillStyle = '#5B6660'; x.font = '500 19px ' + F; x.fillText(rw[2], W * 0.5, y + 52); }
-    x.fillStyle = '#5B6660'; x.font = '500 23px ' + F; x.fillText(rw[3], W * 0.28, y + 38);
+    x.textAlign = 'center'; x.font = '600 25px ' + F; x.fillText(rw[1], W * 0.36, y + (rw[2] ? 30 : 38)); if (rw[2]) { x.fillStyle = '#5B6660'; x.font = '500 19px ' + F; x.fillText(rw[2], W * 0.36, y + 52); }
+    x.fillStyle = '#5B6660'; x.font = '500 23px ' + F; x.fillText(rw[3], W * 0.56, y + 38);
     x.textAlign = 'left'; x.fillStyle = rw[5] ? '#B3261E' : '#14563A'; x.font = '700 25px ' + F; x.fillText(rw[4], PAD, y + (rw[6] ? 30 : 38)); if (rw[6]) { x.font = '500 19px ' + F; x.fillText(rw[6], PAD, y + 52); } y += RH;
   });
   if (dist.length) {
@@ -3607,10 +3607,10 @@ function shDesc() {
       pacts.push(X({ title: 'ملخص الشيف', icon: 'i-image', go: function () { shareChefPlan(pv); } }));
       var prows = sc.map(function (l) { return { l: l, rem: aft[l.item] != null ? aft[l.item] : 0 }; }).sort(function (a, b) { return a.rem - b.rem; }).map(function (z) {
         var l = z.l, rem = z.rem, it2 = item(l.item), pkN = packFull(it2, l.qty), pkR = packFull(it2, Math.abs(rem));
-        return X({ title: it2.name, sub: pv.pots > 1 && !l.fixed ? 'للقدر ' + qtyU(r2(l.qty / pv.pots), it2.unit) : '',
-          c1: qtyU(l.qty, it2.unit), c1s: pkN, c2s: pkR, c2: (rem < -0.0001 ? '−' : '') + qtyU(Math.abs(rem), it2.unit), c2Tone: rem < -0.0001 ? 'bad' : '' });
+        return X({ title: it2.name, sub: '',
+          c0: pv.pots > 1 && !l.fixed ? qtyU(r2(l.qty / pv.pots), it2.unit) : '—', c1: qtyU(l.qty, it2.unit), c1s: pkN, c2s: pkR, c2: (rem < -0.0001 ? '−' : '') + qtyU(Math.abs(rem), it2.unit), c2Tone: rem < -0.0001 ? 'bad' : '' });
       });
-      R = { acts: pacts, cols: ['الصنف', 'المطلوب', 'المتبقي'], title: prv.name, sub: dlabel(pv.date) + ' · ' + KN[pv.kind || 'private'] + ' · ' + pl(pv.pots, 'قدر واحد', 'قدران', 'قدور'), rows: prows,
+      R = { acts: pacts, cols: ['الصنف', 'للقدر', 'الإجمالي', 'المتبقي'], title: prv.name, sub: dlabel(pv.date) + ' · ' + KN[pv.kind || 'private'] + ' · ' + pl(pv.pots, 'قدر واحد', 'قدران', 'قدور'), rows: prows,
         note: { text: 'المتبقي هو ما يبقى في المخزن بعد هذه الطبخة (والمخططة قبلها)، وبالأحمر إن كان ناقصًا.', tone: 'info' },
         ft: { label: 'ابدأ هذه الطبخة', ok: true, go: function () { startFromPlan(pv); } }, ft2: { label: 'إلغاء من الخطة', go: function () { pv.off = true; shut(); mutated('أُلغيت من الخطة'); } } };
       break;
@@ -3930,7 +3930,7 @@ function shell() {
     shOn: !!s.sh, shClose: shut,
     shTitle: f.title || '', shSub: f.sub || '', shHasSub: !!f.sub,
     shHasSearch: !!f.search, shQ: s.q, shPh: f.search || '', shOnQ: function (v) { setState({ q: v }); },
-    shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
+    shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
     shFields: (f.fields || []).map(function (x) { return x.isPhoto ? x : Object.assign({ isCalc: false, hasUndo: false, calcX: noop, undo: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),

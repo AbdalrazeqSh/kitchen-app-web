@@ -12,7 +12,7 @@ function X(o) {
     title: o.title || '', sub: o.sub || '', hasSub: !!o.sub,
     tag: o.tag || '', hasTag: !!o.tag, tagBg: tg[0], tagFg: tg[1],
     end: o.end || '', endSub: o.endSub || '', endSub2: o.endSub2 || '', hasEnd: !!(o.end || o.endSub), hasEndSub: !!o.endSub, hasEndSub2: !!o.endSub2,
-    hasCols: !!o.c1, c1: o.c1 || '', c1s: o.c1s || '', c2: o.c2 || '', c2s: o.c2s || '', c2Fg: o.c2Tone ? T[o.c2Tone][1] : '#1B2421',
+    hasCols: !!o.c1, c0: o.c0 || '', c1: o.c1 || '', c1s: o.c1s || '', c2: o.c2 || '', c2s: o.c2s || '', c2Fg: o.c2Tone ? T[o.c2Tone][1] : '#1B2421',
     endFg: o.endTone ? T[o.endTone][1] : '#1B2421',
     icon: o.icon || 'i-dot', hasIcon: !!o.icon, icBg: ic[0], icFg: ic[1],
     chev: !!o.chev, go: o.go || noop, lp: o.lp ? function (e) { if (e && e.preventDefault) e.preventDefault(); o.lp(); } : noop, isBtn: !o.step, isStep: !!o.step, ph: !!o.ph,
