@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.39';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.40';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -120,7 +120,7 @@ function writeBackup(j) {
   var name = 'kitchen-backup-' + iso() + '.json';
   if (P.Filesystem && P.Share) {
     P.Filesystem.writeFile({ path: name, data: j, directory: 'CACHE', encoding: 'utf8' }).then(function (r) {
-      return P.Share.share({ title: 'نسخة المطبخ الاحتياطية', url: r.uri, dialogTitle: 'احفظ النسخة (درايف أو واتساب أو الملفات)' });
+      return P.Share.share({ title: 'نسخة مطبخ عهد الاحتياطية', url: r.uri, dialogTitle: 'احفظ النسخة (درايف أو واتساب أو الملفات)' });
     }).then(function () { backupDone(); say('جُهّزت النسخة. تأكد أنك حفظتها خارج الهاتف'); }).catch(function (er) { if (!/cancel/i.test((er && er.message) || '')) say('تعذّر التصدير: ' + (er && er.message)); });
     return;
   }
@@ -211,7 +211,7 @@ function onFail(src, e) {
 window.addEventListener('error', function (ev) { onFail('window', ev.error || ev.message); });
 window.addEventListener('unhandledrejection', function (ev) { onFail('promise', ev.reason); });
 UI.onError = function (er) { onFail('handler', er); };
-function errText() { return 'المطبخ ' + VERSION + '\n' + ERRS.map(function (x) { return new Date(x.t).toLocaleString('ar') + ' [' + x.src + '] ' + x.v + '\n' + x.m; }).join('\n---\n'); }
+function errText() { return 'مطبخ عهد ' + VERSION + '\n' + ERRS.map(function (x) { return new Date(x.t).toLocaleString('ar') + ' [' + x.src + '] ' + x.v + '\n' + x.m; }).join('\n---\n'); }
 function copyText(text, okMsg) {
   var ok = function () { say(okMsg || 'نُسخ'); }, bad = function () { say('تعذّر النسخ'); };
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, bad);
@@ -747,12 +747,12 @@ function planChefCanvas(p) {
     dist.forEach(function (d) { y += 54; x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '600 27px ' + F; x.fillText(d[0], W - PAD, y - 12); x.textAlign = 'left'; x.fillText(d[1], PAD, y - 12); });
   }
   notes.forEach(function (n, i) { y += i ? 46 : 54; x.fillStyle = '#46504B'; x.textAlign = 'right'; x.font = '500 24px ' + F; x.fillText(n.length > 48 ? n.slice(0, 47) + '…' : n, W - PAD, y); });
-  x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('المطبخ · بلا أسعار', W / 2, H - 24);
+  x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد · بلا أسعار', W / 2, H - 24);
   return c;
 }
 function shareChefPlan(p) {
   var r = rec(p.recipeId); say('جارٍ تجهيز الصورة…');
-  var go = function () { try { var png = planChefCanvas(p).toDataURL('image/png').split(',')[1]; deliverFile('المطبخ-' + r.name + '-' + p.date + '.png', png, 'image/png', r.name + ' — ' + dlabel(p.date)).then(function () { say('جُهّز ملخص الشيف كصورة'); }).catch(function (e) { if (!(e && /cancel|dismiss/i.test(String(e.message || e)))) say('تعذّر تجهيز الصورة'); }); } catch (e) { say('تعذّر تجهيز الصورة'); } };
+  var go = function () { try { var png = planChefCanvas(p).toDataURL('image/png').split(',')[1]; deliverFile('مطبخ-عهد-' + r.name + '-' + p.date + '.png', png, 'image/png', r.name + ' — ' + dlabel(p.date)).then(function () { say('جُهّز ملخص الشيف كصورة'); }).catch(function (e) { if (!(e && /cancel|dismiss/i.test(String(e.message || e)))) say('تعذّر تجهيز الصورة'); }); } catch (e) { say('تعذّر تجهيز الصورة'); } };
   if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
 }
 
@@ -2162,7 +2162,7 @@ function potsTxt(n, name) { return n === 2 ? 'قدرين ' + name : fmt(n) + ' '
 function potsByDish(tb) { var o = {}, a = []; tb.forEach(function (b) { var key = batchName(b) + '|' + b.kind; if (!o[key]) { o[key] = { name: batchName(b), kind: b.kind, pots: 0 }; a.push(o[key]); } o[key].pots = r2(o[key].pots + (b.pots || 0)); }); return a; }
 function repDoc(k, forceExp) {
   var exp = forceExp === true || !!A.rexp, SH = function (kk) { return roShow(k, kk, exp); }, TT = function (t, kk) { return t + (roMe(k, kk, exp) ? ' · لي فقط' : ''); }, C = pc, R = prow;
-  var di = dayInfo(), hol = di.holiday, P = { org: 'المطبخ', date: dlong(today()), sub: '', title: '', tiles: [], secs: [], notes: [], lead: '', foot: 'تلقائي' }, CL = RCOL;
+  var di = dayInfo(), hol = di.holiday, P = { org: 'مطبخ عهد', date: dlong(today()), sub: '', title: '', tiles: [], secs: [], notes: [], lead: '', foot: 'تلقائي' }, CL = RCOL;
   if (hol) P.notes.push({ t: 'عطلة: ' + hol.reason });
   if (k === 'cook' || k === 'wck') {
     var priv = k === 'wck', dc = dayCalc(priv ? 'private' : ''), tb = dc.tb, da = distAgg(tb), nm = dc.order.length;
@@ -2256,7 +2256,7 @@ function repText(k) { // يُبنى من المستند نفسه: ما يظهر 
     L.push('');
   });
   d.notes.forEach(function (n) { L.push(n.t); });
-  L.push('المطبخ — أُعدّ تلقائيًا من التطبيق'); return L.join('\n');
+  L.push('مطبخ عهد — أُعدّ تلقائيًا من التطبيق'); return L.join('\n');
 }
 function shareReport(k) {
   var text = repText(k), title = rptName(k);
@@ -2359,7 +2359,7 @@ function dayFacts() {
     any: !!(bs.length || rc.length || pays.length || adj.length || wd.total - wd.none > 0) };
 }
 function daySummaryText() {
-  var f = dayFacts(), L = ['ملخص ' + dlong(f.t) + ' — المطبخ'];
+  var f = dayFacts(), L = ['ملخص ' + dlong(f.t) + ' — مطبخ عهد'];
   L.push('الحضور: ' + (f.wd.total - f.wd.none) + ' من ' + f.wd.total + (f.wd.cost ? ' · يومية اليوم ' + money(f.wd.cost) : ''));
   if (f.bs.length) { L.push('', 'الطبخات (' + f.bs.length + '):'); f.bs.forEach(function (b) { L.push('- ' + batchName(b) + ' · ' + pl(b.pots || 0, 'قدر واحد', 'قدران', 'قدور') + (b.kind === 'external' ? ' · ' + KN.external : '') + (b.done === false ? ' (كمياتها لم تُؤكَّد)' : '')); }); }
   else L.push('', 'لا طبخات اليوم');
@@ -2541,7 +2541,7 @@ function stmtCanvas(i, ym) {
   });
   y += 20; x.fillStyle = '#14563A'; x.fillRect(PAD, y, W - 2 * PAD, 64);
   x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 30px ' + F; x.fillText('المستحق', W - PAD - 20, y + 42); x.textAlign = 'left'; x.fillText(money(a.due), PAD + 20, y + 42);
-  x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('المطبخ', W / 2, H - 22);
+  x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد', W / 2, H - 22);
   return c;
 }
 function shareStmt(i, ym) {
@@ -2657,7 +2657,7 @@ function finCanvas(ym) {
     x.textAlign = 'center'; x.fillStyle = '#5B6660'; x.font = '500 21px ' + F; x.fillText(r[1], W * 0.45, y + 37);
     x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '700 26px ' + F; x.fillText(r[2], PAD, y + 37); y += RH;
   });
-  x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('المطبخ', W / 2, H - 22);
+  x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد', W / 2, H - 22);
   return c;
 }
 function shareFin(ym) {
@@ -2796,7 +2796,7 @@ function pdfFromCanvas(c) {
   return u;
 }
 function u8b64(u) { var s = '', i; for (i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
-function exName(k, ext) { return 'المطبخ-' + { cook: 'الاستهلاك', supply: 'التوريد', wck: 'نسخة-المراقب', stock: 'حالة-المخزون', wfp: 'مخزون-WFP', workers: 'كشف-العمال' }[k] + '-' + today() + '.' + ext; }
+function exName(k, ext) { return 'مطبخ-عهد-' + { cook: 'الاستهلاك', supply: 'التوريد', wck: 'نسخة-المراقب', stock: 'حالة-المخزون', wfp: 'مخزون-WFP', workers: 'كشف-العمال' }[k] + '-' + today() + '.' + ext; }
 /* يسلّم الملف: مشاركة على الجوال، وتنزيل في المتصفح */
 function deliverFile(name, b64data, mime, title, text) {
   if (P.Filesystem && P.Share) {
@@ -3125,7 +3125,7 @@ function pgMore() {
     X({ icon: 'i-clock', icTone: 'info', title: 'العودة إلى يوم سابق', sub: bkSub(), chev: true, go: function () { openSh({ t: 'snaps' }); } }),
     X({ icon: 'i-lock', icTone: 'mute', title: 'سجل الأخطاء', sub: ERRS.length ? pl(ERRS.length, 'خطأ واحد', 'خطآن', 'أخطاء') + ' مسجّلة' : 'لا أخطاء مسجّلة', tag: ERRS.length ? String(ERRS.length) : '', tagTone: 'bad', chev: true, go: function () { openSh({ t: 'errlog' }); } }),
     X({ icon: 'i-clock', icTone: 'mute', title: 'تنبيه الثامنة صباحًا', sub: lsj('ahd_daily', false) ? 'مفعّل ويُعاد ضبطه عند كل فتح' : 'غير مفعّل', tag: lsj('ahd_daily', false) ? 'مفعّل' : 'متوقف', tagTone: lsj('ahd_daily', false) ? 'ok' : 'warn', chev: true, go: function () { openSh({ t: 'daily' }); } }),
-    X({ icon: 'i-lock', icTone: 'mute', title: 'عن التطبيق', sub: 'المطبخ · الإصدار ' + VERSION + (updPending() ? ' · تحديث ' + updPending() + ' جاهز: أغلق التطبيق وافتحه' : '') + ' · البيانات محفوظة على هذا الجهاز', chev: false, go: function () { checkUpdate(true); } })
+    X({ icon: 'i-lock', icTone: 'mute', title: 'عن التطبيق', sub: 'مطبخ عهد · الإصدار ' + VERSION + (updPending() ? ' · تحديث ' + updPending() + ' جاهز: أغلق التطبيق وافتحه' : '') + ' · البيانات محفوظة على هذا الجهاز', chev: false, go: function () { checkUpdate(true); } })
   ] })];
 }
 
@@ -4070,7 +4070,7 @@ function shell() {
   resetCaches();
   var s = A, pg = s.page, tab = s.tab, d = s.draft, blocks = [], title = '', sub = '', ft = null, ft2 = null, hasAction = false;
   if (pg === 'main') {
-    var tt = { today: ['المطبخ', dlong(today())], kitchen: ['الطبخ', 'طبخ وطبخ خارجي'], stock: ['المخزن', 'الأرصدة والاستلام'], workers: ['العمال', 'الحضور والحسابات'], more: ['المزيد', 'الأرصدة والنسخ والتنبيه'] }[tab];
+    var tt = { today: ['مطبخ عهد', dlong(today())], kitchen: ['الطبخ', 'طبخ وطبخ خارجي'], stock: ['المخزن', 'الأرصدة والاستلام'], workers: ['العمال', 'الحضور والحسابات'], more: ['المزيد', 'الأرصدة والنسخ والتنبيه'] }[tab];
     title = tt[0]; sub = tt[1];
     blocks = tab === 'today' ? pgToday() : tab === 'kitchen' ? pgKitchen() : tab === 'stock' ? pgStock() : tab === 'workers' ? pgWorkers() : pgMore();
   } else if (pg === 'batch') {
