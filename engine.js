@@ -113,8 +113,10 @@
       var it = by(s.items, item); if (!it) throw new Error('صنف غير معروف: ' + item);
       var old = {}; b.order.forEach(function (l) { old[l] = net[l + '|' + item] || 0; });
       var q = want[item] || 0, mk = meta[item] || {}, src = q > 0 ? splitQty(s, mk.fill === false ? b.order.slice(0, 1) : b.order, item, q, old) : {};
+      if (q > 0 && mk.keep) { var kt = Object.keys(mk.keep).reduce(function (a, k) { return a + mk.keep[k]; }, 0); if (kt > 0) { src = {}; Object.keys(mk.keep).forEach(function (k) { src[k] = r3(mk.keep[k] * q / kt); }); } }
       if (mk.mkt && src.ext) { src.mkt = src.ext; delete src.ext; }
       var price = (b.lines.filter(function (l) { return l.item === item; })[0] || {}).price;
+      if (mk.price != null && mk.price >= 0) price = mk.price;
       if (price == null) price = it.price || 0;
       var lc = 0;
       b.order.forEach(function (l) {
