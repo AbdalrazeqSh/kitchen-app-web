@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.32';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.33';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2879,7 +2879,7 @@ function pgToday() {
   if (att.length > ALIM) aItems.push(X({ icon: aOpen ? 'i-minus' : 'i-chevD', icTone: 'mute', title: aOpen ? 'طيّ القائمة' : 'عرض ' + (att.length - ALIM) + ' أخرى', sub: aOpen ? '' : 'مرتّبة بالأهمية', chev: false, go: function () { setState({ attOpen: !aOpen }); } }));
   bl.push(B('rows', { title: 'يحتاج انتباهك' + (att.length ? ' (' + att.length + ')' : ''), items: aItems, empty: 'لا شيء يحتاج انتباهك الآن' }));
   bl.push(B('rows', { title: 'المال', act: 'حركة مالية', actGo: function () { openSh({ t: 'fMove', f: defFund(), dir: 'out' }, { mode: '', amt: '', rate: '', note: '', day: '0' }); },
-    items: [X({ icon: 'i-wallet', icTone: 'ok', title: 'رصيد المال', sub: pl(funds().length, 'رصيد واحد', 'رصيدان', 'أرصدة'), end: usdK(fTot('usd')), endSub: money(fTot('ils')), chev: true, go: function () { open('funds'); } })] }));
+    items: moneyRows() }));
   bl.push(B('grid', { items: [
     X({ label: 'طبخة', icon: 'i-pot', icTone: 'ok', go: function () { startBatch('private'); } }),
     X({ label: 'طبخة خارجية', icon: 'i-truck', icTone: 'info', go: function () { startBatch('external'); } }),
@@ -3053,13 +3053,21 @@ function pgWorkers() {
   }) }));
   return bl;
 }
+function moneyRows() {
+  var oi = oweInst(), ow = oweWork();
+  return [
+    X({ icon: 'i-wallet', icTone: 'ok', title: 'الأرصدة', sub: pl(funds().length, 'رصيد واحد', 'رصيدان', 'أرصدة') + ' · البنك وحميدا وما بيد العمال', end: usdK(fTot('usd')), endSub: money(fTot('ils')), chev: true, go: function () { open('funds'); } }),
+    X({ icon: 'i-doc', icTone: 'info', title: 'الملخص المالي', sub: 'أين ذهب المال هذا الشهر: وارد وصرف وتصنيف', chev: true, go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } }),
+    X({ icon: 'i-plus', icTone: oi > 0 ? 'ok' : 'mute', title: 'مستحق لك من المؤسسات', sub: 'كشف حساب كل جهة', end: money(oi), chev: true, go: function () { open('funds'); } }),
+    X({ icon: 'i-minus', icTone: ow > 0 ? 'warn' : 'mute', title: 'عليك للعمال', sub: 'رواتب وأجور غير مدفوعة', end: money(ow), chev: true, go: function () { open('funds'); } })
+  ];
+}
 function pgMore() {
   var cs = calSummary();
-  return [B('rows', { items: [
+  return [B('rows', { title: 'المال', act: 'حركة مالية', actGo: function () { openSh({ t: 'fMove', f: defFund(), dir: 'out' }, { mode: '', amt: '', rate: '', note: '', day: '0' }); }, items: moneyRows() }), B('rows', { items: [
     X({ icon: 'i-doc', icTone: 'info', title: 'التقارير والإرسال', sub: 'الاستهلاك والمخزون وكشف العمال: شارك أو انسخ', chev: true, go: function () { open('reports'); } }),
     X({ icon: 'i-shield', icTone: 'ok', title: 'الأشخاص والصلاحيات', sub: pl(people().length, 'شخص واحد', 'شخصان', 'أشخاص') + ' · ' + people().slice(0, 3).map(function (x) { return x.name; }).join('، '), chev: true, go: function () { open('people'); } }),
     X({ icon: 'i-sliders', icTone: 'warn', title: 'القوائم والحقول', sub: 'أضف مخزنًا أو حالة حضور أو وحدة أو حقلًا جديدًا متى احتجت', chev: true, go: function () { open('lists'); } }),
-    X({ icon: 'i-wallet', icTone: 'ok', title: 'الأرصدة', sub: 'البنك وحميدا وما بيد العمال', end: usdK(fTot('usd')), endSub: money(fTot('ils')), chev: true, go: function () { open('funds'); } }),
     X({ icon: 'i-calendar', icTone: 'info', title: 'التقويم والتنبيهات', sub: cs, chev: true, go: function () { open('cal'); } }),
     X({ icon: 'i-box', icTone: 'ok', title: 'الموجودات', sub: pl(AA().length, 'نوع واحد', 'نوعان', 'أنواع') + ' · قدور وأدوات ومعدات: عدد وحالة وجرد', chev: true, go: function () { open('assets'); } }),
     X({ icon: 'i-lock', icTone: 'bad', title: 'الأرشيف والإدارة', sub: 'للمدير التنفيذي: إنهاء التعامل، استعادة، سجل التعديلات', chev: true, go: function () { open('admin'); } }),
