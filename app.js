@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.36';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.37';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -856,7 +856,7 @@ function pgCal() {
   var late = calOccs(-45, -1).filter(function (o) { return !o.done && !o.auto && isT(o); }), wk = calOccs(0, 6).filter(function (o) { return !o.done && isT(o); }), td = calOccs(0, 0).filter(function (o) { return !o.done && isT(o); });
   if (!C.set.on) bl.push(B('note', { tone: 'warn', icon: 'i-alert', text: 'التنبيهات متوقفة: ستبقى المواعيد هنا لكن بلا إشعارات. فعّلها من «التنبيهات».', act: 'التنبيهات', actGo: function () { openSh({ t: 'calNotif' }, {}); } }));
   bl.push(B('seg', { items: [['t', 'المهام والدفعات'], ['a', 'الأجندة']].map(function (a) { return X({ label: a[1], on: (s.cv || 't') === a[0], go: function () { setState({ cv: a[0], cd: null }); } }); }) }));
-  if (!agenda) bl.push(B('kpi', { items: [X({ label: 'اليوم', value: td.length, sub: 'لم تُنجز' }), X({ label: '٧ أيام', value: wk.length, sub: 'قادمة' }), X({ label: 'متأخرة', value: late.length, sub: late.length ? 'تحتاج إنجازًا' : 'لا شيء', endTone: late.length ? 'bad' : 'ok' })] }));
+  if (!agenda) bl.push(B('kpi', { items: [X({ label: 'اليوم', value: td.length, sub: 'لم تُنجز' }), X({ label: '7 أيام', value: wk.length, sub: 'قادمة' }), X({ label: 'متأخرة', value: late.length, sub: late.length ? 'تحتاج إنجازًا' : 'لا شيء', endTone: late.length ? 'bad' : 'ok' })] }));
   else { var evs = function (a, b) { return calOccs(a, b).filter(function (o) { return o.e.kind === 'event'; }); }; bl.push(B('kpi', { items: [X({ label: 'قادمة', value: evs(0, 30).length, sub: 'خلال 30 يومًا' }), X({ label: 'اليوم', value: evs(0, 0).length, sub: 'أحداث' }), X({ label: 'جرت', value: evs(-30, -1).length, sub: 'آخر 30 يومًا' })] })); }
   var y = cDate(0).getUTCFullYear(), mo = cDate(0).getUTCMonth() + cm, ms = new Date(Date.UTC(y, mo, 1)), yy = ms.getUTCFullYear(), mm = ms.getUTCMonth();
   var o1 = cOff(yy, mm, 1), pad = ms.getUTCDay(), dim = new Date(Date.UTC(yy, mm + 1, 0)).getUTCDate(), occM = calOccs(o1, o1 + dim - 1), cells = [], i;
@@ -1943,8 +1943,8 @@ function pgAdmin() {
   Object.keys(AK).forEach(function (k) { archSrc(k).forEach(function (e) { if (e.arch) arch.push({ k: k, e: e }); }); });
   var di = dayInfo();
   bl.push(B('note', { tone: 'warn', icon: 'i-lock', text: 'هذه الشاشة للمدير التنفيذي فقط. ما تُنهي التعامل معه يختفي من القوائم ولا يُحذف: بياناته وتقاريره السابقة تبقى، ويمكن استعادته.' }));
-  bl.push(B('kpi', { items: [X({ label: 'مؤرشف', value: arch.length, sub: 'مخفي من القوائم' }), X({ label: 'سجل التعديلات', value: (S.audit || []).length, sub: 'عملية مسجّلة' }), X({ label: 'اليوم', value: di.closed ? 'مغلق' : di.holiday ? 'عطلة' : 'مفتوح', sub: dshow(today()) })] }));
-  bl.push(B('rows', { title: 'إنهاء التعامل مع', items: Object.keys(AK).map(function (k) { var n = archList(k).length; return X({ icon: AK[k][2], icTone: 'mute', title: AK[k][0], sub: n > 10 ? n + ' عنصرًا فعّالًا' : pl(n, 'عنصر فعّال واحد', 'عنصران فعّالان', 'عناصر فعّالة'), chev: true, go: function () { openSh({ t: 'arch', k: k }); } }); }) }));
+  bl.push(B('kpi', { items: [X({ label: 'مؤرشف', value: arch.length, sub: 'مخفي من القوائم' }), X({ label: 'سجل التعديلات', value: (S.audit || []).length, sub: 'عملية مسجّلة' }), X({ label: 'اليوم', value: di.closed ? 'مغلق' : di.holiday ? 'عطلة' : 'مفتوح', sub: dlong(today()) })] }));
+  bl.push(B('rows', { title: 'إنهاء التعامل مع', items: Object.keys(AK).map(function (k) { var n = archList(k).length; return X({ icon: AK[k][2], icTone: 'mute', title: AK[k][0], sub: pl(n, 'عنصر فعّال واحد', 'عنصران فعّالان', 'عناصر فعّالة'), chev: true, go: function () { openSh({ t: 'arch', k: k }); } }); }) }));
   bl.push(B('rows', { title: 'المؤرشفون', items: arch.map(function (a) { return X({ icon: AK[a.k][2], icTone: 'mute', title: a.e.name, sub: AK[a.k][0].replace(/^ال/, '') + ' · ' + (a.e.archWhy || 'انتهى التعامل'), tag: 'استعادة', tagTone: 'info', chev: true, go: function () { openSh({ t: 'unarch', k: a.k, id: a.e.id }, { wage: a.k === 'worker' ? String(a.e.daily || '') : '' }); } }); }), empty: 'لا مؤرشفين: كل شيء فعّال' }));
   bl.push(B('rows', { title: 'أدوات الإدارة', items: [X({ icon: 'i-clock', icTone: 'warn', title: 'إعادة فتح يوم مغلق', sub: di.closed ? 'أُرسلت النسخة ' + (di.rv || 1) + '، وتحتاج سببًا يُسجَّل' : di.reopened ? 'اليوم مفتوح للتصحيح' : 'اليوم غير مغلق الآن', chev: true, go: function () { openSh({ t: 'reopen' }, { why: '' }); } }), X({ icon: 'i-copy', icTone: 'mute', title: 'دمج الأسماء المكررة', sub: 'متاح في شاشة الإدارة على الحاسوب', tag: 'حاسوب', tagTone: 'mute' })] }));
   bl.push(B('rows', { title: 'سجل التعديلات', items: (S.audit || []).slice(0, 8).map(function (e) { return X({ title: e.what, sub: dlabel(e.date) }); }), empty: 'لا تعديلات مسجّلة' }));
@@ -2412,7 +2412,7 @@ function smartSheet(sh) {
     case 'wmonth': {
       var w = wk(sh.wid);
       return { title: 'كشف شهري · ' + w.name, sub: 'اختر الشهر ليُجهَّز نصه للإرسال',
-        rows: monthKeys(4).map(function (ym) { var s = monthStmt(w, ym); return X({ icon: 'i-doc', icTone: 'info', title: monthLabel(ym), sub: s.days.length + ' يوم عمل' + ' · ' + pl(s.es.length, 'حركة', 'حركتان', 'حركات'), tag: balTxt(s.close), tagTone: balTone(s.close), chev: true, go: function () { shareText('كشف ' + monthLabel(ym) + ' — ' + w.name, monthText(w, ym)); } }); }) };
+        rows: monthKeys(4).map(function (ym) { var s = monthStmt(w, ym); return X({ icon: 'i-doc', icTone: 'info', title: monthLabel(ym), sub: pl(s.days.length, 'يوم عمل واحد', 'يوما عمل', 'أيام عمل') + ' · ' + pl(s.es.length, 'حركة', 'حركتان', 'حركات'), tag: balTxt(s.close), tagTone: balTone(s.close), chev: true, go: function () { shareText('كشف ' + monthLabel(ym) + ' — ' + w.name, monthText(w, ym)); } }); }) };
     }
   }
   return null;
@@ -4030,7 +4030,7 @@ function doAddAlias(id, name, then, l) {
 /* ---------- القشرة: خصائص قوالب الهيكل (رأس، تبويبات، نوافذ، زر سفلي) ---------- */
 function shell() {
   resetCaches();
-  var s = A, pg = s.page, tab = s.tab, d = s.draft, blocks = [], title = '', sub = '', ft = null, hasAction = false;
+  var s = A, pg = s.page, tab = s.tab, d = s.draft, blocks = [], title = '', sub = '', ft = null, ft2 = null, hasAction = false;
   if (pg === 'main') {
     var tt = { today: ['المطبخ', dlong(today())], kitchen: ['الطبخ', 'طبخ وطبخ خارجي'], stock: ['المخزن', 'الأرصدة والاستلام'], workers: ['العمال', 'الحضور والحسابات'], more: ['المزيد', 'الأرصدة والنسخ والتنبيه'] }[tab];
     title = tt[0]; sub = tt[1];
@@ -4042,6 +4042,7 @@ function shell() {
     if (d.step === 1) ft = { label: 'التالي: الكميات', ok: !!d.rec && (d.kind === 'private' || !!d.inst), hint: 'اختر الطبخة' + (d.kind === 'external' ? ' والمؤسسة' : '') + ' أولًا', go: function () { setDraft({ step: 2 }); } };
     else if (d.step === 2) ft = { label: 'التالي: مراجعة', ok: nl > 0, hint: 'أضف مكوّنًا واحدًا على الأقل', go: function () { setDraft({ step: 3 }); } };
     else ft = { label: d.planEdit ? 'حفظ تعديل الخطة' : ed ? 'حفظ التعديل' : d.date > today() ? 'جدولة الطبخة (بلا خصم الآن)' : 'حفظ وخصم من المخزن', ok: ed || !((S.days || {})[d.date] || {}).closed, hint: 'هذا اليوم مُغلق', go: saveBatch };
+    if (d.step === 3 && !d.planEdit) ft2 = { label: 'نسخة للشيف', go: function () { shareChefBatch({ dish: (rec(d.rec) || {}).name, pots: d.pots, date: d.date, lines: batchLinesOut(dLines()) }); } };
   } else if (pg === 'worker') { var ww = wk(s.wid); title = ww.name; sub = money(ww.daily) + ' يوميًا'; blocks = pgWorker();
   } else if (pg === 'recipe') { var rc = rec(s.rid); title = rc.name; sub = rc.draft ? 'وصفة مبدئية' : 'وصفة معتمدة'; blocks = pgRecipe();
   } else if (pg === 'reports') { title = 'التقارير'; sub = 'اختر تقريرًا، ثم شارك أو انسخ'; blocks = pgReports();
@@ -4079,7 +4080,7 @@ function shell() {
     blocks: blocks, tabs: tabs,
     hasFooter: !!ft, ftLabel: ft ? ft.label : '', ftDisabled: ft ? !ft.ok : false, ftBg: ft && ft.ok ? '#14563A' : '#D9DDD8', ftFg: ft && ft.ok ? '#FFFFFF' : '#4A544F',
     ftGo: ft ? (ft.ok ? ft.go : function () { say(ft.hint || req); }) : noop,
-    hasFt2: false, ft2Label: '', ft2Go: noop,
+    hasFt2: !!ft2, ft2Label: ft2 ? ft2.label : '', ft2Go: ft2 ? ft2.go : noop,
     shOn: !!s.sh, shClose: shut,
     shTitle: f.title || '', shSub: f.sub || '', shHasSub: !!f.sub,
     shHasSearch: !!f.search, shQ: s.q, shPh: f.search || '', shOnQ: function (v) { setState({ q: v }); },
