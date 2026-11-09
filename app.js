@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.33';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.34';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2603,16 +2603,16 @@ function dayOk() { return fv('day') !== 'd' || (!!dateNear(fv('dtxt')) && dateNe
 /* ---------- الملخص الشهري ---------- */
 function finMonths() { var o = {}; o[today().slice(0, 7)] = 1; fmOn().forEach(function (m) { o[m.date.slice(0, 7)] = 1; }); return Object.keys(o).sort().reverse(); }
 function finData(ym) {
-  var ms = fmOn().filter(function (m) { return ym === 'all' || m.date.slice(0, 7) === ym; }), cats = {}, parties = {}, T = { inI: 0, outI: 0, inU: 0, outU: 0, adjI: 0, xI: 0, ra: 0, rn: 0 };
+  var ms = fmOn().filter(function (m) { return ym === 'all' || m.date.slice(0, 7) === ym; }), cats = {}, parties = {}, T = { inI: 0, outI: 0, inU: 0, outU: 0, adjI: 0, xI: 0, nI: 0, nU: 0 };
   ms.forEach(function (m) {
-    var c = catOf(m), i = ilsOf(m), u = usdOnly(m); if (m.cur === 'usd' && m.ils > 0 && m.amt > 0) { T.ra += m.ils / m.amt; T.rn++; }
+    var c = catOf(m), i = ilsOf(m), u = usdOnly(m);
     if (c === 'xfer') { if (m.cur === 'ils') T.xI = r2(T.xI + (m.dir === 'in' ? m.amt : -m.amt)); return; }
     var k = (m.dir === 'in' ? 'i_' : 'o_') + c; cats[k] = cats[k] || { c: c, dir: m.dir, n: 0, ils: 0, usd: 0 }; cats[k].n++; cats[k].ils = r2(cats[k].ils + i); cats[k].usd = r2(cats[k].usd + u);
+    if (c !== 'adj') { var sg = m.dir === 'in' ? 1 : -1; if (m.cur === 'ils') T.nI = r2(T.nI + sg * m.amt); else T.nU = r2(T.nU + sg * m.amt); }
     if (c === 'adj') { T.adjI = r2(T.adjI + (m.dir === 'in' ? i : -i)); return; }
     if (m.dir === 'in') { T.inI = r2(T.inI + i); T.inU = r2(T.inU + u); } else { T.outI = r2(T.outI + i); T.outU = r2(T.outU + u);
       var pk = String(m.note || 'بلا بيان').replace(/\s+/g, ' ').split(' — ')[0].trim(); parties[pk] = parties[pk] || { n: 0, ils: 0, usd: 0 }; parties[pk].n++; parties[pk].ils = r2(parties[pk].ils + i); parties[pk].usd = r2(parties[pk].usd + u); }
   });
-  T.rate = T.rn ? r2(T.ra / T.rn) : 0; T.netEq = r2(T.inI - T.outI + (T.inU - T.outU) * T.rate);
   return { ms: ms, cats: Object.keys(cats).map(function (k) { return cats[k]; }), parties: Object.keys(parties).map(function (k) { return { k: k, v: parties[k] }; }).sort(function (a, b) { return (b.v.ils + b.v.usd * 3.2) - (a.v.ils + a.v.usd * 3.2); }), T: T };
 }
 function oweInst() { return r2(S.insts.filter(function (i) { return !i.arch; }).reduce(function (a, i) { var d = iniAcct(i).due; return a + (d > 0 ? d : 0); }, 0)); }
@@ -2620,7 +2620,7 @@ function oweWork() { return r2(activeW().reduce(function (a, w) { var b = wBal(w
 function pgFinSum() {
   var ym = A.fsm || today().slice(0, 7), D = finData(ym), bl = [], ms = finMonths(), t = D.T;
   bl.push(B('chips', { items: ms.slice(0, 6).map(function (m) { return X({ label: monthLabel(m), on: ym === m, go: function () { setState({ fsm: m }); } }); }).concat([X({ label: 'الكل', on: ym === 'all', go: function () { setState({ fsm: 'all' }); } })]) }));
-  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(t.inI), sub: t.inU ? usdTxt(t.inU) : 'بالشيكل' }), X({ label: 'صرف', value: money(t.outI), sub: t.outU ? usdTxt(t.outU) : 'بالشيكل' }), X({ label: 'الفرق تقريبًا', value: money(t.netEq), sub: t.rate ? 'بسعر ' + t.rate : 'بالشيكل' })] }));
+  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(t.inI), sub: t.inU ? usdTxt(t.inU) : 'بالشيكل' }), X({ label: 'صرف', value: money(t.outI), sub: t.outU ? usdTxt(t.outU) : 'بالشيكل' }), X({ label: 'الفرق (وارد − صرف)', value: money(t.nI), sub: usdTxt(t.nU) })] }));
   bl.push(B('btns', { items: [X({ label: 'مشاركة الملخص (صورة)', icon: 'i-send', on: true, go: function () { shareFin(ym); } })] }));
   var rowOf = function (c) { return X({ icon: c.dir === 'in' ? 'i-plus' : 'i-minus', icTone: c.dir === 'in' ? 'ok' : 'warn', title: catName(c.c), sub: pl(c.n, 'حركة واحدة', 'حركتان', 'حركات'), end: c.ils ? money(c.ils) : usdTxt(c.usd), endSub: c.ils && c.usd ? usdTxt(c.usd) : '', chev: true, go: function () { openSh({ t: 'fcat', ym: ym, c: c.c, dir: c.dir }); } }); };
   var outs = D.cats.filter(function (c) { return c.dir === 'out' && c.c !== 'adj'; }).sort(function (a, b) { return b.ils - a.ils; }), ins = D.cats.filter(function (c) { return c.dir === 'in' && c.c !== 'adj'; }).sort(function (a, b) { return b.ils - a.ils; }), adj = D.cats.filter(function (c) { return c.c === 'adj'; });
@@ -2629,7 +2629,7 @@ function pgFinSum() {
   if (adj.length) bl.push(B('rows', { title: 'تسويات الجرد', items: adj.map(rowOf) }));
   bl.push(B('rows', { title: 'أكثر الجهات صرفًا', items: D.parties.slice(0, 8).map(function (p) { return X({ title: p.k, sub: pl(p.v.n, 'حركة واحدة', 'حركتان', 'حركات'), end: p.v.ils ? money(p.v.ils) : usdTxt(p.v.usd) }); }), empty: 'لا صرف' }));
   bl.push(B('rows', { title: 'المستحقات الآن', items: [X({ icon: 'i-truck', icTone: 'info', title: 'مستحق لك من المؤسسات', sub: 'بحسب كشوف الحساب', end: money(oweInst()) }), X({ icon: 'i-users', icTone: 'warn', title: 'عليك للعمال', sub: 'أرصدة العمال المستحقة', end: money(oweWork()) })] }));
-  bl.push(B('note', { tone: 'info', icon: 'i-shield', text: 'التحويلات بين الأرصدة لا تُحسب واردًا ولا صرفًا؛ «الفرق تقريبًا» يحوّل الدولار بمتوسط سعر الصرف في الفترة، وهو مؤشر لا رصيد. ما صُرف بالشيكل من رصيد الدولار يُحسب بالشيكل. التصنيف يُخمَّن من البيان، وتعدّله من الحركة نفسها.' }));
+  bl.push(B('note', { tone: 'info', icon: 'i-shield', text: 'التحويلات بين الأرصدة لا تُحسب واردًا ولا صرفًا؛ «الفرق» لكل عملة على حدة بلا أي تحويل: الشيكل من حركات الشيكل، والدولار من حركات الدولار. أما «صرف» بالشيكل فكل حركة دولار فيه بسعرها هي. ما صُرف بالشيكل من رصيد الدولار يُحسب بالشيكل. التصنيف يُخمَّن من البيان، وتعدّله من الحركة نفسها.' }));
   return bl;
 }
 function finCanvas(ym) {
@@ -2641,7 +2641,7 @@ function finCanvas(ym) {
   var hdr = 130, H = hdr + 110 + L.length * RH + 70, c = document.createElement('canvas'); c.width = W; c.height = H;
   var x = c.getContext('2d'); x.direction = 'rtl'; x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H); x.fillStyle = '#14563A'; x.fillRect(0, 0, W, hdr);
   x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 40px ' + F; x.fillText('الملخص المالي', W - PAD, 62); x.font = '500 25px ' + F; x.fillText(ym === 'all' ? 'كل الأشهر' : monthLabel(ym), W - PAD, 104);
-  var y = hdr + 30, cols = [['وارد', money(t.inI), '#14563A'], ['صرف', money(t.outI), '#B3261E'], ['الفرق تقريبًا', money(t.netEq), t.netEq < 0 ? '#B3261E' : '#14563A']];
+  var y = hdr + 30, cols = [['وارد', money(t.inI), '#14563A'], ['صرف', money(t.outI), '#B3261E'], ['الفرق', money(t.nI) + '  ' + usdTxt(t.nU), (t.nI < 0 || t.nU < 0) ? '#B3261E' : '#14563A']];
   cols.forEach(function (k, i) { var cx = W - PAD - 130 - i * 270; x.textAlign = 'center'; x.fillStyle = '#5B6660'; x.font = '500 22px ' + F; x.fillText(k[0], cx, y + 24); x.fillStyle = k[2]; x.font = '700 32px ' + F; x.fillText(k[1], cx, y + 66); });
   y += 90;
   L.forEach(function (r, k) {
