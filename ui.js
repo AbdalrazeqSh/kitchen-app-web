@@ -19,6 +19,7 @@ function X(o) {
     chev: !!o.chev, hasGo: !!o.go, cur: o.go ? 'pointer' : 'default', go: o.go || noop, lp: o.lp ? function (e) { if (e && e.preventDefault) e.preventDefault(); o.lp(); } : noop, isBtn: !o.step, isStep: !!o.step, ph: !!o.ph,
     minus: o.minus || noop, plus: o.plus || noop, edit: o.edit || noop, val: o.val == null ? '' : String(o.val), unit: o.unit || '',
     warn: o.warn || '', hasWarn: !!o.warn, hasHintGo: !!o.hintGo, hintTxt: o.hintTxt || '', hintGo: o.hintGo || noop, hasX: !!o.x, xGo: o.x ? function (e) { if (e && e.stopPropagation) e.stopPropagation(); o.x(); } : noop,
+    abg: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[0] : '#E9ECE7'), afg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
     rbg: o.rbg || (o.sel ? '#EAF5EE' : '#FFFFFF'), sel: !!o.sel,
     label: o.label || '', value: o.value == null ? '' : String(o.value),
     on: on, count: o.count == null ? '' : String(o.count), hasCount: o.count != null,
