@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.46';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.47';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -47,7 +47,17 @@ var DB = null, saveT = null;
 function idb() { return new Promise(function (res) { try { var r = indexedDB.open('kitchen', 1); r.onupgradeneeded = function () { r.result.createObjectStore('kv'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; } catch (e) { res(null); } }); }
 function dbGet(k) { return new Promise(function (res) { if (!DB) return res(null); var q = DB.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); }
 function dbPut(k, v) { return new Promise(function (res) { if (!DB) return res(); var t = DB.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = res; }); }
-function save() { clearTimeout(saveT); if (typeof syncSoon === 'function') syncSoon(); saveT = setTimeout(function () { var j = JSON.stringify(S); dbPut('state', j); try { localStorage.setItem('kitchen_state_bak', j); } catch (e) {} }, 150); }
+/* ما نقص من مخزن المطبخ يُغطّى من المخزن الخارجي متى توفّر فيه (كما يفعل الطبخ): حركتا فرق تُضافان، والسجل القديم لا يُمس */
+function coverShort() {
+  if (!S || !S.settings || !S.settings.openingDone || !led('ext') || !led('kitchen')) return;
+  var k = {}, e = {}, seen = {}, t = today();
+  S.moves.forEach(function (m) { if (m.kind === 'hist') return; if (m.led === 'kitchen') k[m.item] = (k[m.item] || 0) + m.q; else if (m.led === 'ext') e[m.item] = (e[m.item] || 0) + m.q; });
+  Object.keys(k).forEach(function (id) {
+    var kb = r3(k[id]), eb = r3(e[id] || 0); if (kb >= 0 || eb <= 0) return;
+    var x = Math.min(-kb, eb); E.addMove(S, { date: t, led: 'ext', item: id, q: -x, kind: 'cover', note: 'تغطية نقص المطبخ' }); E.addMove(S, { date: t, led: 'kitchen', item: id, q: x, kind: 'cover', note: 'من المخزن الخارجي' });
+  });
+}
+function save() { try { coverShort(); } catch (e) {} clearTimeout(saveT); if (typeof syncSoon === 'function') syncSoon(); saveT = setTimeout(function () { var j = JSON.stringify(S); dbPut('state', j); try { localStorage.setItem('kitchen_state_bak', j); } catch (e) {} }, 150); }
 function load() {
   return idb().then(function (d) { DB = d; return dbGet('state'); }).then(function (j) {
     if (!j) { try { j = localStorage.getItem('kitchen_state_bak'); } catch (e) {} }
@@ -3411,7 +3421,7 @@ function newId(prefix, list) { var n = list.length + 1, id; do { id = prefix + n
 /* ضغطة مطوّلة على صف: نافذة إجراءات سريعة (كلها تفتح نوافذ التطبيق المعتادة، ولا شيء يُنفَّذ مباشرة) */
 function qa(title, sub, acts) { openSh({ t: 'qa', title: title, sub: sub, acts: acts }); }
 function openItemEdit(it) { openSh({ t: 'itemEdit', id: it.id }, { unit: it.unit, unitNew: '', packType: it.pack ? it.pack.name : 'none', packNew: '', packN: it.pack ? String(it.pack.n) : '', cond: it.cond || 'جاف', condNew: '', grp: it.grp || '', alias: (it.alias || []).join('، '), sup: it.sup || '', price: String(it.price || '') }); }
-var KIND = { opening: 'رصيد افتتاحي', receive: 'استلام', batch: 'طبخة', adjust: 'تسوية', hist: 'سجل قديم', issue: 'صرف' };
+var KIND = { opening: 'رصيد افتتاحي', receive: 'استلام', batch: 'طبخة', adjust: 'تسوية', hist: 'سجل قديم', issue: 'صرف', cover: 'تغطية نقص' };
 function dupOf(list, name) { return list.filter(function (x) { return norm(x.name) === norm(name); })[0]; }
 function dupMsg(x, what) { return !x ? '' : x.arch ? '«' + x.name + '» مؤرشف سابقًا.' : 'يوجد ' + what + ' «' + x.name + '» بنفس الاسم، اخترْه بدل التكرار.'; }
 
