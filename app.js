@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.59';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.60';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3458,25 +3458,24 @@ function pgWorker() {
     X({ label: 'خصم', icon: 'i-minus', tone: 'bad', go: ent('خصم') }),
     X({ label: 'مخالفة', icon: 'i-alert', tone: 'warn', go: ent('مخالفة') })
   ] }));
-  var pre = wBalBefore(w, today());
-  var td = [X({ title: 'رصيد مرحّل من أمس', end: balTxt(pre), endTone: pre === 0 ? '' : balTone(pre) })];
-  td.push(X({ title: st ? st.name : 'الحضور لم يُسجَّل', sub: 'يومية اليوم', end: st ? money(E.attAmt(a)) : '', endSub: st ? 'يُضاف' : '', chev: true, go: function () { openSh({ t: 'status', wid: w.id }); } }));
+  /* سجل واحد: اليوم أولًا (حضوره وحركاته) ثم الأيام السابقة، والرصيد أعلاه هو الإجمالي */
+  var td = [X({ title: 'اليوم', tag: st ? st.name : 'لم يُسجَّل', tagTone: st ? st.tone : 'warn', end: st && a.st !== 'h' ? money(E.attAmt(a)) : '', chev: true, go: function () { openSh({ t: 'status', wid: w.id }); } })];
   var KL = { pay: 'دفعة نقدية', add: 'إضافة', deduct: 'خصم' };
   wToday(w).forEach(function (e) {
-    td.push(phRow({ title: KL[e.kind] || e.kind, sub: e.note, end: money(e.amt), endSub: e.kind === 'add' ? 'يُضاف' : 'يُخصم', endTone: e.kind === 'add' ? 'ok' : 'bad' }, e, w.name + ' · ' + (KL[e.kind] || e.kind)));
+    td.push(phRow({ title: KL[e.kind] || e.kind, sub: e.note || 'اليوم', end: money(e.amt), endTone: e.kind === 'add' ? 'ok' : 'bad' }, e, w.name + ' · ' + (KL[e.kind] || e.kind)));
   });
   (S.wl || []).filter(function (e) { return e.w === w.id && e.kind === 'viol' && e.date === today(); }).forEach(function (e) {
-    td.push(phRow({ icon: 'i-alert', icTone: 'bad', title: 'مخالفة', sub: e.note, tag: e.amt ? 'خصم ' + money(e.amt) : 'تنبيه فقط', tagTone: 'bad' }, e, w.name + ' · مخالفة'));
+    td.push(phRow({ icon: 'i-alert', icTone: 'bad', title: 'مخالفة', sub: e.note || 'اليوم', tag: e.amt ? 'خصم ' + money(e.amt) : 'تنبيه فقط', tagTone: 'bad' }, e, w.name + ' · مخالفة'));
   });
-  bl.push(B('rows', { title: 'حساب اليوم', items: td }));
+  wHist(w, 7).filter(function (h) { return h.date !== today(); }).forEach(function (h) {
+    var t = stat(h.st) || {};
+    td.push(X({ title: dlong(h.date).replace(/ \d{4}$/, ''), tag: t.name, tagTone: t.tone, end: h.st === 'h' ? '' : money(E.attAmt(h)) }));
+  });
+  bl.push(B('rows', { title: 'السجل', items: td }));
   var vs = wViol(w);
   if (vs.length) bl.push(B('rows', { title: 'سجل المخالفات (' + vs.length + ')', items: vs.map(function (v) {
     return phRow({ icon: 'i-alert', icTone: 'bad', title: v.note || 'مخالفة', sub: dlabel(v.date), tag: v.amt ? 'خصم ' + money(v.amt) : 'تنبيه', tagTone: 'bad' }, v, w.name + ' · مخالفة');
   }) }));
-  bl.push(B('rows', { title: 'آخر الأيام', items: wHist(w, 6).filter(function (h) { return h.date !== today(); }).map(function (h) {
-    var t = stat(h.st) || {};
-    return X({ title: dlabel(h.date) === 'اليوم' ? 'اليوم' : dlong(h.date).replace(/ \d{4}$/, ''), tag: t.name, tagTone: t.tone, end: h.st === 'h' ? '' : money(E.attAmt(h)) });
-  }), empty: 'لا أيام سابقة بعد' }));
   if (w.stints && w.stints.length) bl.push(B('rows', { title: 'فترات العمل', items: stintRows(w, false) }));
   bl.push(B('btns', { items: [X({ label: 'إرسال كشف الحساب للعامل', icon: 'i-send', go: function () { shareStatement(w); } })] }));
   bl.push(B('rows', { items: [X({ icon: 'i-doc', icTone: 'info', title: 'كشف شهري', sub: 'حضور وحركات الشهر ورصيده، للإرسال', chev: true, go: function () { openSh({ t: 'wmonth', wid: w.id }); } })] }));
