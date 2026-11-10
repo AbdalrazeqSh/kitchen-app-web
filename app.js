@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.43';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.44';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2183,7 +2183,7 @@ function repDoc(k, forceExp) {
       var it = item(id), a = dc.agg[id], tot = r3(a.cook + a.other), parts = [];
       if (priv) { var kb = E.balance(S, 'kitchen', id), ng = kb < 0 ? r3(Math.min(a.kit, -kb)) : 0; parts.push('من مخزن المطبخ ' + qtyU(a.kit, it.unit)); if (ng > 0) parts.push('منه نقص مسجّل ' + qtyU(ng, it.unit)); if (a.ext > 0) parts.push('خارجي ' + qtyU(a.ext, it.unit)); }
       else { if (a.cook) parts.push('طبخ ' + qtyU(a.cook, it.unit)); if (a.other) parts.push('صرف ' + qtyU(a.other, it.unit) + (a.why.length ? ': ' + a.why.join('، ') : '')); }
-      var left = priv ? E.balance(S, 'kitchen', id) : totalQty(id), lst = stStatus(left, id);
+      var left = priv ? Math.max(0, E.balance(S, 'kitchen', id)) : totalQty(id), lst = stStatus(left, id);
       var cs = [C(it.name, { b: 1, sub: parts.length > 1 || a.other || (priv && (a.ext > 0 || parts.length > 1)) ? parts.join(' · ') : '' }), C(qv(tot, it.unit), { c: 1, b: 1, u: qu(tot, it.unit) })];
       if (SH('left')) cs.push(C(qv(left, it.unit), { c: 1, u: qu(left, it.unit), fg: SH('alert') ? (lst.rank <= 1 ? CL.bad : lst.rank === 2 ? CL.warn : CL.mute) : CL.mute, b: SH('alert') && lst.rank < 3 }));
       return R(cs);
