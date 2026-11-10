@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.48';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.49';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -47,7 +47,7 @@ var DB = null, saveT = null;
 function idb() { return new Promise(function (res) { try { var r = indexedDB.open('kitchen', 1); r.onupgradeneeded = function () { r.result.createObjectStore('kv'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; } catch (e) { res(null); } }); }
 function dbGet(k) { return new Promise(function (res) { if (!DB) return res(null); var q = DB.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); }
 function dbPut(k, v) { return new Promise(function (res) { if (!DB) return res(); var t = DB.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = res; }); }
-/* إلغاء أثر «التغطية التلقائية» التي أُضيفت بالخطأ في 0.9.48: المخزن الخارجي مستقل عن مخزن المطبخ. تُضاف حركات عكسية (السجل لا يُمس) مرة واحدة */
+/* إلغاء أثر «التغطية التلقائية» التي أُضيفت بالخطأ في 0.9.49: المخزن الخارجي مستقل عن مخزن المطبخ. تُضاف حركات عكسية (السجل لا يُمس) مرة واحدة */
 function undoCover() {
   if (!S || !S.settings || S.settings.coverUndone) return; S.settings.coverUndone = true;
   var t = today(); S.moves.filter(function (m) { return m.kind === 'cover' && !m.rev; }).forEach(function (m) { m.rev = true; E.addMove(S, { date: t, led: m.led, item: m.item, q: -m.q, kind: 'cover', note: 'إلغاء تغطية خاطئة' }).rev = true; });
@@ -2737,7 +2737,7 @@ function finSheet(sh) {
 
 /* ===== 02x-export.js ===== */
 /* ---------- تصدير التقرير: صورة / PDF / مشاركة (يرسم «الورقة» نفسها بلا إنترنت) ---------- */
-var EXW = 420, EXS = 2.5, FONT64 = null;
+var EXW = 420, EXS = 4, FONT64 = null;
 function paperNode() { return document.querySelector('[style*="box-shadow:0 1px 4px rgba(27,36,33,.16),0 0 0 1px"]'); }
 function b64(buf) { var b = new Uint8Array(buf), s = '', i; for (i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); }
 function exFonts() {
@@ -2768,8 +2768,8 @@ function paperCanvas(k) {
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + EXW + '" height="' + h + '"><foreignObject width="100%" height="100%"><style>' + css + '</style>' + html + '</foreignObject></svg>';
     return new Promise(function (ok, bad) {
       var img = new Image(); img.onload = function () {
-        var c = document.createElement('canvas'); c.width = Math.round(EXW * EXS); c.height = Math.round(h * EXS);
-        var x = c.getContext('2d'); x.fillStyle = '#EEF0EC'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height); ok(c);
+        var es = Math.min(EXS, 14000 / h), c = document.createElement('canvas'); c.width = Math.round(EXW * es); c.height = Math.round(h * es);
+        var x = c.getContext('2d'); x.fillStyle = '#EEF0EC'; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height); ok(c);
       }; img.onerror = function () { bad(new Error('render')); };
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
     });
@@ -2785,7 +2785,7 @@ function pdfFromCanvas(c) {
     if (y + lim < c.height) { for (var yy = y + lim; yy > y + lim * 0.7; yy--) { if (quiet(yy)) { lim = yy - y; break; } } }
     var hh = lim, p = document.createElement('canvas'); p.width = c.width; p.height = hh;
     var px = p.getContext('2d'); px.fillStyle = '#fff'; px.fillRect(0, 0, p.width, hh); px.drawImage(c, 0, y, c.width, hh, 0, 0, c.width, hh);
-    pages.push({ jpg: atob(p.toDataURL('image/jpeg', 0.92).split(',')[1]), w: p.width, h: hh }); y += hh;
+    pages.push({ jpg: atob(p.toDataURL('image/jpeg', 0.95).split(',')[1]), w: p.width, h: hh }); y += hh;
   }
   var objs = [], n = pages.length, off = [], out = '%PDF-1.4\n', i;
   function add(s) { objs.push(s); }
