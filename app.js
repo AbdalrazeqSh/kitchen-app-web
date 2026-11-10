@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.56';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.57';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -712,10 +712,10 @@ function quickStartPlan(p) {
   mutated('بدأت «' + r.name + '» بكميات الوصفة وتنتظر تأكيدك', function () { E.voidBatch(S, nb.id, today()); var p1 = E.by(S.plans || [], p.id); if (p1) delete p1.done; mutated('أُلغيت الطبخة وأُعيدت المواد'); });
 }
 
-/* ---------- نسخة الشيف (بلا أسعار): مستند واحد لكل الحالات (مخططة، قيد الإعداد، مسجّلة) نصًّا وصورة ---------- */
+/* ---------- نسخة الشيف (بلا أسعار): مستند واحد لكل الحالات (مخططة، قيد الإعداد، مسجّلة) نصًّا وصورة، بخيارات الأقسام والطبخات ---------- */
 function chefRow(it, qty, pots, fixed, rm) {
   var pk = packFull(it, qty), neg = rm < -0.0001;
-  return { name: it.name, tot: qtyU(qty, it.unit), pack: pk, per: pots > 1 && !fixed ? qtyU(r2(qty / pots), it.unit) : '', rem: (neg ? '−' : '') + qtyU(Math.abs(rm), it.unit), neg: neg, rpack: packFull(it, Math.abs(rm)) };
+  return { id: it.id, q: qty, rmv: rm, name: it.name, tot: qtyU(qty, it.unit), pack: pk, per: pots > 1 && !fixed ? qtyU(r2(qty / pots), it.unit) : '', rem: (neg ? '−' : '') + qtyU(Math.abs(rm), it.unit), neg: neg, rpack: packFull(it, Math.abs(rm)) };
 }
 function chefSpecPlan(p) {
   var r = rec(p.recipeId), sc = E.scaleRecipe(r, p.pots, p), af = planAfter(p);
@@ -733,36 +733,89 @@ function chefSpecBatch(b, saved) {
 }
 function chefHead(sp) { return sp.sub || (pl(sp.pots, 'قدر واحد', 'قدران', 'قدور') + ' · ' + dlabel(sp.date)); }
 function chefSpecRec(r) { return { name: r.name, sub: 'الكميات لقدر واحد', pots: 1, r: r, noRem: true, dist: [], rows: spiceLast(r.lines).map(function (l) { var w = chefRow(item(l.item), l.per, 1, true, 0); w.tot = qtyU(l.per, item(l.item).unit); w.pack = ''; w.note = (l.fixed ? 'ثابتة للطبخة' : '') + (l.fixed && l.note ? ' · ' : '') + (l.note || ''); return w; }) }; }
-function chefText(sp) {
-  var r = sp.r, L = [sp.name + ' — ' + chefHead(sp), '', 'المكوّنات:'];
-  sp.rows.forEach(function (w) { if (sp.noRem) { L.push('• ' + w.name + ': ' + w.tot + (w.note ? ' — ' + w.note : '')); return; } L.push('• ' + w.name + ': ' + (w.per ? 'للقدر ' + w.per + ' — ' : '') + 'الإجمالي ' + w.tot + (w.pack ? ' (' + w.pack + ')' : '') + ' — المتبقي ' + w.rem + (w.rpack ? ' (' + w.rpack + ')' : '')); });
-  if (sp.dist.length) L.push('', 'التوزيع على المخيمات:', sp.dist.map(function (x) { return '• ' + x[0] + ' ' + fmt(x[1]) + ' قدر'; }).join('\n'));
-  if (r && r.water) L.push('', 'الماء: ' + r.water + ' لترًا لكل قدر' + (r.wnote ? ' (' + r.wnote + ')' : '')); if (r && r.note) L.push('', r.note);
+
+/* تركيب المستند من طبخة أو أكثر. o: {merge: مكوّنات مدموجة، mats/dist/notes: false لإخفاء القسم}. المخرج كتل: mats وdist وnotes */
+function chefCompose(specs, o) {
+  o = o || {}; var multi = specs.length > 1, merge = !!o.merge && multi, blocks = [], first = specs[0], potsT = function (n) { return pl(n, 'قدر واحد', 'قدران', 'قدور'); };
+  var dates = specs.map(function (x) { return x.date; }).filter(function (d, i, a) { return d && a.indexOf(d) === i; });
+  var doc = { name: specs.map(function (x) { return x.name; }).join(' + '), date: dates.length === 1 ? dates[0] : '', blocks: blocks, noRem: !!first.noRem };
+  doc.sub = multi ? specs.map(function (x) { return potsT(x.pots); }).join(' + ') + (dates.length ? ' · ' + dates.map(dlabel).join('، ') : '') : (first.sub || chefHead(first));
+  if (o.mats !== false) {
+    if (merge) {
+      var by = {}, ord = [];
+      specs.forEach(function (x) { x.rows.forEach(function (w) { if (!by[w.id]) { by[w.id] = { id: w.id, q: 0 }; ord.push(by[w.id]); } by[w.id].q = r2(by[w.id].q + w.q); by[w.id].rmv = w.rmv; }); });
+      blocks.push({ t: 'mats', title: specs.length > 2 ? 'المكوّنات مدموجة لكل الطبخات' : 'المكوّنات مدموجة للطبختين', noRem: false, noPer: true, rows: spiceLast(ord, function (z) { return z.id; }).map(function (z) { return chefRow(item(z.id), z.q, 0, false, z.rmv); }) });
+    } else specs.forEach(function (x) { blocks.push({ t: 'mats', title: multi ? x.name + ' · ' + potsT(x.pots) : '', noRem: !!x.noRem, rows: x.rows }); });
+  }
+  if (o.dist !== false) {
+    var dm = {}, dord = [];
+    specs.forEach(function (x) { (x.dist || []).forEach(function (d) { if (!dm[d[0]]) { dm[d[0]] = { name: d[0], tot: 0, t: [] }; dord.push(dm[d[0]]); } dm[d[0]].tot = r2(dm[d[0]].tot + d[1]); dm[d[0]].t.push([x.name, d[1]]); }); });
+    if (dord.length) blocks.push({ t: 'dist', title: 'التوزيع على المخيمات', total: potsT(r2(dord.reduce(function (a, g) { return a + g.tot; }, 0))), rows: dord.map(function (g) { return { name: g.name, n: potsT(g.tot), types: multi ? (g.t.length > 1 ? g.t.map(function (z) { return z[0] + ' ' + fmt(z[1]); }).join(' · ') : g.t[0][0]) : '' }; }) });
+  }
+  if (o.notes !== false) {
+    var nl = [];
+    specs.forEach(function (x) { var r = x.r, pre = multi ? x.name + ': ' : ''; if (r && r.water) nl.push(pre + 'الماء: ' + r.water + ' لترًا لكل قدر' + (r.wnote ? ' (' + r.wnote + ')' : '')); if (r && r.note) nl.push(pre + r.note); });
+    if (nl.length) blocks.push({ t: 'notes', lines: nl });
+  }
+  return doc;
+}
+function chefDoc(sp) { return sp.blocks ? sp : chefCompose([sp]); }
+function chefText(sp0) {
+  var sp = chefDoc(sp0), L = [sp.name + ' — ' + sp.sub];
+  sp.blocks.forEach(function (bk) {
+    L.push('');
+    if (bk.t === 'mats') {
+      L.push((bk.title || 'المكوّنات') + ':');
+      bk.rows.forEach(function (w) { if (bk.noRem) { L.push('• ' + w.name + ': ' + w.tot + (w.note ? ' — ' + w.note : '')); return; } L.push('• ' + w.name + ': ' + (w.per ? 'للقدر ' + w.per + ' — ' : '') + 'الإجمالي ' + w.tot + (w.pack ? ' (' + w.pack + ')' : '') + ' — المتبقي ' + w.rem + (w.rpack ? ' (' + w.rpack + ')' : '')); });
+    } else if (bk.t === 'dist') {
+      L.push(bk.title + ':'); bk.rows.forEach(function (d) { L.push('• ' + d.name + ' ' + d.n + (d.types ? ' — ' + d.types : '')); }); L.push('الإجمالي ' + bk.total);
+    } else L.push(bk.lines.join('\n\n'));
+  });
   return L.join('\n');
 }
-function chefCanvas(sp) {
-  var r = sp.r, W = 840, PAD = 36, F = "'IBM Plex Sans Arabic', sans-serif", rows = sp.rows, dist = sp.dist;
-  var notes = []; if (r && r.water) notes.push('الماء: ' + r.water + ' لترًا لكل قدر' + (r.wnote ? ' (' + r.wnote + ')' : '')); if (r && r.note) notes.push(r.note);
-  var RH = 60, hdr = 130, H = hdr + 56 + rows.length * RH + (dist.length ? 70 + dist.length * 54 : 0) + (notes.length ? 30 + notes.length * 46 : 0) + 70;
+function chefCanvas(sp0) {
+  var sp = chefDoc(sp0), W = 840, PAD = 36, F = "'IBM Plex Sans Arabic', sans-serif", RH = 60, hdr = 130, GAP = 14, i;
+  var hOf = function (bk) {
+    if (bk.t === 'mats') return (bk.title ? 58 : 0) + 56 + bk.rows.length * RH + GAP;
+    if (bk.t === 'dist') return 60 + bk.rows.reduce(function (a, d) { return a + (d.types ? 74 : 54); }, 0) + 60 + GAP;
+    return 14 + bk.lines.length * 46 + GAP;
+  };
+  var H = hdr + 16 + sp.blocks.reduce(function (a, bk) { return a + hOf(bk); }, 0) + 70;
   var c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'); x.direction = 'rtl';
+  var fit = function (t, w, px, wt) { var z = px; x.font = wt + ' ' + z + 'px ' + F; while (z > 24 && x.measureText(t).width > w) { z -= 2; x.font = wt + ' ' + z + 'px ' + F; } };
   x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H); x.fillStyle = '#14563A'; x.fillRect(0, 0, W, hdr);
-  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 40px ' + F; x.fillText(sp.name, W - PAD, 62);
-  x.font = '500 25px ' + F; x.fillText(sp.sub || (dlabel(sp.date) + ' · ' + pl(sp.pots, 'قدر واحد', 'قدران', 'قدور')), W - PAD, 104);
-  var y = hdr + 40; x.fillStyle = '#5B6660'; x.font = '600 22px ' + F;
-  x.textAlign = 'right'; x.fillText('الصنف', W - PAD, y); if (sp.noRem) { x.textAlign = 'center'; x.fillText('الكمية', W * 0.4, y); } else { x.textAlign = 'center'; x.fillText('للقدر', W * 0.56, y); x.fillText('الإجمالي', W * 0.36, y); x.textAlign = 'left'; x.fillText('المتبقي', PAD, y); } y += 16;
-  rows.forEach(function (rw, i) {
-    if (i % 2 === 0) { x.fillStyle = '#F4F6F2'; x.fillRect(0, y, W, RH); }
-    x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '700 28px ' + F; x.fillText(rw.name, W - PAD, y + 38);
-    if (sp.noRem) { x.textAlign = 'center'; x.font = '700 26px ' + F; x.fillText(rw.tot, W * 0.4, y + 38); if (rw.note) { x.textAlign = 'left'; x.fillStyle = '#5B6660'; x.font = '500 21px ' + F; x.fillText(rw.note, PAD, y + 38); } y += RH; return; }
-    x.textAlign = 'center'; x.font = '600 25px ' + F; x.fillText(rw.tot, W * 0.36, y + (rw.pack ? 30 : 38)); if (rw.pack) { x.fillStyle = '#5B6660'; x.font = '500 19px ' + F; x.fillText(rw.pack, W * 0.36, y + 52); }
-    x.fillStyle = '#5B6660'; x.font = '500 23px ' + F; x.fillText(rw.per, W * 0.56, y + 38);
-    x.textAlign = 'left'; x.fillStyle = rw.neg ? '#B3261E' : '#14563A'; x.font = '700 25px ' + F; x.fillText(rw.rem, PAD, y + (rw.rpack ? 30 : 38)); if (rw.rpack) { x.font = '500 19px ' + F; x.fillText(rw.rpack, PAD, y + 52); } y += RH;
+  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; fit(sp.name, W - 2 * PAD, 40, 700); x.fillText(sp.name, W - PAD, 62);
+  fit(sp.sub, W - 2 * PAD, 25, 500); x.fillText(sp.sub, W - PAD, 104);
+  var y = hdr + 16;
+  sp.blocks.forEach(function (bk) {
+    var top = y;
+    if (bk.t === 'mats') {
+      if (bk.title) { x.fillStyle = '#14563A'; x.textAlign = 'right'; fit(bk.title, W - 2 * PAD, 30, 700); x.fillText(bk.title, W - PAD, top + 38); top += 58; }
+      var yy = top + 40; x.fillStyle = '#5B6660'; x.font = '600 22px ' + F;
+      x.textAlign = 'right'; x.fillText('الصنف', W - PAD, yy); if (bk.noRem) { x.textAlign = 'center'; x.fillText('الكمية', W * 0.4, yy); } else { x.textAlign = 'center'; if (!bk.noPer) x.fillText('للقدر', W * 0.56, yy); x.fillText('الإجمالي', W * 0.36, yy); x.textAlign = 'left'; x.fillText('المتبقي', PAD, yy); } yy += 16;
+      bk.rows.forEach(function (rw, k) {
+        if (k % 2 === 0) { x.fillStyle = '#F4F6F2'; x.fillRect(0, yy, W, RH); }
+        x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '700 28px ' + F; x.fillText(rw.name, W - PAD, yy + 38);
+        if (bk.noRem) { x.textAlign = 'center'; x.font = '700 26px ' + F; x.fillText(rw.tot, W * 0.4, yy + 38); if (rw.note) { x.textAlign = 'left'; x.fillStyle = '#5B6660'; x.font = '500 21px ' + F; x.fillText(rw.note, PAD, yy + 38); } yy += RH; return; }
+        x.textAlign = 'center'; x.font = '600 25px ' + F; x.fillText(rw.tot, W * 0.36, yy + (rw.pack ? 30 : 38)); if (rw.pack) { x.fillStyle = '#5B6660'; x.font = '500 19px ' + F; x.fillText(rw.pack, W * 0.36, yy + 52); }
+        x.fillStyle = '#5B6660'; x.font = '500 23px ' + F; x.fillText(rw.per, W * 0.56, yy + 38);
+        x.textAlign = 'left'; x.fillStyle = rw.neg ? '#B3261E' : '#14563A'; x.font = '700 25px ' + F; x.fillText(rw.rem, PAD, yy + (rw.rpack ? 30 : 38)); if (rw.rpack) { x.font = '500 19px ' + F; x.fillText(rw.rpack, PAD, yy + 52); } yy += RH;
+      });
+    } else if (bk.t === 'dist') {
+      var dy = top + 46; x.fillStyle = '#14563A'; x.textAlign = 'right'; x.font = '700 30px ' + F; x.fillText(bk.title, W - PAD, dy); dy += 14;
+      bk.rows.forEach(function (d, k) {
+        var h = d.types ? 74 : 54; if (k % 2 === 0) { x.fillStyle = '#F4F6F2'; x.fillRect(0, dy, W, h); }
+        x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText(d.name, W - PAD, dy + (d.types ? 32 : 37));
+        x.textAlign = 'left'; x.fillStyle = '#14563A'; x.font = '700 27px ' + F; x.fillText(d.n, PAD, dy + (d.types ? 32 : 37));
+        if (d.types) { x.textAlign = 'right'; x.fillStyle = '#5B6660'; fit(d.types, W - 2 * PAD, 22, 500); x.fillText(d.types, W - PAD, dy + 62); }
+        dy += h;
+      });
+      x.fillStyle = '#14563A'; x.fillRect(PAD, dy + 4, W - 2 * PAD, 2); x.textAlign = 'right'; x.fillStyle = '#1B2421'; x.font = '700 27px ' + F; x.fillText('الإجمالي', W - PAD, dy + 44); x.textAlign = 'left'; x.fillStyle = '#14563A'; x.fillText(bk.total, PAD, dy + 44);
+    } else {
+      bk.lines.forEach(function (n, k) { x.fillStyle = '#46504B'; x.textAlign = 'right'; x.font = '500 24px ' + F; x.fillText(n.length > 48 ? n.slice(0, 47) + '…' : n, W - PAD, top + 34 + k * 46); });
+    }
+    y += hOf(bk);
   });
-  if (dist.length) {
-    y += 46; x.fillStyle = '#14563A'; x.textAlign = 'right'; x.font = '700 30px ' + F; x.fillText('التوزيع على المخيمات', W - PAD, y); y += 14;
-    dist.forEach(function (d) { y += 54; x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '600 27px ' + F; x.fillText(d[0], W - PAD, y - 12); x.textAlign = 'left'; x.fillText(fmt(d[1]) + ' قدر', PAD, y - 12); });
-  }
-  notes.forEach(function (n, i) { y += i ? 46 : 54; x.fillStyle = '#46504B'; x.textAlign = 'right'; x.font = '500 24px ' + F; x.fillText(n.length > 48 ? n.slice(0, 47) + '…' : n, W - PAD, y); });
   x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد · بلا أسعار', W / 2, H - 24);
   return c;
 }
@@ -772,8 +825,44 @@ function shareChef(sp) {
   if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
 }
 function shareChefRec(r) { shareChef(chefSpecRec(r)); }
-function shareChefBatch(b, saved) { shareChef(chefSpecBatch(b, saved !== false)); }
-function shareChefPlan(p) { shareChef(chefSpecPlan(p)); }
+
+/* نافذة خيارات نسخة الشيف: أي الطبخات (طبخات اليوم نفسه)، المكوّنات منفصلة أو مدموجة، وأي الأقسام تُضمَّن */
+function chefGroup(src) {
+  var potsT = function (n) { return pl(n, 'قدر واحد', 'قدران', 'قدور'); };
+  if (src.k === 'plan') {
+    var p0 = E.by(S.plans, src.id), g = plans().filter(function (q) { return q.date === p0.date; });
+    if (!g.some(function (q) { return q.id === p0.id; })) g.push(p0);
+    return g.map(function (q) { return { key: q.id, label: rec(q.recipeId).name + ' · ' + potsT(q.pots), self: q.id === p0.id, spec: function () { return chefSpecPlan(q); } }; });
+  }
+  if (src.k === 'batch') {
+    var b0 = E.by(S.batches, src.id), gb = S.batches.filter(function (b) { return !b.void && b.date === b0.date; });
+    if (!gb.some(function (b) { return b.id === b0.id; })) gb.push(b0);
+    return gb.map(function (b) { return { key: b.id, label: batchName(b) + ' · ' + potsT(b.pots || 0), self: b.id === b0.id, spec: function () { return chefSpecBatch(b, true); } }; });
+  }
+  return [{ key: 'd', label: src.label || '', self: true, spec: src.spec }];
+}
+function chefOpen(src) {
+  var f = { cmode: 'sep', cs_mats: '1', cs_dist: '1', cs_notes: '1' };
+  chefGroup(src).forEach(function (g) { f['cb_' + g.key] = g.self ? '1' : ''; });
+  openSh({ t: 'chefOpt', src: src }, f);
+}
+function chefMulti(k, label, opts, hint) {
+  return { label: label, hint: hint || '', hasHint: !!hint, isText: false, isChips: true, value: '', ph: '', mode: 'text', onInput: noop,
+    chips: opts.map(function (o) { var on = fv(o[0]) === '1'; return X({ label: o[1], on: on, go: function () { fset(o[0], on ? '' : '1'); } }); }) };
+}
+function chefOptSheet(sh) {
+  var grp = chefGroup(sh.src), sel = grp.filter(function (g) { return fv('cb_' + g.key) === '1'; }), multi = grp.length > 1, many = sel.length > 1, fl = [];
+  if (multi) fl.push(chefMulti('cb', 'الطبخات في النسخة', grp.map(function (g) { return ['cb_' + g.key, g.label]; })));
+  if (many) fl.push(fChips('cmode', 'المكوّنات', [['sep', 'منفصلة لكل طبخة'], ['merge', 'مدموجة معًا']]));
+  fl.push(chefMulti('cs', 'الأقسام', [['cs_mats', 'المكوّنات'], ['cs_dist', 'التوزيع'], ['cs_notes', 'الماء والملاحظات']]));
+  var ok = sel.length > 0 && (fv('cs_mats') === '1' || fv('cs_dist') === '1' || fv('cs_notes') === '1');
+  var make = function () { return chefCompose(sel.map(function (g) { return g.spec(); }), { merge: many && fv('cmode') === 'merge', mats: fv('cs_mats') === '1', dist: fv('cs_dist') === '1', notes: fv('cs_notes') === '1' }); };
+  return { title: 'نسخة للشيف', sub: multi ? 'اختر ما يصل الشيف' : 'اختر الأقسام التي تصل الشيف', fields: fl,
+    note: !sel.length ? { text: 'اختر طبخة واحدة على الأقل.', tone: 'warn' } : !ok ? { text: 'اختر قسمًا واحدًا على الأقل.', tone: 'warn' } : null,
+    ft: { label: 'تجهيز الصورة', ok: ok, go: function () { var d = make(); shut(); shareChef(d); } } };
+}
+function shareChefBatch(b, saved) { if (saved === false) chefOpen({ k: 'draft', label: batchName(b), spec: function () { return chefSpecBatch(b, false); } }); else chefOpen({ k: 'batch', id: b.id }); }
+function shareChefPlan(p) { chefOpen({ k: 'plan', id: p.id }); }
 
 /* ---------- نافذة بند التكلفة ---------- */
 function doXline(idx) {
@@ -785,6 +874,7 @@ function doXline(idx) {
 function doDelX(idx) { var d = A.draft, xl = (d.xl || []).slice(); xl.splice(idx, 1); A.draft = Object.assign({}, d, { xl: xl }); shut(); say('حُذف البند'); }
 function batchxSheet(sh) {
   switch (sh.t) {
+    case 'chefOpt': return chefOptSheet(sh);
     case 'xline': {
       var xi = sh.idx, xk = (fv('kNew') || '').trim() || fv('k'), xa = num('amt');
       return { title: xi != null ? 'تعديل بند' : 'بند تكلفة إضافي', sub: 'يُضاف إلى تكلفة الطبخة وحساب الجهة', fields: [
@@ -3008,8 +3098,8 @@ function pgToday() {
       lp: function () { var g = E.by(S.bens || [], x.ben); if (g) benQa(g); } })); });
     bl.push(B('rows', { title: 'توزيع القدور', act: 'توزيع', actGo: function () { openSh({ t: 'distDay' }, { ben: '', pots: '', dish: distDish0() }); }, items: drows }));
   }
-  var tmw = iso(new Date(Date.now() + 864e5)), pdr = planDistRows(plans().filter(function (p) { return p.date <= tmw; }));
-  if (pdr.length) bl.push(B('rows', { title: 'توزيع الطبخات المخططة', items: pdr }));
+  var tmw = iso(new Date(Date.now() + 864e5));
+  planDistBlocks(plans().filter(function (p) { return p.date <= tmw; })).forEach(function (b) { bl.push(b); });
   if (!hol && !di.closed) bl.push(B('btns', { items: [X({ label: 'اليوم عطلة', icon: 'i-calendar', go: function () { openSh({ t: 'holiday' }, { reason: S.settings.weekHol && S.settings.weekHol !== 'لا يوجد' ? 'الجمعة' : 'الجمعة', other: '' }); } })] }));
   var ready = [hol || !wd.none, true].filter(Boolean).length;
   bl.push(B('note', { tone: di.closed ? 'ok' : di.reopened ? 'warn' : 'info', icon: 'i-lock',
@@ -3027,12 +3117,29 @@ function planAfter(p) {
   }
   return left;
 }
-function planDistTxt(p) { var d = p.dist || {}, o = Object.keys(d).filter(function (k) { return d[k] > 0; }); return o.length ? o.map(function (k) { return benName(k) + ' ' + fmt(d[k]); }).join(' · ') : 'لم يُخطَّط بعد'; }
-function planDistRows(ps) {
-  return ps.filter(function (p) { return (p.kind || 'private') === 'private'; }).map(function (p) {
-    var has = Object.keys(p.dist || {}).length > 0;
-    return X({ icon: 'i-users', icTone: has ? 'info' : 'warn', title: rec(p.recipeId).name + ' · ' + dlabel(p.date), sub: planDistTxt(p) + ' · ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'), tag: has ? '' : 'لم يُخطَّط', tagTone: 'warn', chev: true,
-      go: function () { var f = {}, d0 = p.dist || {}; bens().forEach(function (g) { f['d_' + g.id] = d0[g.id] ? String(d0[g.id]) : ''; }); openSh({ t: 'pdist', id: p.id }, f); } });
+/* توزيع الطبخات المخططة موحَّد لكل يوم: كل نقطة بعدد قدورها الإجمالي وأمامها نوع قدورها (من الطبختين أو واحدة) */
+function planDistPts(dp) {
+  var by = {}, out = [];
+  dp.forEach(function (p) { var d = p.dist || {}; Object.keys(d).forEach(function (k) { if (d[k] > 0) { if (!by[k]) { by[k] = { id: k, tot: 0, t: [] }; out.push(by[k]); } by[k].tot = r2(by[k].tot + d[k]); by[k].t.push([rec(p.recipeId).name, d[k]]); } }); });
+  return out;
+}
+function planDistOpen(day) {
+  var f = {}, ps = plans().filter(function (p) { return (p.kind || 'private') === 'private' && p.date === day; });
+  ps.forEach(function (p) { bens().forEach(function (g) { var v = (p.dist || {})[g.id]; f['d_' + p.id + '_' + g.id] = v ? String(v) : ''; }); });
+  openSh({ t: 'pdistDay', day: day }, f);
+}
+function planDistBlocks(ps) {
+  var priv = ps.filter(function (p) { return (p.kind || 'private') === 'private'; }), days = [];
+  priv.forEach(function (p) { if (days.indexOf(p.date) < 0) days.push(p.date); });
+  return days.map(function (day) {
+    var dp = priv.filter(function (p) { return p.date === day; }), multi = dp.length > 1, pts = planDistPts(dp), go = function () { planDistOpen(day); },
+      pots = r2(dp.reduce(function (a, p) { return a + p.pots; }, 0)), given = r2(pts.reduce(function (a, g) { return a + g.tot; }, 0)), left = r2(pots - given), none = !pts.length;
+    var rows = [X({ icon: 'i-pot', icTone: none || left > 0 ? 'warn' : 'ok', title: none ? 'لم يُخطَّط التوزيع بعد' : 'المخطَّط ' + fmt(given) + ' من ' + pl(pots, 'قدر واحد', 'قدران', 'قدور'),
+      sub: multi ? dp.map(function (p) { return rec(p.recipeId).name + ' ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'); }).join(' · ') : rec(dp[0].recipeId).name, tag: none ? 'لم يُخطَّط' : left > 0 ? 'ناقص' : 'تمّ', tagTone: none || left > 0 ? 'warn' : 'ok', chev: true, go: go })];
+    pts.forEach(function (g) {
+      rows.push(X({ icon: 'i-users', icTone: 'info', title: benName(g.id), sub: g.t.length > 1 ? g.t.map(function (x) { return x[0] + ' ' + fmt(x[1]); }).join(' · ') : g.t[0][0], tag: pl(g.tot, 'قدر واحد', 'قدران', 'قدور'), tagTone: 'mute', chev: true, go: go }));
+    });
+    return B('rows', { title: 'توزيع الطبخات المخططة' + (days.length > 1 ? ' · ' + dlabel(day) : ''), act: 'توزيع', actGo: go, items: rows });
   });
 }
 function planShort(p) { // عدد أصناف الخطة التي ينقص رصيدها لهذه الطبخة وحدها
@@ -3051,7 +3158,7 @@ function pgKitchen() {
         tag: short ? 'ينقص ' + pl(short, 'صنف', 'صنفان', 'أصناف') : 'المواد تكفي', tagTone: short ? 'warn' : 'ok', chev: true, go: function () { openSh({ t: 'planView', id: p.id }); },
         lp: function () { qa(r.name, dlabel(p.date), [['عرض ما يلزم', 'i-calendar', function () { openSh({ t: 'planView', id: p.id }); }], ['نسخة للشيف', 'i-image', function () { shut(); shareChefPlan(p); }], ['تغيير التاريخ', 'i-calendar', function () { openSh({ t: 'planDate', id: p.id }, { day: '', dtxt: '' }); }], ['ابدأ هذه الطبخة', 'i-pot', function () { shut(); startFromPlan(p); }]].concat(p.date <= today() ? [['بدء سريع بكميات الوصفة', 'i-check', function () { quickStartPlan(p); }]] : [])); } });
     }), empty: 'لا طبخات مخططة. خطّط لتعرف ما ينقص قبل أن تطبخ.' }));
-  if (k === 'private' && planDistRows(plans()).length) bl.push(B('rows', { title: 'توزيع الطبخات المخططة', items: planDistRows(plans()) }));
+  if (k === 'private') planDistBlocks(plans()).forEach(function (b) { bl.push(b); });
   var allB = batchesOf(k).filter(function (b) { return !b.void; }), todayB = allB.filter(function (b) { return b.date === today(); });
   bl.push(B('rows', { title: 'طبخات اليوم', items: sortedBatches(todayB).map(batchRow).concat(allB.length ? [X({ icon: 'i-calendar', icTone: 'info', title: 'كل الطبخات (' + allB.length + ')', sub: 'مجمّعة حسب اليوم', chev: true, go: function () { open('batches', { bk: k }); } })] : []), empty: 'لا طبخات اليوم' }));
   if (k === 'external') {
@@ -3896,6 +4003,15 @@ function shDesc() {
         ft: { label: 'حفظ التخطيط', ok: ptot <= pp.pots, go: function () { var v = {}; pgs.forEach(function (g) { var x = num('d_' + g.id); if (x > 0) v[g.id] = x; }); pp.dist = v; audit('تخطيط توزيع قدور طبخة مخططة'); shut(); mutated('حُفظ تخطيط التوزيع'); } } };
       break;
     }
+    case 'pdistDay': {
+      var dps = plans().filter(function (p) { return (p.kind || 'private') === 'private' && p.date === sh.day; }), dgs = bens(), dmulti = dps.length > 1, dtot = {}, dbad = false;
+      dps.forEach(function (p) { dtot[p.id] = r2(dgs.reduce(function (a, g) { return a + num('d_' + p.id + '_' + g.id); }, 0)); if (dtot[p.id] > p.pots) dbad = true; });
+      var dflds = []; dgs.forEach(function (g) { dps.forEach(function (p) { dflds.push(fText('d_' + p.id + '_' + g.id, dmulti ? g.name + ' · ' + rec(p.recipeId).name : g.name, '0', 'decimal')); }); });
+      R = { title: 'توزيع ' + dlabel(sh.day), sub: dps.map(function (p) { return rec(p.recipeId).name + ' ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'); }).join(' · ') + ' · اكتب لكل نقطة عدد قدور كل نوع', fields: dflds,
+        note: { text: dps.map(function (p) { return rec(p.recipeId).name + ' ' + fmt(dtot[p.id]) + ' من ' + fmt(p.pots) + (dtot[p.id] > p.pots ? ' (أكبر من القدور)' : ''); }).join(' · ') + '. عند بدء الطبخة يُوضع هذا التوزيع مقترحًا وتعدّله أو تؤكده.', tone: dbad ? 'warn' : 'info' },
+        ft: { label: 'حفظ التخطيط', ok: !dbad && dps.length > 0, go: function () { dps.forEach(function (p) { var v = {}, old = p.dist || {}; Object.keys(old).forEach(function (k) { if (!dgs.some(function (g) { return g.id === k; })) v[k] = old[k]; }); dgs.forEach(function (g) { var x = num('d_' + p.id + '_' + g.id); if (x > 0) v[g.id] = x; }); p.dist = v; }); audit('تخطيط توزيع قدور ' + dlabel(sh.day)); shut(); mutated('حُفظ تخطيط التوزيع'); } } };
+      break;
+    }
     case 'restore': {
       R = { title: 'استعادة نسخة احتياطية', sub: 'اختر ملف النسخة الذي حفظته سابقًا',
         note: { text: 'ستُستبدل كل بيانات هذا الجهاز ببيانات الملف. إن كانت عندك بيانات جديدة لم تُحفظ في نسخة فصدّر نسخة أولًا.', tone: 'warn' },
@@ -4233,7 +4349,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { back: goBack, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { back: goBack, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
