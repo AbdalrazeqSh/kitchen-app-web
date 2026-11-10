@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.53';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.54';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -47,7 +47,7 @@ var DB = null, saveT = null;
 function idb() { return new Promise(function (res) { try { var r = indexedDB.open('kitchen', 1); r.onupgradeneeded = function () { r.result.createObjectStore('kv'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; } catch (e) { res(null); } }); }
 function dbGet(k) { return new Promise(function (res) { if (!DB) return res(null); var q = DB.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); }
 function dbPut(k, v) { return new Promise(function (res) { if (!DB) return res(); var t = DB.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = res; }); }
-/* إلغاء أثر «التغطية التلقائية» التي أُضيفت بالخطأ في 0.9.53: المخزن الخارجي مستقل عن مخزن المطبخ. تُضاف حركات عكسية (السجل لا يُمس) مرة واحدة */
+/* إلغاء أثر «التغطية التلقائية» التي أُضيفت بالخطأ في 0.9.54: المخزن الخارجي مستقل عن مخزن المطبخ. تُضاف حركات عكسية (السجل لا يُمس) مرة واحدة */
 function undoCover() {
   if (!S || !S.settings || S.settings.coverUndone) return; S.settings.coverUndone = true;
   var t = today(); S.moves.filter(function (m) { return m.kind === 'cover' && !m.rev; }).forEach(function (m) { m.rev = true; E.addMove(S, { date: t, led: m.led, item: m.item, q: -m.q, kind: 'cover', note: 'إلغاء تغطية خاطئة' }).rev = true; });
@@ -456,6 +456,11 @@ function mkLine(it, planned, actual, order, meta, extraMap) {
   return { id: it.id, name: it.name, unit: it.unit, planned: planned, actual: actual, price: it.price || 0, src: src, cat: meta.cat || 'b', note: meta.note || '', fixed: !!meta.fixed, extra: !!meta.extra, swap: !!meta.swap, mkt: mk, fill: fill, short: short, dev: dev,
     after: r2(E.balance(S, last, it.id) + ((extraMap && extraMap[last]) || 0) - (src[last] || 0)), lastName: led(last).name, cover: order[0] === 'kitchen' || order[0] === 'ext' ? (src.ext || 0) + (src.mkt || 0) : 0 };
 }
+/* الأساسيات أولًا والبهارات أخيرًا في كل قائمة مكوّنات (ترتيب ثابت يحفظ ترتيب الوصفة داخل كل مجموعة) */
+function spiceLast(list, key) {
+  var sp = function (x) { var it = item(key ? key(x) : x.item); return it && it.grp === 'spice' ? 1 : 0; };
+  return list.map(function (x, i) { return [x, i]; }).sort(function (a, b) { return (sp(a[0]) - sp(b[0])) || (a[1] - b[1]); }).map(function (p) { return p[0]; });
+}
 function dLines() {
   var d = A.draft, out = [];
   if (!d || !d.rec) return out;
@@ -470,7 +475,7 @@ function dLines() {
     out.push(mkLine(item(id), planned, d.over[id] != null ? d.over[id] : planned, order, { cat: l.cat, note: note, fixed: l.fixed, swap: l.swap, mkt: !!mk[id], fill: !!fl[id] }, exm(id)));
   });
   d.extra.forEach(function (e) { out.push(mkLine(item(e.item), e.qty, d.over[e.item] != null ? d.over[e.item] : e.qty, order, { extra: true, mkt: !!mk[e.item], fill: !!fl[e.item] }, exm(e.item))); });
-  return out;
+  return spiceLast(out, function (x) { return x.id; });
 }
 function nudge(id, dir) {
   var l = dLines().filter(function (x) { return x.id === id; })[0], over = Object.assign({}, A.draft.over);
@@ -714,20 +719,20 @@ function chefRow(it, qty, pots, fixed, rm) {
 }
 function chefSpecPlan(p) {
   var r = rec(p.recipeId), sc = E.scaleRecipe(r, p.pots, p), af = planAfter(p);
-  return { name: r.name, date: p.date, pots: p.pots, r: r, rows: sc.map(function (l) { return chefRow(item(l.item), l.qty, p.pots, l.fixed, af[l.item] != null ? af[l.item] : 0); }),
+  return { name: r.name, date: p.date, pots: p.pots, r: r, rows: spiceLast(sc).map(function (l) { return chefRow(item(l.item), l.qty, p.pots, l.fixed, af[l.item] != null ? af[l.item] : 0); }),
     dist: (p.kind || 'private') === 'private' && p.dist ? Object.keys(p.dist).filter(function (k) { return p.dist[k] > 0; }).map(function (k) { return [benName(k), p.dist[k]]; }) : [] };
 }
 /* b: طبخة مسجّلة أو مسوّدة {dish, rec, pots, date, lines, dist}؛ saved=false تعني أن المواد لم تُخصم بعد */
 function chefSpecBatch(b, saved) {
   var rid = b.recipe || b.rec, r = rec(rid), fx = {}; if (r) r.lines.forEach(function (l) { if (l.fixed) fx[l.item] = 1; });
-  var rows = b.lines.filter(function (l) { return l.qty > 0; }).map(function (l) {
+  var rows = spiceLast(b.lines.filter(function (l) { return l.qty > 0; })).map(function (l) {
     var left = Math.max(E.balance(S, 'kitchen', l.item), 0) + Math.max(E.balance(S, 'ext', l.item), 0);
     return chefRow(item(l.item), l.qty, b.pots || 0, fx[l.item], saved ? left : r2(left - l.qty));
   });
   return { name: batchName(b), date: b.date, pots: b.pots || 0, r: r, rows: rows, dist: b.kind === 'external' || !b.dist ? [] : Object.keys(b.dist).filter(function (k) { return b.dist[k] > 0; }).map(function (k) { return [benName(k), b.dist[k]]; }) };
 }
 function chefHead(sp) { return sp.sub || (pl(sp.pots, 'قدر واحد', 'قدران', 'قدور') + ' · ' + dlabel(sp.date)); }
-function chefSpecRec(r) { return { name: r.name, sub: 'الكميات لقدر واحد', pots: 1, r: r, noRem: true, dist: [], rows: r.lines.map(function (l) { var w = chefRow(item(l.item), l.per, 1, true, 0); w.tot = qtyU(l.per, item(l.item).unit); w.pack = ''; w.note = (l.fixed ? 'ثابتة للطبخة' : '') + (l.fixed && l.note ? ' · ' : '') + (l.note || ''); return w; }) }; }
+function chefSpecRec(r) { return { name: r.name, sub: 'الكميات لقدر واحد', pots: 1, r: r, noRem: true, dist: [], rows: spiceLast(r.lines).map(function (l) { var w = chefRow(item(l.item), l.per, 1, true, 0); w.tot = qtyU(l.per, item(l.item).unit); w.pack = ''; w.note = (l.fixed ? 'ثابتة للطبخة' : '') + (l.fixed && l.note ? ' · ' : '') + (l.note || ''); return w; }) }; }
 function chefText(sp) {
   var r = sp.r, L = [sp.name + ' — ' + chefHead(sp), '', 'المكوّنات:'];
   sp.rows.forEach(function (w) { if (sp.noRem) { L.push('• ' + w.name + ': ' + w.tot + (w.note ? ' — ' + w.note : '')); return; } L.push('• ' + w.name + ': ' + (w.per ? 'للقدر ' + w.per + ' — ' : '') + 'الإجمالي ' + w.tot + (w.pack ? ' (' + w.pack + ')' : '') + ' — المتبقي ' + w.rem + (w.rpack ? ' (' + w.rpack + ')' : '')); });
@@ -3713,7 +3718,7 @@ function shDesc() {
     case 'bview': {
       var bacts = [], b = E.by(S.batches, sh.id), l0 = led(b.order[0]), freeB = E.isFree(l0), canEdit = !b.void && !!rec(b.recipe), unc = b.done === false && !b.void, costFree = b.kind === 'external' && freeB;
       R = { title: batchName(b), sub: KN[b.kind] + ' · ' + pl(b.pots || 0, 'قدر واحد', 'قدران', 'قدور') + ' · ' + (inst(b.inst) ? inst(b.inst).name + ' · ' : '') + dlabel(b.date),
-        acts: bacts, rows: b.lines.map(function (ln) {
+        acts: bacts, rows: spiceLast(b.lines).map(function (ln) {
           var li = item(ln.item);
           var pkb = packTxt(li, ln.qty), srcb = Object.keys(ln.src || {}).length > 1 ? srcTxt(ln) : (LSHORT[Object.keys(ln.src || {})[0]] || '');
           var base = ln.extra ? 'مضاف لهذا اليوم' : ln.planned != null ? 'حسب الوصفة ' + qtyU(ln.planned, li.unit) : '';
@@ -3864,7 +3869,7 @@ function shDesc() {
       break;
     }
     case 'planView': {
-      var pv = E.by(S.plans, sh.id), prv = rec(pv.recipeId), sc = E.scaleRecipe(prv, pv.pots, pv);
+      var pv = E.by(S.plans, sh.id), prv = rec(pv.recipeId), sc = spiceLast(E.scaleRecipe(prv, pv.pots, pv));
       var aft = planAfter(pv), isPriv = (pv.kind || 'private') === 'private';
       var pacts = [X({ title: 'التاريخ', icon: 'i-calendar', go: function () { openSh({ t: 'planDate', id: pv.id }, { day: '', dtxt: pv.date }); } })];
       if (isPriv) pacts.push(X({ title: 'التوزيع', icon: 'i-users', go: function () { var f = {}, d0 = pv.dist || {}; bens().forEach(function (g) { f['d_' + g.id] = d0[g.id] ? String(d0[g.id]) : ''; }); openSh({ t: 'pdist', id: pv.id }, f); } }));
