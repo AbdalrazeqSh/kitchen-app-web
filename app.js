@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.49';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.50';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -47,7 +47,7 @@ var DB = null, saveT = null;
 function idb() { return new Promise(function (res) { try { var r = indexedDB.open('kitchen', 1); r.onupgradeneeded = function () { r.result.createObjectStore('kv'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; } catch (e) { res(null); } }); }
 function dbGet(k) { return new Promise(function (res) { if (!DB) return res(null); var q = DB.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); }
 function dbPut(k, v) { return new Promise(function (res) { if (!DB) return res(); var t = DB.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = res; }); }
-/* إلغاء أثر «التغطية التلقائية» التي أُضيفت بالخطأ في 0.9.49: المخزن الخارجي مستقل عن مخزن المطبخ. تُضاف حركات عكسية (السجل لا يُمس) مرة واحدة */
+/* إلغاء أثر «التغطية التلقائية» التي أُضيفت بالخطأ في 0.9.50: المخزن الخارجي مستقل عن مخزن المطبخ. تُضاف حركات عكسية (السجل لا يُمس) مرة واحدة */
 function undoCover() {
   if (!S || !S.settings || S.settings.coverUndone) return; S.settings.coverUndone = true;
   var t = today(); S.moves.filter(function (m) { return m.kind === 'cover' && !m.rev; }).forEach(function (m) { m.rev = true; E.addMove(S, { date: t, led: m.led, item: m.item, q: -m.q, kind: 'cover', note: 'إلغاء تغطية خاطئة' }).rev = true; });
@@ -2162,7 +2162,7 @@ function prow(cells, total) { return { cells: cells, bg: total ? '#EAF1EC' : '' 
 function secK(k, sec) { sec.k = k; return sec; }
 function psec(title, cols, head, rows, empty) {
   var out = rows.map(function (r, i) { return { cells: r.cells, bg: r.bg || (i % 2 ? '#F8FAF7' : '#FFFFFF') }; });
-  return { title: title, cols: cols, head: head.map(function (h, i) { return { t: h, st: i === 0 ? 'text-align:start' : 'text-align:center' }; }), rows: out, hasEmpty: !out.length, empty: empty || '' };
+  return { isTab: true, isGrid: false, title: title, cols: cols, head: head.map(function (h, i) { return { t: h, st: i === 0 ? 'text-align:start' : 'text-align:center' }; }), rows: out, hasEmpty: !out.length, empty: empty || '' };
 }
 function stockAsOf() { var d = A.rdate; return d && d !== 'w7' && d < today() ? d : null; }
 function stockRows(lid, asOf) { // أصناف مخزن واحد، الأحرج أولًا
@@ -2188,10 +2188,10 @@ function repDoc(k, forceExp) {
     var br = pd.map(function (x) { return R([C(x.name, { b: 1 }), C(KN[x.kind], { c: 1 }), C(fmt(x.pots), { c: 1, b: 1 })]); });
     if (tb.length) br.push(R([C('الإجمالي', { b: 1 }), C(''), C(fmt(dc.pots), { c: 1, b: 1 })], true));
     if (SH('batches')) P.secs.push(secK('batches', psec(TT('الطبخات', 'batches'), '1fr 84px 54px', ['الطبخة', 'النوع', 'القدور'], br, 'لا طبخ اليوم')));
-    var dr = da.rows.map(function (r) { return R([C(r.name, { b: 1, sub: r.dishes }), C(fmt(r.pots), { c: 1, b: 1 })]); });
-    if (da.und > 0) dr.push(R([C('غير موزّع', { fg: CL.warn }), C(fmt(da.und), { c: 1, b: 1, fg: CL.warn })]));
-    if (dr.length) dr.push(R([C('الإجمالي', { b: 1 }), C(fmt(dc.pots), { c: 1, b: 1 })], true));
-    if (SH('dist')) P.secs.push(secK('dist', psec(TT('التوزيع', 'dist'), '1fr 54px', ['الجهة', 'القدور'], dr, 'لا توزيع بعد')));
+    /* التوزيع: مخيمان بجانب بعض لتقصير الورقة؛ وسطر الطبخة يُحذف إن كانت الطبخة واحدة لكل الجهات */
+    var one = pd.length <= 1, dcells = da.rows.map(function (r, i) { return { name: r.name, val: fmt(r.pots), sub: one ? '' : r.dishes, hasSub: !one && !!r.dishes, fg: '#1B2421', st: i % 2 ? '' : 'border-inline-end:1px solid #EDEFEA;' }; });
+    if (da.und > 0) dcells.push({ name: 'غير موزّع', val: fmt(da.und), sub: '', hasSub: false, fg: CL.warn, st: dcells.length % 2 ? '' : 'border-inline-end:1px solid #EDEFEA;' });
+    if (SH('dist')) P.secs.push(secK('dist', { isGrid: true, isTab: false, title: TT('التوزيع', 'dist'), cells: dcells, hasTotal: dcells.length > 0, totLabel: 'الإجمالي', totVal: fmt(dc.pots), hasEmpty: !dcells.length, empty: 'لا توزيع بعد' }));
     var isSp = function (id) { return (item(id) || {}).grp === 'spice'; }, ordM = dc.order.filter(function (id) { return !isSp(id); }).concat(dc.order.filter(isSp)); /* الأساسية ثم البهارات في جدول واحد بلا فاصل */
     var mr = ordM.map(function (id) {
       var it = item(id), a = dc.agg[id], tot = r3(a.cook + a.other), parts = [];
@@ -2266,7 +2266,8 @@ function repText(k) { // يُبنى من المستند نفسه: ما يظهر 
   d.secs.forEach(function (s) {
     L.push(s.title + ':');
     if (s.hasEmpty) L.push('• ' + s.empty);
-    s.rows.forEach(function (r) { var c = r.cells, rest = c.slice(1).map(function (x) { return (x.t + ' ' + x.u).trim(); }).filter(Boolean).join(' — '); L.push('• ' + c[0].t + (rest ? ': ' + rest : '') + (c[0].hasSub ? ' (' + c[0].sub + ')' : '')); });
+    if (s.isGrid) { s.cells.forEach(function (g) { L.push('• ' + g.name + ': ' + g.val + (g.hasSub ? ' (' + g.sub + ')' : '')); }); if (s.hasTotal) L.push('• ' + s.totLabel + ': ' + s.totVal); }
+    else s.rows.forEach(function (r) { var c = r.cells, rest = c.slice(1).map(function (x) { return (x.t + ' ' + x.u).trim(); }).filter(Boolean).join(' — '); L.push('• ' + c[0].t + (rest ? ': ' + rest : '') + (c[0].hasSub ? ' (' + c[0].sub + ')' : '')); });
     L.push('');
   });
   d.notes.forEach(function (n) { L.push(n.t); });
