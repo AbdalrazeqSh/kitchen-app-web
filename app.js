@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.62';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.63';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -275,13 +275,26 @@ function doUndo() { var u = UNDO; UNDO = null; A.toast = ''; A.hasUndo = false; 
 function today() { return iso(); }
 
 /* ---------- تنقّل ونوافذ ---------- */
-function open(page, extra) { var p = { page: page, sh: null, q: '', form: {} }; for (var k in (extra || {})) p[k] = extra[k]; setState(p); }
+/* مكدّس التنقل: زر الرجوع يعيدك إلى الشاشة التي كنت فيها قبل هذه الخطوة تمامًا، لا إلى «أب» ثابت */
+var NAV = [], NAVB = false, SHS = [], NAVSKIP = { sh: 1, form: 1, q: 1, toast: 1, hasUndo: 1, draft: 1, offline: 1, sort: 1, attOpen: 1, showArch: 1 };
+function navSnap() { var o = {}; for (var k in A) if (!NAVSKIP[k]) o[k] = A[k]; return o; }
+function navKey(o) { return [o.page, o.tab, o.wid, o.rid, o.did, o.sid, o.fid, o.rk, o.bk].join('|'); }
+function navValid(s) { try { if (s.page === 'worker') return !!wk(s.wid); if (s.page === 'recipe') return !!rec(s.rid); } catch (e) { return false; } return true; }
+function open(page, extra) {
+  var p = { page: page, sh: null, q: '', form: {} }; for (var k in (extra || {})) p[k] = extra[k];
+  if (!NAVB && A.page !== 'batch' && A.page !== 'fix') {
+    var from = navSnap(), to = Object.assign({}, from, p), top = NAV[NAV.length - 1];
+    if (navKey(to) !== navKey(from) && !(from.page === 'main' && page === 'main') && !(top && navKey(top) === navKey(from))) { NAV.push(from); if (NAV.length > 30) NAV.shift(); }
+  }
+  setState(p);
+}
 function openSh(sh, form) {
+  if (A.sh) { if (A.sh.t !== sh.t) { SHS.push({ sh: A.sh, form: A.form }); if (SHS.length > 6) SHS.shift(); } } else SHS = [];
   if (isClosed() && LOCKT.indexOf(sh.t) >= 0) { sh = { t: 'locked', what: sh.t }; form = {}; }
   if (A.hasUndo) { TK++; UNDO = null; A.toast = ''; A.hasUndo = false; } // فتح شاشة جديدة يُنهي فرصة التراجع كي لا يغطي الإشعار الأزرار
   setState({ sh: sh, q: '', form: form || {} });
 }
-function shut() { setState({ sh: null, q: '', form: {} }); }
+function shut() { SHS = []; setState({ sh: null, q: '', form: {} }); }
 function fv(k) { var v = A.form[k]; return v == null ? '' : v; }
 function fset(k, v) { A.form[k] = v; render(); }
 /* الأرقام تقبل عمليات بسيطة: 12×3 أو 12*3 أو 100/4 أو 10+5 */
@@ -296,10 +309,12 @@ function num(k) { return evalNum(fv(k)); }
 function goBack() {
   if (A.page === 'batch' && A.draft && A.draft.step > 1 && !A.draft.editId && !A.draft.planEdit) { setDraft({ step: A.draft.step - 1 }); return; }
   if (A.page === 'batch' && A.draft && (A.draft.editId || A.draft.planEdit) && A.draft.step > 2) { setDraft({ step: A.draft.step - 1 }); return; }
+  while (NAV.length) { var nv = NAV.pop(); if (navValid(nv)) { NAVB = true; try { setState(Object.assign({}, nv, { sh: null, q: '', form: {} })); } finally { NAVB = false; } return; } }
+  NAVB = true;
   var map = { order: { tab: 'stock' }, supplies: { tab: 'stock' }, worker: { tab: 'workers' }, recipe: { tab: 'kitchen' }, recipes: { tab: 'kitchen' }, device: { tab: 'more' }, batches: { tab: 'kitchen' }, batch: { tab: 'kitchen' }, backup: { tab: 'more' }, tests: { tab: 'more' }, history: { tab: 'more' }, opening: { tab: 'stock' }, funds: { tab: 'more' }, reports: { tab: 'more' }, assets: { tab: 'more' }, people: { tab: 'more' }, lists: { tab: 'more' }, admin: { tab: 'more' }, cal: { tab: 'more' } };
-  if (A.page === 'fund' || A.page === 'finsum') { open('funds'); return; }
-  if (A.page === 'supply') { open('supplies'); return; }
-  open('main', map[A.page] || {});
+  if (A.page === 'fund' || A.page === 'finsum') { open('funds'); NAVB = false; return; }
+  if (A.page === 'supply') { open('supplies'); NAVB = false; return; }
+  open('main', map[A.page] || {}); NAVB = false;
 }
 function setDraft(p) { for (var k in p) A.draft[k] = p[k]; render(); }
 function mutated(msg, undo) { save(); say(msg, undo); }
@@ -4359,7 +4374,7 @@ function shell() {
 
 /* ---------- زر الرجوع في أندرويد ---------- */
 function onBack() {
-  if (A.sh) { shut(); return; }
+  if (A.sh) { var ps = SHS.pop(); if (ps) { setState({ sh: ps.sh, form: ps.form, q: '' }); return; } shut(); return; }
   if (A.page !== 'main') { goBack(); return; }
   if (A.tab !== 'today') { setState({ tab: 'today' }); return; }
   if (P.App && P.App.exitApp) P.App.exitApp();
@@ -4376,7 +4391,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { back: goBack, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
