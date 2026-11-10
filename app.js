@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.55';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.56';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -47,7 +47,7 @@ var DB = null, saveT = null;
 function idb() { return new Promise(function (res) { try { var r = indexedDB.open('kitchen', 1); r.onupgradeneeded = function () { r.result.createObjectStore('kv'); }; r.onsuccess = function () { res(r.result); }; r.onerror = function () { res(null); }; } catch (e) { res(null); } }); }
 function dbGet(k) { return new Promise(function (res) { if (!DB) return res(null); var q = DB.transaction('kv').objectStore('kv').get(k); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); }
 function dbPut(k, v) { return new Promise(function (res) { if (!DB) return res(); var t = DB.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = res; }); }
-/* إلغاء أثر «التغطية التلقائية» التي أُضيفت بالخطأ في 0.9.55: المخزن الخارجي مستقل عن مخزن المطبخ. تُضاف حركات عكسية (السجل لا يُمس) مرة واحدة */
+/* إلغاء أثر «التغطية التلقائية» التي أُضيفت بالخطأ في 0.9.56: المخزن الخارجي مستقل عن مخزن المطبخ. تُضاف حركات عكسية (السجل لا يُمس) مرة واحدة */
 function undoCover() {
   if (!S || !S.settings || S.settings.coverUndone) return; S.settings.coverUndone = true;
   var t = today(); S.moves.filter(function (m) { return m.kind === 'cover' && !m.rev; }).forEach(function (m) { m.rev = true; E.addMove(S, { date: t, led: m.led, item: m.item, q: -m.q, kind: 'cover', note: 'إلغاء تغطية خاطئة' }).rev = true; });
@@ -2293,8 +2293,11 @@ function pgReports() {
   var k = A.rpt || 'cook', bl = [], list = RPTS.filter(function (a) { return a[0] !== 'wfp' || wfpOn(); });
   if (!list.some(function (a) { return a[0] === k; })) k = 'cook';
   bl.push(B('chips', { items: list.map(function (a) { return X({ label: a[1], on: k === a[0], go: function () { setState({ rpt: a[0] }); } }); }) }));
-  if (k === 'supply') { var sdv = A.rdate || today(), offs = [0, -1, -2].map(function (n) { return dayOff(n); }); bl.push(B('chips', { items: offs.map(function (dt, i) { return X({ label: ['اليوم', 'أمس', 'قبل يومين'][i], on: sdv === dt, go: function () { setState({ rdate: dt }); } }); }).concat([X({ label: 'آخر 7 أيام', on: sdv === 'w7', go: function () { setState({ rdate: 'w7' }); } }), X({ label: offs.indexOf(sdv) < 0 && sdv !== 'w7' ? dlabel(sdv) : 'تاريخ آخر', on: offs.indexOf(sdv) < 0 && sdv !== 'w7', go: function () { openSh({ t: 'repDay' }, { dtxt: '' }); } })]) })); }
-  if (k === 'stock' || k === 'wfp') { var sdq = A.rdate && A.rdate !== 'w7' ? A.rdate : today(), offq = [0, -1, -2].map(function (n) { return dayOff(n); }); bl.push(B('chips', { items: offq.map(function (dt, i) { return X({ label: ['اليوم', 'أمس', 'قبل يومين'][i], on: sdq === dt, go: function () { setState({ rdate: dt }); } }); }).concat([X({ label: offq.indexOf(sdq) < 0 ? dlabel(sdq) : 'يوم سابق', on: offq.indexOf(sdq) < 0, go: function () { openSh({ t: 'repDay' }, { dtxt: '' }); } })]) })); }
+  /* تاريخ التقرير: تقويم واحد بأيقونته المعروفة بدل أزرار اليوم/أمس */
+  if (k === 'supply' || k === 'stock' || k === 'wfp') {
+    var sdv = A.rdate || today(), w7 = k === 'supply' && sdv === 'w7', cur = w7 ? today() : sdv > today() ? today() : sdv;
+    bl.push(B('btns', { items: [X({ label: dlabel(cur) + ' · تغيير التاريخ', icon: 'i-calendar', on: !w7, go: function () { openSh({ t: 'repDay' }, { dtxt: cur }); } })].concat(k === 'supply' ? [X({ label: 'آخر 7 أيام', on: w7, go: function () { setState({ rdate: w7 ? today() : 'w7' }); } })] : []) }));
+  }
   if (k !== 'workers' && roHasMe(k)) bl.push(B('chips', { items: [[false, 'عرضي'], [true, 'كما يُصدَّر']].map(function (a) { return X({ label: a[1], on: !!A.rexp === a[0], go: function () { setState({ rexp: a[0] }); } }); }) }));
   bl.push(B('paper', { pap: repDoc(k) }));
   bl.push(B('btns', { items: [X({ label: k === 'workers' ? 'داخلي: بلا مشاركة' : 'مشاركة على واتساب', icon: 'i-send', on: k !== 'workers', go: function () { if (k === 'workers') say('كشف العمال داخلي ولا يُرسل'); else exportReport(k, 'share'); } })] }));
