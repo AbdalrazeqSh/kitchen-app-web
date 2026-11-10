@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.57';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.59';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -314,15 +314,19 @@ function fText(k, label, ph, mode, hint) {
     dir: calc ? 'ltr' : 'rtl', ta: calc ? 'right' : 'start', isCalc: calc, opAdd: op('+'), opSub: op('-'), opMul: op('×'), opDiv: op('÷'), opEq: eq, keep: function () {}, onKey: calc ? eq : noop,
     onInput: function (v) { fset(k, v); }, chips: [] };
 }
+/* حقل بسطر واحد: العنوان يمينًا والقيمة يسارًا */
+function inlineF(f) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = '1'; f.cw = '170px'; return f; }
 /* حقل تاريخ بمنتقي تقويم النظام (القيمة yyyy-mm-dd). lo/hi اختياريان: أدنى وأعلى تاريخ مسموح */
-function fDate(k, label, lo, hi, hint) { var f = fText(k, label, '', 'text', hint); f.itype = 'date'; f.min = lo || ''; f.max = hi || ''; return f; }
+function fDate(k, label, lo, hi, hint) { var f = fText(k, label, '', 'text', hint); f.itype = 'date'; f.min = lo || ''; f.max = hi || ''; return inlineF(f); }
 /* حقل نص متعدد الأسطر (للصق نص طويل): بنفس شكل حقل النص */
 function fArea(k, label, ph, hint) { var f = fText(k, label, ph, 'text', hint); f.isText = false; f.isArea = true; return f; }
-function fTime(k, label, hint) { var f = fText(k, label, '', 'text', hint); f.itype = 'time'; return f; }
+function fTime(k, label, hint) { var f = fText(k, label, '', 'text', hint); f.itype = 'time'; return inlineF(f); }
 function fChips(k, label, opts, hint) {
-  var cur = fv(k);
-  return { label: label, hint: hint || '', hasHint: !!hint, isText: false, isChips: true, value: '', ph: '', mode: 'text', onInput: noop,
+  var cur = fv(k), short = opts.length <= 3 && opts.reduce(function (a, o) { return a + String(o[1]).length; }, 0) <= 20 && label.length <= 16, f;
+  f = { label: label, hint: hint || '', hasHint: !!hint, isText: false, isChips: true, value: '', ph: '', mode: 'text', onInput: noop,
     chips: opts.map(function (o) { var sel = cur === o[0]; return X({ label: o[1], on: sel, selTone: o[2], tone: sel ? undefined : o[2], go: function () { fset(k, o[0]); } }); }) };
+  if (short) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = '1'; }
+  return f;
 }
 function fQuick(k, label, arr) {
   var cur = num(k);
@@ -1371,7 +1375,7 @@ function fPhoto(label) {
   var kb = p ? Math.max(1, Math.round(dataBytes(p) / 1024)) : 0;
   return { label: label || 'صورة توثيق (اختياري)', hint: '', hasHint: false, isText: false, isChips: false, isArea: false, value: '', ph: '', mode: 'text', onInput: noop, chips: [],
     isPhoto: true, phEmpty: !p && !menu, phMenu: !p && menu, phOn: !!p, phSrc: A.form.photoSrc === 'file' ? 'اختيرت من الجهاز' : 'التُقطت الآن',
-    phOpen: function () { set('', true); }, phCam: phCam, phFile: phFile, phDel: function () { set('', false); }, phCancel: function () { set('', false); }, phKb: kb };
+    phOpen: function () { set('', true); }, phCam: phCam, phFile: phFile, phDel: function () { set('', false); }, phCancel: function () { set('', false); }, phKb: kb, fd: !p && !menu ? 'row' : 'column', ai: !p && !menu ? 'center' : 'stretch', gp: !p && !menu ? '12px' : '6px', lf: !p && !menu ? '1' : 'none' };
 }
 
 /* عند الحفظ: يُخزَّن ما في النموذج ويُرجَع معرّفه ('' إن لم توجد صورة). يُستدعى قبل shut() */
@@ -4321,7 +4325,7 @@ function shell() {
     shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
-    shFields: (f.fields || []).map(function (x) { return x.isPhoto ? x : Object.assign({ dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
+    shFields: (f.fields || []).map(function (x) { return Object.assign({ fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
     shHasNote: !!nt, shNote: nt ? nt.text : '', shNoteBg: ntn[0], shNoteFg: ntn[1],
     shHasFooter: !!sft, shFtLabel: sft ? sft.label : '', shFtDisabled: sft ? !sft.ok : false, shFtBg: sft && sft.ok ? '#14563A' : '#D9DDD8', shFtFg: sft && sft.ok ? '#FFFFFF' : '#4A544F',
     shFtGo: sft ? (sft.ok ? sft.go : function () { say(req); }) : noop,
