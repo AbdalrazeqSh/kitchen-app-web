@@ -109,7 +109,7 @@ function walk(node, scope) {
 }
 
 /* ---- العرض مع حفظ التركيز والتمرير ---- */
-var restoring = false, root = null, getProps = null, lastPK = null, lastSK = null, typing = false, typTimer = 0;
+var restoring = false, root = null, getProps = null, lastPK = null, lastSK = null, typing = false, typTimer = 0, calcKey = null;
 function render() {
   if (!root) return;
   if (typing) return; /* أثناء الكتابة لا نعيد رسم الشاشة مع كل حرف (يُبطئ الكتابة ويُفلت الأحرف): تُرسم بعد توقف قصير */
@@ -125,6 +125,7 @@ function render() {
   for (var c = tplRoot.firstChild; c; c = c.nextSibling) out += walk(c, props);
   root.innerHTML = out;
   [].forEach.call(root.querySelectorAll('[style*="overflow-y:auto"]'), function (e, i) { if (scr[i] != null) e.scrollTop = scr[i]; });
+  if (calcKey != null) { var ce = root.querySelector('[data-hi="' + calcKey + '"]'); if (ce && ce.closest('.ff')) ce.closest('.ff').classList.add('co'); else calcKey = null; }
   if (keep != null) { var el = root.querySelector('[data-hi="' + keep + '"]'); if (el) { restoring = true; el.focus(); restoring = false; try { if (pos === 'end') el.setSelectionRange(el.value.length, el.value.length); else if (pos) el.setSelectionRange(pos[0], pos[1]); } catch (e) {} } }
 }
 /* كل معالج نقر/إدخال داخل غلاف آمن: الخطأ يُسجَّل ويُعرض بدل أن يضيع بصمت */
@@ -138,8 +139,13 @@ function mount(el, props) {
     var ty = (t.type || '').toLowerCase(); if (ty === 'checkbox' || ty === 'radio' || ty === 'date' || ty === 'file' || ty === 'range') return;
     var go = function () { try { if (document.activeElement === t) t.select(); } catch (er) {} };
     go(); setTimeout(go, 0); setTimeout(go, 60);
-    if (t.parentNode && t.parentNode.className === 'fw' && t.inputMode === 'decimal') setTimeout(function () { try { t.scrollIntoView({ block: 'center' }); } catch (er) {} }, 120);
   });
+  root.addEventListener('mousedown', function (e) { if (e.target && e.target.closest && e.target.closest('[data-ci]')) e.preventDefault(); });
+  root.addEventListener('click', function (e) {
+    var ci = e.target && e.target.closest && e.target.closest('[data-ci]');
+    if (ci) { var fw = ci.closest('.ff'), inp = fw.querySelector('input'), key = inp && inp.getAttribute('data-hi'); if (key != null) { calcKey = calcKey === key ? null : key; fw.classList.toggle('co', calcKey === key); if (document.activeElement !== inp) { restoring = true; inp.focus(); restoring = false; } } return; }
+  });
+  root.addEventListener('focusout', function (e) { var t = e.target; if (calcKey != null && t && t.getAttribute && t.getAttribute('data-hi') === calcKey) setTimeout(function () { var ae = document.activeElement; if (!(ae && ae.getAttribute && ae.getAttribute('data-hi') === calcKey) && !(ae && ae.closest && ae.closest('.cs'))) { calcKey = null; [].forEach.call(root.querySelectorAll('.ff.co'), function (f) { f.classList.remove('co'); }); } }, 150); });
   root.addEventListener('click', function (e) {
     var t = e.target.closest('[data-h]'); if (!t) return;
     var f = handlers[+t.getAttribute('data-h')]; if (f) guard(f, e);
@@ -162,6 +168,6 @@ function mount(el, props) {
     clearTimeout(typTimer); typTimer = setTimeout(render, 250);
   });
 }
-try { var st = document.createElement('style'); st.textContent = '.fw{position:relative}.fw .cs{display:none;position:fixed;left:0;right:0;bottom:78px;z-index:60;background:#F3F4F1;border-top:1px solid rgba(27,36,33,.12);padding:0;gap:0!important;justify-content:space-around}.fw:focus-within .cs{display:flex}.fw .cs button{flex:1;min-width:0!important;min-height:42px!important;padding:0!important;border:0!important;background:transparent!important;border-radius:0!important;font-size:20px!important;font-weight:400!important;color:#3E4843!important}.fw .cs button:last-child{color:#14563A!important;font-weight:600!important}'; document.head.appendChild(st); } catch (e) {}
+try { var st = document.createElement('style'); st.textContent = '.fw{position:relative}.fw .ci{display:none}.fw:focus-within .ci{display:flex}.ff.co .ci{color:#14563A}.fw:has(.ci) input{padding-left:46px!important}.ff .cs{display:none;gap:0!important;justify-content:space-around;background:#F3F4F1;border-radius:12px}.ff.co .cs{display:flex}.ff .cs button{flex:1;min-width:0!important;min-height:42px!important;padding:0!important;border:0!important;background:transparent!important;border-radius:0!important;font-size:20px!important;font-weight:400!important;color:#3E4843!important}.ff .cs button:last-child{color:#14563A!important;font-weight:600!important}'; document.head.appendChild(st); } catch (e) {}
 var UI = window.UI = { T: T, X: X, B: B, mount: mount, render: render, noop: noop, onError: null };
 })();

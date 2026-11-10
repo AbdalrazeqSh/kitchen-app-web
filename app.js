@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.60';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.62';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -306,6 +306,11 @@ function mutated(msg, undo) { save(); say(msg, undo); }
 
 /* ---------- حقول النوافذ (نفس مكونات التصميم) ---------- */
 function fText(k, label, ph, mode, hint) {
+  var f = fText0(k, label, ph, mode, hint); return mode === 'decimal' ? inlineN(f) : f;
+}
+/* رقم قصير: العنوان يمينًا وخانة ضيقة يسارًا في سطر واحد */
+function inlineN(f) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = '1'; f.cw = '160px'; return f; }
+function fText0(k, label, ph, mode, hint) {
   var calc = mode === 'decimal', cur = String(fv(k)), ex = calc && hasOp(cur) ? evalNum(cur) : null;
   if (ex != null) hint = '= ' + fmt(ex) + (hint ? ' · ' + hint : '');
   var op = function (c) { return function () { var v = String(fv(k)); if (!v || v === '-') return; fset(k, /[×÷+\-]$/.test(v) ? v.slice(0, -1) + c : v + c); }; },
@@ -3128,9 +3133,18 @@ function planDistPts(dp) {
   return out;
 }
 function planDistOpen(day) {
-  var f = {}, ps = plans().filter(function (p) { return (p.kind || 'private') === 'private' && p.date === day; });
-  ps.forEach(function (p) { bens().forEach(function (g) { var v = (p.dist || {})[g.id]; f['d_' + p.id + '_' + g.id] = v ? String(v) : ''; }); });
+  var f = {}, ps = plans().filter(function (p) { return (p.kind || 'private') === 'private' && p.date === day; }), tot = {}, same = true;
+  bens().forEach(function (g) { var t = r2(ps.reduce(function (a, p) { return a + ((p.dist || {})[g.id] || 0); }, 0)); f['t_' + g.id] = t ? String(t) : ''; if (t > 0) tot[g.id] = t; ps.forEach(function (p) { var v = (p.dist || {})[g.id]; f['d_' + p.id + '_' + g.id] = v ? String(v) : ''; }); });
+  var al = planDistAlloc(ps, tot);
+  ps.forEach(function (p, i) { Object.keys(p.dist || {}).forEach(function (k) { if ((p.dist[k] || 0) !== (al[i][k] || 0)) same = false; }); });
+  f.dmode = same ? 'tot' : 'det';
   openSh({ t: 'pdistDay', day: day }, f);
+}
+/* يوزّع إجمالي كل نقطة على طبخات اليوم بالترتيب: تُملأ الأولى ثم الثانية، فيظهر نوع قدور كل نقطة تلقائيًا */
+function planDistAlloc(dps, totals, keepIds) {
+  var cap = dps.map(function (p) { return p.pots; }), out = dps.map(function () { return {}; });
+  Object.keys(totals).forEach(function (k) { var t = totals[k]; for (var i = 0; i < dps.length && t > 0; i++) { var take = Math.min(t, cap[i]); if (take > 0) { out[i][k] = r2((out[i][k] || 0) + take); cap[i] = r2(cap[i] - take); t = r2(t - take); } } });
+  return out;
 }
 function planDistBlocks(ps) {
   var priv = ps.filter(function (p) { return (p.kind || 'private') === 'private'; }), days = [];
@@ -4007,12 +4021,22 @@ function shDesc() {
       break;
     }
     case 'pdistDay': {
-      var dps = plans().filter(function (p) { return (p.kind || 'private') === 'private' && p.date === sh.day; }), dgs = bens(), dmulti = dps.length > 1, dtot = {}, dbad = false;
-      dps.forEach(function (p) { dtot[p.id] = r2(dgs.reduce(function (a, g) { return a + num('d_' + p.id + '_' + g.id); }, 0)); if (dtot[p.id] > p.pots) dbad = true; });
-      var dflds = []; dgs.forEach(function (g) { dps.forEach(function (p) { dflds.push(fText('d_' + p.id + '_' + g.id, dmulti ? g.name + ' · ' + rec(p.recipeId).name : g.name, '0', 'decimal')); }); });
-      R = { title: 'توزيع ' + dlabel(sh.day), sub: dps.map(function (p) { return rec(p.recipeId).name + ' ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'); }).join(' · ') + ' · اكتب لكل نقطة عدد قدور كل نوع', fields: dflds,
-        note: { text: dps.map(function (p) { return rec(p.recipeId).name + ' ' + fmt(dtot[p.id]) + ' من ' + fmt(p.pots) + (dtot[p.id] > p.pots ? ' (أكبر من القدور)' : ''); }).join(' · ') + '. عند بدء الطبخة يُوضع هذا التوزيع مقترحًا وتعدّله أو تؤكده.', tone: dbad ? 'warn' : 'info' },
-        ft: { label: 'حفظ التخطيط', ok: !dbad && dps.length > 0, go: function () { dps.forEach(function (p) { var v = {}, old = p.dist || {}; Object.keys(old).forEach(function (k) { if (!dgs.some(function (g) { return g.id === k; })) v[k] = old[k]; }); dgs.forEach(function (g) { var x = num('d_' + p.id + '_' + g.id); if (x > 0) v[g.id] = x; }); p.dist = v; }); audit('تخطيط توزيع قدور ' + dlabel(sh.day)); shut(); mutated('حُفظ تخطيط التوزيع'); } } };
+      var dps = plans().filter(function (p) { return (p.kind || 'private') === 'private' && p.date === sh.day; }), dgs = bens(), det = dps.length > 1 && fv('dmode') === 'det', dpots = r2(dps.reduce(function (a, p) { return a + p.pots; }, 0)),
+        dsum = function (p) { return r2(dgs.reduce(function (a, g) { return a + num('d_' + p.id + '_' + g.id); }, 0)); },
+        dgiven = det ? r2(dps.reduce(function (a, p) { return a + dsum(p); }, 0)) : r2(dgs.reduce(function (a, g) { return a + num('t_' + g.id); }, 0)),
+        dbad = det ? dps.some(function (p) { return dsum(p) > p.pots; }) : dgiven > dpots, dleft = r2(dpots - dgiven), dfl = [];
+      if (dps.length > 1) dfl.push(fChips('dmode', 'طريقة التوزيع', [['tot', 'إجمالي لكل نقطة'], ['det', 'مفصّل حسب الطبخة']]));
+      if (det) dgs.forEach(function (g) { dps.forEach(function (p) { dfl.push(fText('d_' + p.id + '_' + g.id, g.name + ' · ' + rec(p.recipeId).name, '0', 'decimal')); }); });
+      else dgs.forEach(function (g) { dfl.push(fText('t_' + g.id, g.name, '0', 'decimal')); });
+      var dtx = det ? dps.map(function (p) { return rec(p.recipeId).name + ' ' + fmt(dsum(p)) + ' من ' + fmt(p.pots); }).join(' · ') : 'الموزّع ' + fmt(dgiven) + ' من ' + pl(dpots, 'قدر واحد', 'قدران', 'قدور') + (dleft > 0 ? ' · المتبقي ' + fmt(dleft) : '') + (dps.length > 1 ? '. تُوزَّع الأنواع على النقاط تلقائيًا بترتيب الطبخات.' : '');
+      R = { title: 'توزيع ' + dlabel(sh.day), sub: dps.map(function (p) { return rec(p.recipeId).name + ' ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'); }).join(' · '), fields: dfl,
+        note: { text: dbad ? (det ? 'مجموع نوع أكبر من قدوره. ' : 'المجموع ' + fmt(dgiven) + ' أكبر من ' + pl(dpots, 'قدر واحد', 'قدران', 'قدور') + '. ') + dtx : dtx, tone: dbad ? 'warn' : 'info' },
+        ft: { label: 'حفظ التخطيط', ok: !dbad && dps.length > 0, go: function () {
+          var al;
+          if (det) al = dps.map(function (p) { var v = {}; dgs.forEach(function (g) { var x = num('d_' + p.id + '_' + g.id); if (x > 0) v[g.id] = x; }); return v; });
+          else { var tot = {}; dgs.forEach(function (g) { var x = num('t_' + g.id); if (x > 0) tot[g.id] = x; }); al = planDistAlloc(dps, tot); }
+          dps.forEach(function (p, i) { var v = al[i]; Object.keys(p.dist || {}).forEach(function (k) { if (!dgs.some(function (g) { return g.id === k; })) v[k] = p.dist[k]; }); p.dist = v; });
+          audit('تخطيط توزيع قدور ' + dlabel(sh.day)); shut(); mutated('حُفظ تخطيط التوزيع'); } } };
       break;
     }
     case 'restore': {
