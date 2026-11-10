@@ -108,7 +108,7 @@ function walk(node, scope) {
 }
 
 /* ---- العرض مع حفظ التركيز والتمرير ---- */
-var root = null, getProps = null, lastPK = null, lastSK = null, typing = false, typTimer = 0;
+var restoring = false, root = null, getProps = null, lastPK = null, lastSK = null, typing = false, typTimer = 0;
 function render() {
   if (!root) return;
   if (typing) return; /* أثناء الكتابة لا نعيد رسم الشاشة مع كل حرف (يُبطئ الكتابة ويُفلت الأحرف): تُرسم بعد توقف قصير */
@@ -124,12 +124,20 @@ function render() {
   for (var c = tplRoot.firstChild; c; c = c.nextSibling) out += walk(c, props);
   root.innerHTML = out;
   [].forEach.call(root.querySelectorAll('[style*="overflow-y:auto"]'), function (e, i) { if (scr[i] != null) e.scrollTop = scr[i]; });
-  if (keep != null) { var el = root.querySelector('[data-hi="' + keep + '"]'); if (el) { el.focus(); try { if (pos === 'end') el.setSelectionRange(el.value.length, el.value.length); else if (pos) el.setSelectionRange(pos[0], pos[1]); } catch (e) {} } }
+  if (keep != null) { var el = root.querySelector('[data-hi="' + keep + '"]'); if (el) { restoring = true; el.focus(); restoring = false; try { if (pos === 'end') el.setSelectionRange(el.value.length, el.value.length); else if (pos) el.setSelectionRange(pos[0], pos[1]); } catch (e) {} } }
 }
 /* كل معالج نقر/إدخال داخل غلاف آمن: الخطأ يُسجَّل ويُعرض بدل أن يضيع بصمت */
 function guard(f, a) { try { f(a); } catch (er) { if (UI.onError) UI.onError(er); else throw er; } }
 function mount(el, props) {
   root = el; getProps = props;
+  /* لمس أي خانة كتابة يحدّد كل محتواها، فالكتابة تستبدل القيمة بدل أن تُضاف إليها */
+  root.addEventListener('focusin', function (e) {
+    var t = e.target; if (restoring || !t || !t.tagName) return;
+    if (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA') return;
+    var ty = (t.type || '').toLowerCase(); if (ty === 'checkbox' || ty === 'radio' || ty === 'date' || ty === 'file' || ty === 'range') return;
+    var go = function () { try { if (document.activeElement === t) t.select(); } catch (er) {} };
+    go(); setTimeout(go, 0); setTimeout(go, 60);
+  });
   root.addEventListener('click', function (e) {
     var t = e.target.closest('[data-h]'); if (!t) return;
     var f = handlers[+t.getAttribute('data-h')]; if (f) guard(f, e);
