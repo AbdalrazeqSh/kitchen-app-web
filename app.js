@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.77';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.78';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1591,6 +1591,30 @@ function payFund(fid, w, ils, note, kind, rate, wl) {
   S.fm.push({ id: mid(S.fm, 'm'), date: today(), h: fid, dir: 'out', cur: pl_.cur, amt: pl_.amt, ils: pl_.ils, rate: pl_.rate, note: (kind || 'راتب') + ' ' + w.name + (note ? ' — ' + note : ''), w: w.id, wl: wl || null, wils: ils });
 }
 
+
+/* ---------- نسخ حركات الصناديق إلى الشيت (المرجع): بنفس ترتيب أعمدة كل قسم، للصق في أول خلية فارغة ---------- */
+var SH_SECS = [
+  { id: 'bank', name: 'البنك (دولار)', cols: 'التاريخ · وارد · صادر · مبلغ المعاملة · البيان · سعر الصرف', start: 'عمود التاريخ في قسم البنك (F)' },
+  { id: 'ils', name: 'الشيكل', cols: 'التاريخ · وارد · صادر · البيان', start: 'عمود التاريخ في قسم الشيكل (N)' },
+  { id: 'bin', name: 'بايننس', cols: 'التاريخ · وارد · صادر · البيان', start: 'عمود التاريخ في قسم بايننس (A)' }
+];
+function shSecOf(m) { var f = fund(m.h); return m.cur === 'ils' ? 'ils' : f && f.name === 'بايننس' ? 'bin' : 'bank'; }
+function shDate(d) { var p = String(d).split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+/* الماضي مدخل في الشيت أصلًا: «الجديد» يبدأ من تاريخ اعتماد التطبيق أساسًا */
+var SH_FROM = '2026-11-11';
+function shRows(sec, onlyNew) {
+  var sent = S.settings.shSent || {};
+  return fmOn().filter(function (m) { return shSecOf(m) === sec && (!onlyNew || !sent[m.id] && m.date >= SH_FROM); })
+    .map(function (m, i) { return { m: m, i: i }; }).sort(function (a, b) { return a.m.date < b.m.date ? -1 : a.m.date > b.m.date ? 1 : a.i - b.i; }).map(function (o) { return o.m; });
+}
+function shLine(sec, m) {
+  var cell = function (n) { return n ? String(r2(n)) : ''; }, note = String(m.note || '').replace(/[\t\r\n]+/g, ' ').trim(), i = m.dir === 'in' ? m.amt : 0, o = m.dir === 'out' ? m.amt : 0;
+  if (sec === 'bank') return [shDate(m.date), cell(i), cell(o), m.ils > 0 ? cell(m.ils) : '', note, m.rate > 0 ? String(m.rate) : ''].join('\t');
+  return [shDate(m.date), cell(i), cell(o), note].join('\t');
+}
+function shText(sec, onlyNew) { return shRows(sec, onlyNew).map(function (m) { return shLine(sec, m); }).join('\n'); }
+function shMark(sec, onlyNew) { var sent = S.settings.shSent = S.settings.shSent || {}; shRows(sec, onlyNew).forEach(function (m) { sent[m.id] = 1; }); save(); }
+
 /* ---------- الأرصدة ---------- */
 function pgFunds() {
   var bl = [], L = funds(), ff = A.fFeed && fund(A.fFeed) ? A.fFeed : '', n = A.fN || 8;
@@ -1599,10 +1623,11 @@ function pgFunds() {
     X({ label: 'الشيكل', value: money(fTot('ils')), sub: 'في كل الأرصدة' })
   ] }));
   bl.push(B('acts', { items: [
-    X({ title: 'حركة جديدة', icon: 'i-wallet', on: true, go: function () { openMove(); } }),
+    X({ title: 'حركة', icon: 'i-wallet', on: true, go: function () { openMove(); } }),
     X({ title: 'تحويل', icon: 'i-send', go: function () { openSh({ t: 'fXfer' }, { from: defFund(), to: '', cur: '', amt: '', got: '', dtxt: today() }); } }),
     X({ title: 'رصيد جديد', icon: 'i-plus', go: function () { openSh({ t: 'fAdd' }, {}); } }),
     X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'fCount', f: defFund() }, { cur: '', cnt: '' }); } }),
+    X({ title: 'نسخ للشيت', icon: 'i-copy', go: function () { var d = SH_SECS.filter(function (x) { return shRows(x.id, true).length; })[0]; openSh({ t: 'shCopy' }, { sec: (d || SH_SECS[0]).id, scope: 'new' }); } }),
     X({ title: 'الملخص', icon: 'i-list', go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } })] }));
   /* آخر الحركات أولًا: للتأكد أنها سُجّلت، ومن أي رصيد */
   var all = movesDesc(fmOn(ff)), items = all.slice(0, n).map(function (m) { return moveRowX(m, !ff, true); });
@@ -2917,6 +2942,14 @@ function finSheet(sh) {
       return { title: 'تعديل الحركة', sub: (fund(m.h) || {}).name + ' · ' + dlong(m.date), fields: fl,
         note: { text: lk ? 'هذه الحركة مرتبطة بتحويل أو بحساب عامل: يمكن تعديل البيان والتصنيف فقط. لتغيير المبلغ ألغِها وسجّلها من جديد.' : 'الأصل يبقى في السجل ملغى، وتُضاف حركة معدَّلة بدلًا منه.', tone: lk ? 'warn' : 'info' },
         ft: { label: 'حفظ التعديل', ok: (lk || a > 0) && (fv('note') || '').trim().length > 0 && (lk || dayOk()), go: function () { doEditMove(m.id); } } };
+    }
+    case 'shCopy': {
+      var sec = fv('sec') || 'bank', onlyNew = (fv('scope') || 'new') === 'new', sd = SH_SECS.filter(function (x) { return x.id === sec; })[0], rows = shRows(sec, onlyNew);
+      return { title: 'نسخ للشيت', sub: 'الشيت مرجع: الصق الحركات كما هي في قسمها', fields: [
+        fChips('sec', 'القسم', SH_SECS.map(function (x) { return [x.id, x.name + ' · ' + shRows(x.id, true).length]; })),
+        fChips('scope', 'ما يُنسخ', [['new', 'الجديد منذ آخر نسخ'], ['all', 'كل الحركات']])],
+        note: { text: rows.length ? 'الأعمدة: ' + sd.cols + '. الصق في أول خلية فارغة تحت ' + sd.start + '.' : 'لا حركات جديدة في هذا القسم.', tone: rows.length ? 'info' : 'ok' },
+        ft: { label: rows.length ? 'نسخ ' + pl(rows.length, 'سطر واحد', 'سطرين', 'أسطر') : 'لا شيء للنسخ', ok: rows.length > 0, go: function () { copyText(shText(sec, onlyNew), 'نُسخ ' + pl(rows.length, 'سطر واحد', 'سطران', 'أسطر') + '، الصقه في الشيت'); if (onlyNew) shMark(sec, true); setState({}); } } };
     }
     case 'fCount': {
       f = fund(sh.f); var cur = fv('cur') || fMain(f), sys = fBal(f.id, cur), has = fv('cnt') !== '', cnt = num('cnt'), diff = r2(cnt - sys), fl2 = [];
@@ -4642,7 +4675,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { shText: shText, shMark: shMark, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
