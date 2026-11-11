@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.90';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.91';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -482,7 +482,7 @@ function wlOn() { return (S.wl || []).filter(function (e) { return !e.void; }); 
 function wViol(w) { return wlOn().filter(function (e) { return e.w === w.id && e.kind === 'viol'; }).sort(function (a, b) { return b.ts - a.ts; }); }
 function wToday(w) { return wlOn().filter(function (e) { return e.w === w.id && e.kind !== 'open' && e.kind !== 'viol' && e.date === today(); }); }
 function wOpenAmt(w) { return E.wSum(S, w.id, ['open']); }
-function setStat(wid, sid) { E.setAtt(S, today(), wid, sid); save(); shut(); }
+function setStat(wid, sid, date) { E.setAtt(S, date || today(), wid, sid); save(); shut(); }
 function allPresent() {
   var ids = []; activeW().forEach(function (w) { if (!wAtt(w)) { E.setAtt(S, today(), w.id, 'p'); ids.push(w.id); } });
   if (!ids.length) { say('كل العمال مسجَّل حضورهم'); return; }
@@ -3669,9 +3669,26 @@ function pgStock() {
   if (sg !== 'main' && spR.length) bl.push(B('rows', { title: 'البهارات', sort: sg === 'spice' ? sortInfo('stock') : null, items: spR.map(mkRow), empty: '' }));
   return bl;
 }
+/* جدول حضور وغياب الأسبوع (السبت إلى الجمعة): صف لكل عامل وخلية لكل يوم بلون الحالة. النقر على خلية يفتح حالة ذلك اليوم */
+var WK_DN = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'], WK_EMPTY = { bg: 'transparent', fg: '#B3BBB6', bd: '1.5px dashed #C9CFCA' };
+function wkLetter(st) { return { p: 'ح', x: 'م', l: 'ت', a: 'غ', h: 'ع' }[st.id] || String(st.name || '').charAt(0); }
+function weekBlock(W) {
+  var off = A.wkOff || 0, k0 = -((new Date().getDay() + 1) % 7) + 7 * off, days = [], td = today(), i;
+  for (i = 0; i < 7; i++) { var dd = dayOff(k0 + i); days.push({ date: dd, n: WK_DN[new Date(dd + 'T12:00:00').getDay()], d: String(+dd.slice(8)), fg: dd === td ? '#14563A' : '#1B2421', fut: dd > td }); }
+  var cell = function (w, d) {
+    var a = E.attOn(S, d.date, w.id), st = a ? stat(a.st) : null, tn = st ? T[st.tone] || T.mute : null;
+    return { t: st ? wkLetter(st) : '·', bg: tn ? tn[0] : WK_EMPTY.bg, fg: tn ? tn[1] : WK_EMPTY.fg, bd: tn ? '0' : WK_EMPTY.bd, go: d.fut ? noop : function () { openSh({ t: 'status', wid: w.id, date: d.date }); } };
+  };
+  var rows = W.map(function (w) {
+    var tot = days.filter(function (d) { var a = E.attOn(S, d.date, w.id), st = a ? stat(a.st) : null; return st && st.mult > 0; }).length;
+    return { name: w.name, go: function () { open('worker', { wid: w.id }); }, cells: days.map(function (d) { return cell(w, d); }), tot: String(tot) };
+  });
+  var legend = (S.stats || []).filter(function (t) { return !t.sys; }).map(function (t) { var tn = T[t.tone] || T.mute; return { t: wkLetter(t), l: t.name, bg: tn[0], fg: tn[1], bd: '0' }; }).concat([{ t: '·', l: 'لم يُسجَّل', bg: WK_EMPTY.bg, fg: WK_EMPTY.fg, bd: WK_EMPTY.bd }]);
+  return B('week', { wk: { title: dlong(days[0].date).replace(/ \d{4}$/, '') + ' – ' + dlong(days[6].date).replace(/ \d{4}$/, ''), prev: function () { setState({ wkOff: off - 1 }); }, next: off < 0 ? function () { setState({ wkOff: off + 1 }); } : noop, days: days, rows: rows, legend: legend } });
+}
 function pgWorkers() {
   var m = A.wmode, bl = [], W = activeW(), td = today(), wd = E.wDay(S, td), hol = isHol();
-  bl.push(B('seg', { items: [['att', 'الحضور اليوم'], ['acc', 'الحسابات']].map(function (a) {
+  bl.push(B('seg', { items: [['att', 'الحضور اليوم'], ['wk', 'الأسبوع'], ['acc', 'الحسابات']].map(function (a) {
     return X({ label: a[1], on: m === a[0], go: function () { setState({ wmode: a[0] }); } });
   }) }));
   var owed = W.reduce(function (a, w) { var b = wBal(w); return a + (b > 0 ? b : 0); }, 0);
@@ -3684,6 +3701,7 @@ function pgWorkers() {
     X({ title: 'عامل جديد', icon: 'i-userPlus', on: true, go: function () { openSh({ t: 'addWorker' }, { name: '', wage: '' }); } }),
     X({ title: 'حضور الباقين', icon: 'i-check', go: function () { allPresent(); } }),
     X({ title: 'تسوية الأسبوع', icon: 'i-wallet', go: function () { openSh({ t: 'settle' }, { sel: W.filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); } })] }));
+  if (m === 'wk') { bl.push(weekBlock(W)); return bl; }
   var wl = (S.workers || []).filter(function (w) { return !w.arch || A.showArch; }), wm = A.sort.workers;
   wl.sort(function (a, b) {
     if (wm.f === 'name') return a.name.localeCompare(b.name, 'ar') * wm.d;
@@ -4208,11 +4226,11 @@ function shDesc() {
       break;
     }
     case 'status': {
-      w = wk(sh.wid); var ca = wAtt(w);
-      R = { title: w.name, sub: 'حالة حضور اليوم · ' + money(w.daily) + ' يوميًا',
+      w = wk(sh.wid); var sd = sh.date || today(), ca = E.attOn(S, sd, w.id);
+      R = { title: w.name, sub: 'حالة حضور ' + (sd === today() ? 'اليوم' : dlong(sd)) + ' · ' + money(w.daily) + ' يوميًا',
         rows: (S.stats || []).filter(function (t) { return !t.sys; }).map(function (t) {
           return X({ title: t.name, sub: (t.mult === 0 ? 'بلا أجر' : t.mult !== 1 ? '× ' + t.mult + ' من اليومية' : 'يومية كاملة') + (t.bonus ? ' + ' + money(t.bonus) : ''),
-            tag: money(r2(w.daily * t.mult + t.bonus)), tagTone: t.tone, sel: !!ca && ca.st === t.id, go: function () { setStat(w.id, t.id); } });
+            tag: money(r2(w.daily * t.mult + t.bonus)), tagTone: t.tone, sel: !!ca && ca.st === t.id, go: function () { setStat(w.id, t.id, sd); } });
         }),
         add: { label: '+ إضافة حالة حضور جديدة', go: function () { openSh({ t: 'addStat' }, { name: '', mult: '1', bonus: '' }); } },
         ft: { label: 'كشف حساب ' + w.name, ok: true, go: function () { open('worker', { wid: w.id }); } } };

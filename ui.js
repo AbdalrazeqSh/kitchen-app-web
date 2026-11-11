@@ -44,7 +44,7 @@ function B(t, o) {
   return {
     isKpi: t === 'kpi', isSeg: t === 'seg', isChips: t === 'chips', isRows: t === 'rows', isGrid: t === 'grid', isNote: t === 'note',
     isPaper: t === 'paper', pap: o.pap || { org: '', title: '', date: '', sub: '', lead: '', hasLead: false, hasTiles: false, tiles: [], secs: [], notes: [], foot: '' },
-    isMonth: t === 'month', mon: o.mon || { title: '', prev: noop, next: noop, head: [], cells: [] },
+    isMonth: t === 'month', isWeek: t === 'week', wk: o.wk || { title: '', prev: noop, next: noop, days: [], rows: [], legend: [] }, mon: o.mon || { title: '', prev: noop, next: noop, head: [], cells: [] },
     isBig: t === 'big', isBtns: t === 'btns', isActs: t === 'acts', isPre: t === 'pre', isPick: pick, isStepper: t === 'stepper', isInput: t === 'input',
     items: o.items || [],
     hasSort: !!o.sort, sortLabel: o.sort ? o.sort.label : '', sortRot: o.sort && o.sort.asc ? 'rotate(180deg)' : 'none', sortGo: o.sort ? o.sort.go : noop,
