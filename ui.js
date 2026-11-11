@@ -12,7 +12,7 @@ function X(o) {
   return {
     title: o.title || '', sub: o.sub || '', hasSub: !!o.sub,
     tag: o.tag || '', hasTag: !!o.tag, tagBg: tg[0], tagFg: tg[1],
-    end: o.end || '', endSub: o.endSub || '', endSub2: o.endSub2 || '', hasEnd: !!(o.end || o.endSub), hasEndSub: !!o.endSub, hasEndSub2: !!o.endSub2,
+    end: o.end || '', endSub: o.endSub || '', endSub2: o.endSub2 || '', hasEnd: !!(o.end || o.endSub), hasEndSub: !!o.endSub, hasEndSub2: !!o.endSub2, subFs: o.endEq ? '15px' : '12px', subFg: o.endEq ? (o.endTone ? T[o.endTone][1] : '#1B2421') : '#5B6660', subFw: o.endEq ? 500 : 400,
     hasCols: !!o.c1, c0: o.c0 || '', c1: o.c1 || '', c1s: o.c1s || '', c2: o.c2 || '', c2s: o.c2s || '', c2Fg: o.c2Tone ? T[o.c2Tone][1] : '#1B2421',
     endFg: o.endTone ? T[o.endTone][1] : '#1B2421',
     icon: o.icon || 'i-dot', hasIcon: !!o.icon, icBg: ic[0], icFg: ic[1],
@@ -40,7 +40,7 @@ function B(t, o) {
     hasSort: !!o.sort, sortLabel: o.sort ? o.sort.label : '', sortRot: o.sort && o.sort.asc ? 'rotate(180deg)' : 'none', sortGo: o.sort ? o.sort.go : noop,
     title: o.title || '', hasTitle: !!o.title, actLabel: o.act || '', hasAct: !!o.act, actGo: o.actGo || noop,
     emptyText: o.empty || '', hasEmpty: !!o.empty && !(o.items && o.items.length),
-    text: o.text || '', label: o.label || '', value: o.value == null ? '' : String(o.value),
+    text: o.text || '', label: o.label || '', value: o.value == null ? '' : String(o.value), value2: o.value2 == null ? '' : String(o.value2), hasV2: o.value2 != null && o.value2 !== '',
     bg: tn[0], fg: pick ? (unfilled ? '#5B6660' : '#1B2421') : tn[1], icon: o.icon || 'i-alert',
     go: o.go || noop, minus: o.minus || noop, plus: o.plus || noop, edit: o.edit || noop, onInput: o.onInput || noop, ph: o.ph || '', mode: o.mode || 'text',
     bd: unfilled ? 'rgba(27,36,33,.35)' : 'rgba(27,36,33,.12)'
