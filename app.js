@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.92';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.93';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4844,19 +4844,19 @@ function checkUpdate(force) {
   try { if (!force && Date.now() - (+localStorage.getItem('kitchen_upd_chk') || 0) < 30 * 6e4) return Promise.resolve(); localStorage.setItem('kitchen_upd_chk', String(Date.now())); } catch (e) { return Promise.resolve(); }
   var ac = window.AbortController ? new AbortController() : null, tm = ac ? setTimeout(function () { ac.abort(); }, 15000) : 0;
   return fetch(base + 'version.json?t=' + Date.now(), { cache: 'no-store', signal: ac ? ac.signal : undefined }).then(function (r) { clearTimeout(tm); if (!r.ok) throw new Error('v'); return r.json(); }).then(function (v) {
-    if (!v || !v.ver || !v.files) { if (force) say('تعذّر التأكد من آخر إصدار: الاتصال ضعيف'); return; }
+    if (!v || !v.ver || !v.files) { if (force) say('تعذّر التأكد: الاتصال ضعيف'); return; }
     if (vcmp(window.PKG_VER || '0.0.0', v.minPkg || '0.0.0') < 0) { if (force) say('الإصدار ' + v.ver + ' يحتاج تثبيت APK جديد'); return; }
-    if (updPending() === v.ver) { if (force) say('التحديث ' + v.ver + ' جاهز: أغلق التطبيق وافتحه'); return; }
-    if (vcmp(v.ver, VERSION) <= 0) { if (force) say('الإصدار عندك ' + VERSION + ' والمنشور ' + v.ver + (v.ver === VERSION ? ': أنت على أحدث إصدار' : '')); return; }
+    if (updPending() === v.ver) { if (force) say('يتوفر تحديث ' + v.ver + ': أغلق التطبيق وافتحه'); return; }
+    if (vcmp(v.ver, VERSION) <= 0) { if (force) say('أنت على أحدث إصدار (' + VERSION + ')'); return; }
     var names = Object.keys(v.files);
     return Promise.all(names.map(function (n) {
       return fetch(base + n + '?v=' + v.ver, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(n); return r.text(); }).then(function (t) { return sha256hex(t).then(function (h) { if (h !== v.files[n]) throw new Error('hash ' + n); return [n, t]; }); });
     })).then(function (pairs) {
       var f = {}; pairs.forEach(function (p) { f[p[0]] = p[1]; });
       localStorage.setItem(UPD_K, JSON.stringify({ ver: v.ver, f: f })); localStorage.removeItem(UPD_K + '_bad');
-      say('تحديث ' + v.ver + ' جاهز: يعمل عند فتح التطبيق في المرة القادمة');
+      say('يتوفر تحديث ' + v.ver + ': أغلق التطبيق وافتحه');
     });
-  }).catch(function () { clearTimeout(tm); if (force) say('تعذّر التأكد من آخر إصدار: الاتصال ضعيف أو منقطع، حاول لاحقًا'); });
+  }).catch(function () { clearTimeout(tm); if (force) say('تعذّر التأكد: الاتصال ضعيف'); });
 }
 
 /* ===== 06v-sync.js ===== */
