@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.95';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.96';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3352,6 +3352,73 @@ function wstSheet(sh) {
     ft: { label: 'إرسال على واتساب', ok: true, go: function () { shut(); wstSend(w, o, 'share'); } } };
 }
 
+/* ===== 02z-sms.js ===== */
+/* ---------- رسائل المخيمات الصباحية (SMS) ----------
+   مخيمات اليوم: كل مخيم له طعام اليوم (طبخات اليوم أو توزيع اليوم أو خطة اليوم غير المنفّذة) وله مندوب ورقم.
+   النص قالب يعدّله المالك متى شاء (الإعدادات)، ويُرسَل من التطبيق مباشرة عبر إضافة أندرويد (تحتاج APK 0.9.96 فأحدث)،
+   وفي غير ذلك تُفتح الرسالة جاهزة في تطبيق الرسائل. علامة «أُرسلت» تُحفظ لليوم فلا تتكرر رسالة المخيم نفسه. */
+var SMS_TPL = 'صباح الخير {المندوب}، طعام اليوم لمخيم {المخيم}: {الأصناف}. الاستلام {الوقت} {المكان}. شكرًا.';
+function smsCfg() { var c = (S.settings.campSms = S.settings.campSms || {}); if (c.tpl == null) c.tpl = SMS_TPL; if (c.time == null) c.time = ''; if (c.place == null) c.place = ''; return c; }
+function smsNative() { try { return !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform() && Capacitor.isPluginAvailable && Capacitor.isPluginAvailable('KitchenSms') && vcmp(window.PKG_VER || '0.0.0', '0.9.96') >= 0); } catch (e) { return false; } }
+function smsNum(v) { return String(v || '').replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 1632); }).replace(/[^0-9+]/g, ''); }
+function campsToday() {
+  var td = today(), m = {}, ord = [];
+  var add = function (id, dish, pots) { if (!(pots > 0)) return; if (!m[id]) { m[id] = { g: E.by(S.bens || [], id), d: {} }; ord.push(id); } m[id].d[dish] = r2((m[id].d[dish] || 0) + pots); };
+  dayBatches('private').forEach(function (b) { Object.keys(b.dist || {}).forEach(function (k) { add(k, batchName(b), b.dist[k]); }); });
+  dayDist().forEach(function (x) { add(x.ben, x.dish ? (rec(x.dish) || {}).name : 'طعام', x.pots); });
+  plans().filter(function (p) { return p.date === td && (p.kind || 'private') === 'private'; }).forEach(function (p) { Object.keys(p.dist || {}).forEach(function (k) { add(k, (rec(p.recipeId) || {}).name || 'طعام', p.dist[k]); }); });
+  return ord.filter(function (id) { return m[id].g && !m[id].g.arch; }).map(function (id) { return { g: m[id].g, dishes: Object.keys(m[id].d).map(function (n) { return n + ' ' + pl(m[id].d[n], 'قدر واحد', '2 قدر', 'قدور'); }).join('، ') }; });
+}
+function smsText(c) {
+  var cf = smsCfg(), g = c.g;
+  var t = String(cf.tpl).replace(/\{المخيم\}/g, g.name || '').replace(/\{المندوب\}/g, g.rep || '').replace(/\{الأصناف\}/g, c.dishes).replace(/\{الوقت\}/g, cf.time || '').replace(/\{المكان\}/g, cf.place || '');
+  if (!cf.time && !cf.place) t = t.replace(/الاستلام\s*\./g, '');
+  return t.replace(/[ \t]{2,}/g, ' ').replace(/ ([.،])/g, '$1').trim();
+}
+function smsSent(id) { var s = S.settings.campSent; return !!(s && s.d === today() && s.ids && s.ids[id]); }
+function smsMark(id) { var s = S.settings.campSent; if (!s || s.d !== today()) s = S.settings.campSent = { d: today(), ids: {} }; s.ids[id] = Date.now(); save(); }
+function smsSendOne(c) {
+  var n = smsNum(c.g.phone), tx = smsText(c);
+  if (!n) { say('لا رقم لمندوب ' + c.g.name); return Promise.resolve(false); }
+  if (smsNative()) return Capacitor.Plugins.KitchenSms.send({ to: n, body: tx }).then(function () { smsMark(c.g.id); return true; }).catch(function (e) { say('تعذّر الإرسال لـ ' + c.g.name + (e && e.message === 'denied' ? ': لم يُمنح إذن الرسائل' : '')); return false; });
+  window.location.href = 'sms:' + n + '?body=' + encodeURIComponent(tx); smsMark(c.g.id); return Promise.resolve(true);
+}
+function smsSendAll() {
+  var todo = campsToday().filter(function (c) { return smsNum(c.g.phone) && !smsSent(c.g.id); }), ok = 0, bad = 0;
+  if (!todo.length) { say('لا مخيمات بانتظار الإرسال'); return; }
+  shut(); say('جارٍ إرسال ' + pl(todo.length, 'رسالة واحدة', '2 رسالة', 'رسائل') + '…');
+  var i = 0, step = function () {
+    if (i >= todo.length) { say('أُرسلت ' + ok + (bad ? ' · تعذّرت ' + bad : '')); render(); return; }
+    var c = todo[i++]; smsSendOne(c).then(function (r) { if (r) ok++; else bad++; setTimeout(step, 1200); });
+  }; step();
+}
+function smsSheet(sh) {
+  if (sh.t === 'campSms') {
+    var cs = campsToday(), nat = smsNative(), pend = cs.filter(function (c) { return smsNum(c.g.phone) && !smsSent(c.g.id); }).length;
+    return { title: 'رسائل المخيمات', sub: cs.length ? pl(cs.length, 'مخيم واحد له طعام اليوم', '2 مخيم لهما طعام اليوم', 'مخيمات لها طعام اليوم') : 'لا مخيمات لها طعام اليوم',
+      acts: [X({ title: 'نص الرسالة', icon: 'i-pencil', go: function () { var c = smsCfg(); openSh({ t: 'campTpl' }, { tpl: c.tpl, time: c.time, place: c.place }); } })],
+      rows: cs.map(function (c) { var n = smsNum(c.g.phone), sent = smsSent(c.g.id);
+        return X({ icon: 'i-users', icTone: sent ? 'ok' : n ? 'info' : 'warn', title: c.g.name, sub: (c.g.rep ? c.g.rep + ' · ' : '') + (n ? c.g.phone : 'بلا رقم') + ' · ' + c.dishes, tag: sent ? 'أُرسلت' : n ? '' : 'بلا رقم', tagTone: sent ? 'ok' : 'warn', chev: true, go: function () { openSh({ t: 'campOne', id: c.g.id }); } }); }),
+      empty: 'وزّع القدور على المخيمات أو خطّط لها أولًا',
+      note: nat ? null : { text: 'الإرسال التلقائي يحتاج النسخة الجديدة من التطبيق (APK). حتى ذلك الحين يفتح كل مخيم تطبيق الرسائل بالنص جاهزًا.', tone: 'info' },
+      ft: { label: pend ? (nat ? 'إرسال للكل (' + pend + ')' : 'الإرسال التلقائي يحتاج APK') : 'لا شيء بانتظار الإرسال', ok: nat && pend > 0, go: smsSendAll } };
+  }
+  if (sh.t === 'campOne') {
+    var c = campsToday().filter(function (x) { return x.g.id === sh.id; })[0]; if (!c) return { title: 'رسالة المخيم', rows: [], empty: 'لا طعام لهذا المخيم اليوم' };
+    var n = smsNum(c.g.phone);
+    return { title: c.g.name, sub: (c.g.rep ? c.g.rep + ' · ' : '') + (n ? c.g.phone : 'بلا رقم'),
+      rows: [X({ title: 'نص الرسالة', sub: smsText(c) })],
+      ft: { label: smsSent(c.g.id) ? 'إعادة الإرسال' : 'إرسال الرسالة', ok: !!n, go: function () { shut(); smsSendOne(c).then(function (r) { if (r) say(smsNative() ? 'أُرسلت لـ ' + c.g.name : 'فُتحت الرسالة جاهزة للإرسال'); render(); }); } } };
+  }
+  if (sh.t === 'campTpl') {
+    return { title: 'نص رسالة المخيمات', sub: 'عدّله متى شئت: الكلمات بين الأقواس تُستبدل تلقائيًا',
+      fields: [fArea('tpl', 'النص', '', 'المتاح: {المخيم} {المندوب} {الأصناف} {الوقت} {المكان}'), fText('time', 'وقت الاستلام', 'مثال: الساعة 11'), fText('place', 'مكان الاستلام', 'مثال: من باب المطبخ')],
+      ft: { label: 'حفظ النص', ok: fv('tpl').trim().length > 5, go: function () { var c = smsCfg(); c.tpl = fv('tpl').trim(); c.time = fv('time').trim(); c.place = fv('place').trim(); save(); shut(); mutated('حُفظ نص الرسالة'); } },
+      ft2: { label: 'إعادة النص الأصلي', go: function () { A.form.tpl = SMS_TPL; render(); } } };
+  }
+  return null;
+}
+
 /* ===== 03-pages.js ===== */
 /* ---------- الصفحات: كل صفحة تُرجع كتلًا من مكونات التصميم ---------- */
 function batchRow(b) {
@@ -3491,6 +3558,7 @@ function pgToday() {
       lp: function () { var g = E.by(S.bens || [], x.ben); if (g) benQa(g); } })); });
     bl.push(B('rows', { title: 'توزيع القدور', act: 'توزيع', actGo: function () { openSh({ t: 'distDay' }, { ben: '', pots: '', dish: distDish0() }); }, items: drows }));
   }
+  if (campsToday().length) bl.push(B('acts', { items: [X({ title: 'رسائل المخيمات', icon: 'i-send', go: function () { openSh({ t: 'campSms' }, {}); } })] }));
   var tmw = iso(new Date(Date.now() + 864e5));
   planDistBlocks(plans().filter(function (p) { return p.date <= tmw; })).forEach(function (b) { bl.push(b); });
   bl.push(moneyCard());
@@ -4531,7 +4599,7 @@ function shDesc() {
       break;
     }
     case 'search': R = searchSheet(); break;
-    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || { title: '' };
+    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
   }
   return R;
 }
