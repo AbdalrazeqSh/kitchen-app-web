@@ -1547,6 +1547,8 @@ function fBal(id, cur) { return r2(fmOn(id).reduce(function (a, m) { return m.cu
 function fSum(id, cur, dir) { return r2(fmOn(id).reduce(function (a, m) { return a + (m.cur === cur && m.dir === dir && !m.x ? m.amt : 0); }, 0)); }
 function fXnet(id, cur) { return r2(fmOn(id).reduce(function (a, m) { return a + (m.cur === cur && m.x ? (m.dir === 'in' ? m.amt : -m.amt) : 0); }, 0)); }
 function fMonth(id, cur, dir, ym) { return r2(fmOn(id).reduce(function (a, m) { return a + (m.cur === cur && m.dir === dir && !m.x && String(m.date).slice(0, 7) === ym ? m.amt : 0); }, 0)); }
+/* إجمالي الوارد أو الناقص بكل أنواعه (التحويلات من الأرصدة الأخرى وإليها داخلة فيه) لعرض رقم واحد في البطاقة العلوية */
+function fGross(id, cur, dir, ym) { return r2(fmOn(id).reduce(function (a, m) { return a + (m.cur === cur && m.dir === dir && (!ym || String(m.date).slice(0, 7) === ym) ? m.amt : 0); }, 0)); }
 function fTot(cur) { return r2(funds().reduce(function (a, f) { return a + fBal(f.id, cur); }, 0)); }
 function usdTxt(n) { var v = r2(Math.abs(n)), p = v.toFixed(2).replace(/\.00$/, '').split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return (n < 0 ? '‎-' : '') + p.join('.') + ' $'; }
 function usdK(n) { return usdTxt(r2(n)); }
@@ -1663,7 +1665,7 @@ function pgFunds() {
 /* تفاصيل الرصيد الواحد (الرصيد والوارد والناقص والشهر): واحدة لصفحة الرصيد ولأعلى صفحة الأرصدة عند اختياره */
 function fundBig(f, label) {
   var last = movesDesc(fmOn(f.id))[0], c0 = fMain(f), ym = today().slice(0, 7), xn = fXnet(f.id, c0);
-  return B('big', { label: label || 'الرصيد', value: fBalTxt(f), value2: f.curs.length > 1 ? fTxt(f.curs[1], fBal(f.id, f.curs[1])) : '', text: 'وارد ' + fTxt(c0, fSum(f.id, c0, 'in')) + (xn > 0 ? ' · تحويلات داخلة من أرصدة أخرى ' + fTxt(c0, xn) : '') + ' · ناقص ' + fTxt(c0, fSum(f.id, c0, 'out')) + (xn < 0 ? ' · تحويلات خارجة إلى أرصدة أخرى ' + fTxt(c0, -xn) : '') + '\nهذا الشهر: وارد ' + fTxt(c0, fMonth(f.id, c0, 'in', ym)) + ' · ناقص ' + fTxt(c0, fMonth(f.id, c0, 'out', ym)) + '\n' + (last ? 'آخر حركة: ' + dlabel(last.date) + ' · ' + (last.note || '') : 'لا حركات بعد') });
+  return B('big', { label: label || 'الرصيد', value: fBalTxt(f), value2: f.curs.length > 1 ? fTxt(f.curs[1], fBal(f.id, f.curs[1])) : '', text: 'وارد ' + fTxt(c0, fGross(f.id, c0, 'in')) + ' · ناقص ' + fTxt(c0, fGross(f.id, c0, 'out')) + '\nهذا الشهر: وارد ' + fTxt(c0, fGross(f.id, c0, 'in', ym)) + ' · ناقص ' + fTxt(c0, fGross(f.id, c0, 'out', ym)) + '\n' + (last ? 'آخر حركة: ' + dlabel(last.date) + ' · ' + (last.note || '') : 'لا حركات بعد') });
 }
 function pgFund() {
   var f = fund(A.fid), bl = [], all = movesDesc(fmOn(f.id)), flt = A.fF || 'all', last = all[0], c0 = fMain(f);
