@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.98';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.99';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1697,8 +1697,7 @@ function pgFund() {
 /* ---------- الإجراءات ---------- */
 function modesOf(f, dir) {
   if (f.curs.length === 1) return [[f.curs[0], f.curs[0] === 'usd' ? 'دولار' : 'شيكل']];
-  var bi = fTxt('ils', fBal(f.id, 'ils')), bu = fTxt('usd', fBal(f.id, 'usd'));
-  return dir === 'out' ? [['ils', 'شيكل من رصيد الشيكل (' + bi + ')'], ['conv', 'شيكل يُخصم من الدولار'], ['usd', 'دولار (' + bu + ')']] : [['ils', 'شيكل'], ['usd', 'دولار']];
+  return dir === 'out' ? [['ils', 'شيكل'], ['conv', 'شيكل من الدولار'], ['usd', 'دولار']] : [['ils', 'شيكل'], ['usd', 'دولار']];
 }
 function doMove() {
   var dir = fv('dir') || 'out', f = fund(fv('fund')), ms0 = modesOf(f, dir), md = ms0.some(function (x) { return x[0] === fv('mode'); }) ? fv('mode') : ms0[0][0], a = num('amt'), rt = num('rate'), note = (fv('note') || '').trim(), m = { id: mid(S.fm, 'm'), date: moveDate(), h: f.id, dir: dir, note: note }; if (fv('cat')) m.cat = fv('cat'); phTag(m, phTake());
