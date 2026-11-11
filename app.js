@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.79';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.80';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1547,7 +1547,7 @@ function fBalAll(f) { return f.curs.map(function (c) { return fTxt(c, fBal(f.id,
 function fBalTxt(f) { return fTxt(fMain(f), fBal(f.id, fMain(f))); }
 function fKind(f) { var w = f.w ? wk(f.w) : null; return f.w || f.curs.length === 1 && fMain(f) === 'ils' ? (w ? 'عند العامل · شيكل' : 'شيكل') : f.curs.length > 1 ? 'دولار وشيكل' : 'دولار'; }
 function lastRate() { var l = movesDesc((S.fm || []).filter(function (m) { return m.rate > 0 && !m.void; }))[0]; return l ? l.rate : 0; }
-function openMove(fid, dir) { openSh({ t: 'fMove' }, { fund: fid || defFund(), dir: dir || 'out', mode: '', amt: '', rate: '', note: '', cat: '', dtxt: today() }); }
+function openMove(fid, dir) { openSh({ t: 'fMove' }, { fund: fid || defFund(), dir: dir || 'out', dlock: dir ? '1' : '', mode: '', amt: '', rate: '', note: '', cat: '', dtxt: today() }); }
 /* صف حركة موحَّد في كل مكان؛ withFund يُظهر من أي رصيد */
 function moveRowX(m, withFund, mini) {
   var conv = m.cur === 'usd' && m.ils > 0, f0 = fund(m.h);
@@ -1624,11 +1624,12 @@ function pgFunds() {
     X({ label: 'الشيكل', value: money(fTot('ils')), sub: 'في كل الأرصدة' })
   ] }));
   bl.push(B('acts', { items: [
-    X({ title: 'حركة', icon: 'i-wallet', on: true, go: function () { openMove(ff || ''); } }),
+    X({ title: 'وارد', icon: 'i-plus', tone: 'ok', go: function () { openMove(ff || '', 'in'); } }),
+    X({ title: 'ناقص', icon: 'i-minus', tone: 'bad', go: function () { openMove(ff || '', 'out'); } }),
     X({ title: 'تحويل', icon: 'i-send', go: function () { openSh({ t: 'fXfer' }, { from: ff || defFund(), to: '', cur: '', amt: '', got: '', dtxt: today() }); } }),
     X({ title: 'رصيد جديد', icon: 'i-plus', go: function () { openSh({ t: 'fAdd' }, {}); } }),
     X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'fCount', f: ff || defFund() }, { cur: '', cnt: '' }); } }),
-    X({ title: 'نسخ للشيت', icon: 'i-copy', go: function () { var d = SH_SECS.filter(function (x) { return shRows(x.id, true).length; })[0]; openSh({ t: 'shCopy' }, { sec: (d || SH_SECS[0]).id, scope: 'new' }); } }),
+    X({ title: 'للشيت', icon: 'i-copy', go: function () { var d = SH_SECS.filter(function (x) { return shRows(x.id, true).length; })[0]; openSh({ t: 'shCopy' }, { sec: (d || SH_SECS[0]).id, scope: 'new' }); } }),
     X({ title: 'الملخص', icon: 'i-list', go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } })] }));
   /* آخر الحركات أولًا: للتأكد أنها سُجّلت، ومن أي رصيد */
   var all = movesDesc(fmOn(ff)), items = all.slice(0, n).map(function (m) { return moveRowX(m, !ff, true); });
@@ -1720,7 +1721,7 @@ function moneySheet(sh) {
       var dir = fv('dir') || 'out', fo0 = fund(fv('fund')) || fund(defFund()); if (!fund(fv('fund'))) A.form.fund = fo0.id; f = fo0;
       var ms = modesOf(f, dir), md = ms.some(function (x) { return x[0] === fv('mode'); }) ? fv('mode') : ms[0][0], a = num('amt'), rt = num('rate'), fl = [];
       var cl = (dir === 'in' ? CATS_IN : CATS_OUT).map(function (c) { return c[0]; }); if (fv('cat') && cl.indexOf(fv('cat')) < 0) A.form.cat = '';
-      fl.push(fChips('dir', 'نوع الحركة', [['out', 'ناقص (صرف)', 'bad'], ['in', 'وارد (دخل)', 'ok']]));
+      if (!fv('dlock')) fl.push(fChips('dir', 'نوع الحركة', [['out', 'ناقص (صرف)', 'bad'], ['in', 'وارد (دخل)', 'ok']]));
       fl.push(fChips('fund', 'الرصيد', funds().map(function (x) { return [x.id, fName(x) + ' · ' + fBalAll(x)]; })));
       if (ms.length > 1) fl.push(fChips('mode', 'العملة', ms));
       fl.push(fText('amt', md === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالشيكل', '0', 'decimal'));
@@ -1728,7 +1729,7 @@ function moneySheet(sh) {
       fl.push(fText('note', 'البيان', dir === 'in' ? 'مثال: مبيعات، إيداع' : 'مثال: كارة، نقل، كهرباء'));
       fl.push(catChips(dir)); fl = fl.concat(dayFields()); fl.push(fPhoto('صورة الوصل أو السند (اختياري)'));
       var usd = md === 'conv' && a > 0 && rt > 0 ? r2(a / rt) : 0, cur = md === 'conv' ? 'usd' : md, delta = md === 'conv' ? usd : a, after = r2(fBal(f.id, cur) + (dir === 'in' ? delta : -delta));
-      R = { title: 'حركة جديدة', sub: f.name + ' · الرصيد الآن: ' + fBalAll(f), fields: fl,
+      R = { title: fv('dlock') ? (dir === 'in' ? 'وارد جديد' : 'ناقص جديد (صرف)') : 'حركة جديدة', sub: f.name + ' · الرصيد الآن: ' + fBalAll(f), fields: fl,
         note: a > 0 && (md !== 'conv' || usd > 0) ? { text: (md === 'conv' ? 'يُخصم ' + usdTxt(usd) + '. ' : '') + 'الرصيد بعد الحركة: ' + fTxt(cur, after), tone: after < 0 ? 'warn' : 'info' } : null,
         ft: { label: dir === 'in' ? 'تسجيل الوارد' : 'تسجيل الناقص', ok: a > 0 && (fv('note') || '').trim().length > 0 && (md !== 'conv' || rt > 0) && dayOk(), go: doMove } };
       break;
