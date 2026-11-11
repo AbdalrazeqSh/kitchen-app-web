@@ -12,7 +12,7 @@ function X(o) {
   return {
     title: o.title || '', sub: o.sub || '', hasSub: !!o.sub,
     tag: o.tag || '', hasTag: !!o.tag, tagBg: tg[0], tagFg: tg[1],
-    end: o.end || '', endSub: o.endSub || '', endSub2: o.endSub2 || '', hasEnd: !!(o.end || o.endSub), hasEndSub: !!o.endSub, hasEndSub2: !!o.endSub2, subFs: o.endEq ? '15px' : '12px', subFg: o.endEq ? (o.endTone ? T[o.endTone][1] : '#1B2421') : '#5B6660', subFw: o.endEq ? 500 : 400,
+    end: o.end || '', endSub: o.endSub || '', endSub2: o.endSub2 || '', hasEnd: !!(o.end || o.endSub), hasEndSub: !!o.endSub, hasEndSub2: !!o.endSub2, minH: o.mini ? '40px' : '58px', pad: o.mini ? '6px 14px' : '10px 14px', tFs: o.mini ? '13.5px' : '15px', tFw: o.mini ? 400 : 500, sFs: o.mini ? '11.5px' : '12.5px', eFs: o.mini ? '13.5px' : '15px', eFw: o.mini ? 400 : 500, subFs: o.endEq ? '15px' : '12px', subFg: o.endEq ? (o.endTone ? T[o.endTone][1] : '#1B2421') : '#5B6660', subFw: o.endEq ? 500 : 400,
     hasCols: !!o.c1, c0: o.c0 || '', c1: o.c1 || '', c1s: o.c1s || '', c2: o.c2 || '', c2s: o.c2s || '', c2Fg: o.c2Tone ? T[o.c2Tone][1] : '#1B2421',
     endFg: o.endTone ? T[o.endTone][1] : '#1B2421',
     icon: o.icon || 'i-dot', hasIcon: !!o.icon, icBg: ic[0], icFg: ic[1],

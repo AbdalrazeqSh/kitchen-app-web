@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.72';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.73';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1547,11 +1547,11 @@ function fKind(f) { var w = f.w ? wk(f.w) : null; return f.w || f.curs.length ==
 function lastRate() { var l = movesDesc((S.fm || []).filter(function (m) { return m.rate > 0 && !m.void; }))[0]; return l ? l.rate : 0; }
 function openMove(fid, dir) { openSh({ t: 'fMove' }, { fund: fid || defFund(), dir: dir || 'out', mode: '', amt: '', rate: '', note: '', cat: '', dtxt: today() }); }
 /* صف حركة موحَّد في كل مكان؛ withFund يُظهر من أي رصيد */
-function moveRowX(m, withFund) {
+function moveRowX(m, withFund, mini) {
   var conv = m.cur === 'usd' && m.ils > 0, f0 = fund(m.h);
-  return X({ ph: !!m.ph, icon: m.x ? 'i-send' : m.dir === 'in' ? 'i-plus' : 'i-minus', icTone: m.x ? 'info' : m.dir === 'in' ? 'ok' : 'bad', title: m.note || (m.dir === 'in' ? 'وارد' : 'ناقص'),
-    sub: joinSub(withFund && f0 ? f0.name : '', dlabel(m.date) + (m.x ? ' · تحويل' : '')),
-    end: conv ? money(m.ils) : fTxt(m.cur, m.amt), endSub: conv ? usdTxt(m.amt) : m.x ? 'تحويل' : '', endTone: m.dir === 'in' ? 'ok' : 'bad', chev: true, go: function () { openSh({ t: 'fView', id: m.id }); }, lp: function () { moveQa(m); } });
+  return X({ mini: !!mini, ph: !!m.ph, icon: mini ? '' : m.x ? 'i-send' : m.dir === 'in' ? 'i-plus' : 'i-minus', icTone: m.x ? 'info' : m.dir === 'in' ? 'ok' : 'bad', title: m.note || (m.dir === 'in' ? 'وارد' : 'ناقص'),
+    sub: joinSub(withFund && f0 ? f0.name : '', dlabel(m.date) + (m.x ? ' · تحويل' : ''), mini && conv ? usdTxt(m.amt) : ''),
+    end: conv ? money(m.ils) : fTxt(m.cur, m.amt), endSub: mini ? '' : conv ? usdTxt(m.amt) : m.x ? 'تحويل' : '', endTone: m.dir === 'in' ? 'ok' : 'bad', chev: true, go: function () { openSh({ t: 'fView', id: m.id }); }, lp: function () { moveQa(m); } });
 }
 function recentMoves(n, fid) { return movesDesc(fmOn(fid)).slice(0, n); }
 /* أرصدة الصندوق بالعملتين بحجم واحد */
@@ -1603,7 +1603,7 @@ function pgFunds() {
     X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'fCount', f: defFund() }, { cur: '', cnt: '' }); } }),
     X({ title: 'الملخص', icon: 'i-list', go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } })] }));
   /* آخر الحركات أولًا: للتأكد أنها سُجّلت، ومن أي رصيد */
-  var all = movesDesc(fmOn(ff)), items = all.slice(0, n).map(function (m) { return moveRowX(m, !ff); });
+  var all = movesDesc(fmOn(ff)), items = all.slice(0, n).map(function (m) { return moveRowX(m, !ff, true); });
   if (all.length > n) items.push(moreRow(Math.min(25, all.length - n), function () { setState({ fN: n + 25 }); }));
   if (L.length > 1) bl.push(B('seg', { items: [X({ label: 'الكل', on: !ff, go: function () { setState({ fFeed: '', fN: 8 }); } })].concat(L.map(function (f) { return X({ label: f.name, on: ff === f.id, go: function () { setState({ fFeed: f.id, fN: 8 }); } }); })) }));
   bl.push(B('rows', { title: 'آخر الحركات', items: items, empty: 'لا حركات بعد' }));
@@ -3238,7 +3238,7 @@ function pgRecipes() {
 }
 /* فئة الصنف للترتيب والتلوين الخفيف على طول القائمة */
 var ICAT_ORDER = ['جاف', 'بهارات', 'مبرّد', 'مجمّد', 'غير غذائي'], ICAT_BG = { 'جاف': '#FBF6E6', 'بهارات': '#FCEEE6', 'مبرّد': '#E8F2FB', 'مجمّد': '#EEEAF8', 'غير غذائي': '#EFEFEC' };
-function joinSub(a, b) { return a && b ? a + ' · ' + b : a || b || ''; }
+function joinSub() { return Array.prototype.filter.call(arguments, Boolean).join(' · '); }
 function itemCat(it) { return it.grp === 'spice' ? 'بهارات' : (it.cond || 'جاف'); }
 function pgToday() {
   var bl = [], f = A.kindF, td = today();
@@ -3511,7 +3511,7 @@ function pgWorkers() {
 /* بطاقة المال: الإجراء الأهم والأرصدة وآخر الحركات (مع اسم الرصيد) في مكان واحد، وتحتها بقية الخيارات */
 function moneyCard() {
   var items = [X(Object.assign({ icon: 'i-wallet', icTone: 'ok', title: 'الأرصدة', sub: pl(funds().length, 'رصيد واحد', 'رصيدان', 'أرصدة'), end: usdK(fTot('usd')), endSub: money(fTot('ils')), endEq: true, chev: true, go: function () { open('funds'); } }))];
-  var rm = recentMoves(4); rm.forEach(function (m) { items.push(moveRowX(m, true)); });
+  var rm = recentMoves(4); rm.forEach(function (m) { items.push(moveRowX(m, true, true)); });
   if (!rm.length) items.push(X({ icon: 'i-wallet', icTone: 'mute', title: 'لا حركات مالية بعد', sub: 'سجّل أول حركة من الزر أعلاه' }));
   return B('rows', { title: 'المال', act: '+ حركة جديدة', actGo: function () { openMove(); }, items: items });
 }
