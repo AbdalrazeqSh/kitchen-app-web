@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.93';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.94';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4958,9 +4958,9 @@ function syncNow(manual) {
     if (!dirty || (!hasData() && base === 0)) {
       return syncApi('/rest/v1/app_state?id=eq.1&select=rev,data').then(function (r2) { return syncPull(r2[0].rev, r2[0].data); }).then(function () { SYNCMSG = 'وصلت تحديثات من ' + (rem.device || 'جهاز آخر'); });
     }
-    return syncMerge().catch(function () { S.settings.syncConflict = rr; save(); SYNCMSG = 'تعارض: عدّلتَ هنا وعلى جهاز آخر'; render(); });
-  }).catch(function (er) { SYNCMSG = (er && er.message) || 'تعذّرت المزامنة'; if (/conflict/.test(SYNCMSG)) { return syncMerge().catch(function () { S.settings.syncConflict = -1; save(); SYNCMSG = 'تعارض: عدّلتَ هنا وعلى جهاز آخر'; }); } if (manual) say(SYNCMSG); })
-    .then(function () { SYNCBUSY = false; if (manual && SYNCMSG && !/تعارض/.test(SYNCMSG)) say(SYNCMSG); try { render(); } catch (e) {} });
+    return syncMerge().catch(function (er) { S.settings.syncConflict = rr; save(); SYNCMSG = 'تعذّر الدمج التلقائي (' + ((er && er.message) || 'خطأ').slice(0, 60) + '): افتح التعارض واختر نسخة'; render(); });
+  }).catch(function (er) { SYNCMSG = (er && er.message) || 'تعذّرت المزامنة'; if (/conflict/.test(SYNCMSG)) { return syncMerge().catch(function (er) { S.settings.syncConflict = -1; save(); SYNCMSG = 'تعذّر الدمج التلقائي (' + ((er && er.message) || 'خطأ').slice(0, 60) + '): افتح التعارض واختر نسخة'; }); } if (manual) say(SYNCMSG); })
+    .then(function () { SYNCBUSY = false; if (manual && SYNCMSG) say(SYNCMSG); try { render(); } catch (e) {} });
 }
 function syncSoon() { if (!syncSess()) return; clearTimeout(SYNC_T); SYNC_T = setTimeout(function () { syncNow(false); }, 8000); }
 function syncStart() {
@@ -4998,7 +4998,8 @@ function syncSheet(sh) {
     }
     return { title: 'الحساب والمزامنة', sub: s.email,
       rows: [X({ icon: 'i-check', icTone: S.settings.syncConflict ? 'bad' : 'ok', title: S.settings.syncConflict ? 'تعارض بانتظار قرارك' : SYNCMSG || 'متزامن', sub: (S.settings.syncAt ? 'آخر مزامنة ' + new Date(S.settings.syncAt).toLocaleString('ar') : 'لم تتم بعد') + ' · مراجعة ' + (S.settings.syncRev || 0) }),
-        X({ title: 'ما يُزامَن', sub: 'كل بيانات التطبيق. الصور تبقى على الجهاز الذي التُقطت عليه' })],
+        S.settings.syncConflict ? X({ icon: 'i-clock', icTone: 'bad', title: 'حل التعارض بنفسك', sub: 'اختر نسخة هذا الجهاز أو نسخة الخادم', tag: 'اختر', tagTone: 'bad', chev: true, go: function () { openSh({ t: 'syncc' }); } }) : null,
+        X({ title: 'ما يُزامَن', sub: 'كل بيانات التطبيق. الصور تبقى على الجهاز الذي التُقطت عليه' })].filter(Boolean),
       ft: { label: 'مزامنة الآن', ok: true, go: function () { syncNow(true); } }, ft2: { label: 'تسجيل الخروج', go: doSyncOut } };
   }
   if (sh.t === 'syncc') {
