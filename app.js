@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.97';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.98';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -359,8 +359,8 @@ function fTime(k, label, hint) { var f = fText(k, label, '', 'text', hint); f.is
 function fSelect(k, label, opts, sel) {
   var ok = k + '_o', open = fv(ok) === '1', cur = opts.filter(function (o) { return o[0] === sel; })[0] || opts[0], f = fChips(k, label, opts);
   f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cdir = 'column'; f.cflex = '1 1 auto'; f.ctal = 'start';
-  f.chips = open ? opts.map(function (o) { return X({ label: o[1], on: o[0] === cur[0], go: function () { A.form[k] = o[0]; A.form[ok] = ''; render(); } }); })
-    : [X({ label: cur[1] + '  ▾', go: function () { A.form[ok] = '1'; render(); } })];
+  f.chips = open ? opts.map(function (o) { return X({ label: o[1], on: sel !== '' && sel != null && o[0] === cur[0], go: function () { A.form[k] = o[0]; A.form[ok] = ''; render(); } }); })
+    : [X({ label: (sel === '' || sel == null ? 'اختر…' : cur[1]) + '  ▾', go: function () { A.form[ok] = '1'; render(); } })];
   return f;
 }
 function fChips(k, label, opts, hint) {
@@ -1777,10 +1777,10 @@ function moneySheet(sh) {
       break;
     }
     case 'fXfer': {
-      var fo = fund(fv('from')), to = fund(fv('to')), opts = funds().map(function (x) { return [x.id, x.name]; }), fl2 = [fChips('from', 'من', opts), fChips('to', 'إلى', opts.filter(function (o) { return o[0] !== fv('from'); }))];
+      var fo = fund(fv('from')), to = fund(fv('to')), opts = funds().map(function (x) { return [x.id, x.name]; }), fl2 = [fSelect('from', 'من رصيد', opts, fv('from')), fSelect('to', 'إلى رصيد', opts.filter(function (o) { return o[0] !== fv('from'); }), fv('to'))];
       var cu = fv('cur') || (fo ? fDefCur(fo) : 'ils'), am = num('amt'), dc = to ? (hasCur(to, cu) ? cu : fMain(to)) : cu, diff = dc !== cu;
-      if (fo && fo.curs.length > 1) fl2.push(fSelect('cur', 'العملة المرسلة', fo.curs.map(function (c) { return [c, c === 'usd' ? 'دولار' : 'شيكل']; }), cu));
-      fl2.push(fText('amt', cu === 'usd' ? 'المرسل بالدولار' : 'المرسل بالشيكل', '0', 'decimal'));
+      if (fo && fo.curs.length > 1) { A.form.cur = cu; fl2.push(fSeg('cur', 'العملة المرسلة', fo.curs.map(function (c) { return [c, c === 'usd' ? 'دولار' : 'شيكل']; }))); }
+      var fb = fText('amt', cu === 'usd' ? 'المرسل بالدولار' : 'المرسل بالشيكل', '0', 'decimal'); fb.fd = 'column'; fb.ai = 'stretch'; fb.gp = '6px'; fb.lf = '0'; fb.cw = '100%'; fl2.push(fb);
       if (to) fl2.push(fText('got', dc === 'usd' ? 'الواصل بالدولار' : 'الواصل بالشيكل' + (diff ? '' : ' (اختياري)'), '0', 'decimal', diff ? 'يُحسب سعر الصرف من الرقمين' : 'اتركه فارغًا إن وصل كاملًا، أو اكتب ما وصل فعلًا'));
       fl2 = fl2.concat(dayFields()); fl2.push(fPhoto('صورة الوصل (اختياري)'));
       var gt = num('got') || (diff ? 0 : am), fee = diff ? 0 : r2(am - gt);
@@ -3056,7 +3056,7 @@ function finSheet(sh) {
     case 'fEdit': {
       m = E.by(S.fm, sh.id); var lk = mLocked(m), conv = m.cur === 'usd' && m.ils > 0, a = num('amt'), fl = [];
       if (!lk) fl.push(fText('amt', conv ? 'المبلغ بالشيكل' : m.cur === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالشيكل', '0', 'decimal'));
-      if (!lk) fl.push(fChips('dir', 'نوع الحركة', [['in', 'وارد'], ['out', 'ناقص (صرف)']]));
+      if (!lk) fl.push(fSeg('dir', 'نوع الحركة', [['in', 'وارد'], ['out', 'ناقص (صرف)', 'bad']]));
       fl.push(fText('note', 'البيان', ''));
       fl.push(catChips(fv('dir') || m.dir, m)); if ((fv('cat') || '') && (fv('note') || '').trim()) fl.push(fChips('rule', 'تطبيق التصنيف', [['no', 'هذه الحركة فقط'], ['yes', 'كل حركات بنفس البيان']], 'يُصنَّف أيضًا ما تسجّله لاحقًا بالبيان نفسه'));
       if (!lk) fl = fl.concat(dayFields());
@@ -3074,7 +3074,7 @@ function finSheet(sh) {
     }
     case 'fCount': {
       f = fund(sh.f); var cur = fv('cur') || fDefCur(f), sys = fBal(f.id, cur), has = fv('cnt') !== '', cnt = num('cnt'), diff = r2(cnt - sys), fl2 = [];
-      if (f.curs.length > 1) fl2.push(fSelect('cur', 'العملة', f.curs.map(function (c) { return [c, c === 'usd' ? 'دولار' : 'شيكل']; }), cur));
+      if (f.curs.length > 1) { A.form.cur = cur; fl2.push(fSeg('cur', 'العملة', f.curs.map(function (c) { return [c, c === 'usd' ? 'دولار' : 'شيكل']; }))); }
       fl2.push(fText('cnt', 'الموجود فعلًا الآن (' + (cur === 'usd' ? 'دولار' : 'شيكل') + ')', '0', 'decimal', 'اكتب ما عددته بيدك أو رأيته في الحساب'));
       return { title: 'جرد ' + f.name, sub: 'في النظام: ' + fTxt(cur, sys) + ((S.settings.lastCount || {})[f.id] ? ' · آخر جرد ' + dlabel(S.settings.lastCount[f.id]) : ''), fields: fl2,
         note: has ? { text: diff === 0 ? 'الرصيد مطابق، لا حاجة لتسوية.' : (diff > 0 ? 'يزيد الفعلي ' : 'ينقص الفعلي ') + fTxt(cur, Math.abs(diff)) + ' عن النظام: تُسجَّل حركة تسوية بهذا الفرق.', tone: diff === 0 ? 'ok' : 'warn' } : null,
