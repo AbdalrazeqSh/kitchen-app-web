@@ -176,7 +176,7 @@
     var days = {}; (s.att || []).forEach(function (a) { if (a.w === w) days[a.date] = a; });
     var t = 0; Object.keys(days).forEach(function (d) { t += attAmt(days[d]); }); return r2(t);
   }
-  function wSum(s, w, kinds) { var t = 0; (s.wl || []).forEach(function (e) { if (e.w === w && kinds.indexOf(e.kind) >= 0) t += e.amt; }); return r2(t); }
+  function wSum(s, w, kinds) { var t = 0; (s.wl || []).forEach(function (e) { if (!e.void && e.w === w && kinds.indexOf(e.kind) >= 0) t += e.amt; }); return r2(t); }
   function wBalance(s, w) { return r2(wSum(s, w, ['open']) + wDue(s, w) + wSum(s, w, ['add']) - wSum(s, w, ['deduct', 'viol']) - wSum(s, w, ['pay'])); }
   function wDay(s, date) { // ملخص يوم
     var o = { present: 0, none: 0, total: 0, cost: 0 };

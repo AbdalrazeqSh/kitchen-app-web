@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.82';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.83';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -449,7 +449,7 @@ function wBal(w) { return E.wBalance(S, w.id); }
 function balTxt(v) { return v > 0 ? 'له ' + money(v) : v < 0 ? 'عليه ' + money(-v) : 'خالص'; }
 function balTone(v) { return v > 0 ? 'info' : v < 0 ? 'warn' : 'ok'; }
 function wLastPay(w) {
-  var l = null; (S.wl || []).forEach(function (e) { if (e.w === w.id && e.kind === 'pay' && (!l || e.ts > l.ts)) l = e; });
+  var l = null; wlOn().forEach(function (e) { if (e.w === w.id && e.kind === 'pay' && (!l || e.ts > l.ts)) l = e; });
   return l ? money(l.amt) + ' · ' + dlabel(l.date) : 'لا توجد دفعات بعد';
 }
 function wHist(w, n) { // آخر الأيام المسجّلة
@@ -466,8 +466,9 @@ function wCat(e) {
 var WCAT = { pay: ['دفعة', 'mute'], adv: ['سلفة', 'mute'], bonus: ['مكافأة', 'ok'], viol: ['مخالفة', 'bad'], buy: ['مشتريات', 'bad'], ded: ['خصم', 'bad'], rev: ['تصحيح', 'mute'], open: ['رصيد سابق', 'mute'] };
 function wLabel(e) { return (WCAT[wCat(e)] || [e.kind])[0]; }
 function wTone(e) { return (WCAT[wCat(e)] || [0, 'mute'])[1]; }
-function wViol(w) { return (S.wl || []).filter(function (e) { return e.w === w.id && e.kind === 'viol'; }).sort(function (a, b) { return b.ts - a.ts; }); }
-function wToday(w) { return (S.wl || []).filter(function (e) { return e.w === w.id && e.kind !== 'open' && e.kind !== 'viol' && e.date === today(); }); }
+function wlOn() { return (S.wl || []).filter(function (e) { return !e.void; }); } /* حركات العمال السارية: الملغاة تبقى في السجل ولا تُحتسب */
+function wViol(w) { return wlOn().filter(function (e) { return e.w === w.id && e.kind === 'viol'; }).sort(function (a, b) { return b.ts - a.ts; }); }
+function wToday(w) { return wlOn().filter(function (e) { return e.w === w.id && e.kind !== 'open' && e.kind !== 'viol' && e.date === today(); }); }
 function wOpenAmt(w) { return E.wSum(S, w.id, ['open']); }
 function setStat(wid, sid) { E.setAtt(S, today(), wid, sid); save(); shut(); }
 function allPresent() {
@@ -1648,7 +1649,7 @@ function pgFunds() {
 /* تفاصيل الرصيد الواحد (الرصيد والوارد والناقص والشهر): واحدة لصفحة الرصيد ولأعلى صفحة الأرصدة عند اختياره */
 function fundBig(f, label) {
   var last = movesDesc(fmOn(f.id))[0], c0 = fMain(f), ym = today().slice(0, 7), xn = fXnet(f.id, c0);
-  return B('big', { label: label || 'الرصيد', value: fBalTxt(f), value2: f.curs.length > 1 ? fTxt(f.curs[1], fBal(f.id, f.curs[1])) : '', text: 'وارد ' + fTxt(c0, fSum(f.id, c0, 'in')) + ' · ناقص ' + fTxt(c0, fSum(f.id, c0, 'out')) + (xn ? ' · صافي التحويلات ' + fTxt(c0, xn) : '') + '\nهذا الشهر: وارد ' + fTxt(c0, fMonth(f.id, c0, 'in', ym)) + ' · ناقص ' + fTxt(c0, fMonth(f.id, c0, 'out', ym)) + '\n' + (last ? 'آخر حركة: ' + dlabel(last.date) + ' · ' + (last.note || '') : 'لا حركات بعد') });
+  return B('big', { label: label || 'الرصيد', value: fBalTxt(f), value2: f.curs.length > 1 ? fTxt(f.curs[1], fBal(f.id, f.curs[1])) : '', text: 'وارد ' + fTxt(c0, fSum(f.id, c0, 'in')) + (xn > 0 ? ' · تحويلات داخلة من أرصدة أخرى ' + fTxt(c0, xn) : '') + ' · ناقص ' + fTxt(c0, fSum(f.id, c0, 'out')) + (xn < 0 ? ' · تحويلات خارجة إلى أرصدة أخرى ' + fTxt(c0, -xn) : '') + '\nهذا الشهر: وارد ' + fTxt(c0, fMonth(f.id, c0, 'in', ym)) + ' · ناقص ' + fTxt(c0, fMonth(f.id, c0, 'out', ym)) + '\n' + (last ? 'آخر حركة: ' + dlabel(last.date) + ' · ' + (last.note || '') : 'لا حركات بعد') });
 }
 function pgFund() {
   var f = fund(A.fid), bl = [], all = movesDesc(fmOn(f.id)), flt = A.fF || 'all', last = all[0], c0 = fMain(f);
@@ -1759,7 +1760,7 @@ function moneySheet(sh) {
     case 'fView': {
       m = E.by(S.fm, sh.id); f = fund(m.h); var cv = m.cur === 'usd' && m.ils > 0;
       R = { title: m.note || (m.dir === 'in' ? 'وارد' : 'ناقص'), sub: f.name + ' · ' + dlong(m.date),
-        acts: m.void ? undefined : [X({ title: 'تعديل', icon: 'i-pencil', go: function () { var cv2 = m.cur === 'usd' && m.ils > 0; openSh({ t: 'fEdit', id: m.id }, { amt: String(cv2 ? m.ils : m.amt), note: m.note || '', cat: m.cat || '', rule: 'no', day: 'd', dtxt: m.date }); } })],
+        acts: m.void ? undefined : [X({ title: 'تعديل', icon: 'i-pencil', go: function () { var cv2 = m.cur === 'usd' && m.ils > 0; openSh({ t: 'fEdit', id: m.id }, { amt: String(cv2 ? m.ils : m.amt), note: m.note || '', cat: m.cat || '', rule: 'no', dir: m.dir, day: 'd', dtxt: m.date }); } })],
         rows: [X({ title: 'التصنيف', sub: m.cat ? 'مختار' : 'مخمَّن من البيان', tag: catName(catOf(m)), tagTone: 'info' }), X({ title: 'المبلغ', sub: m.dir === 'in' ? 'وارد' : 'ناقص', tag: cv ? money(m.ils) : fTxt(m.cur, m.amt), tagTone: m.dir === 'in' ? 'ok' : 'bad' }), cv ? X({ title: 'يقابله بالدولار', sub: 'سعر الصرف ' + m.rate, tag: usdTxt(m.amt), tagTone: 'mute' }) : null, m.w ? X({ title: wk(m.w).name, sub: 'دفعة من حساب العامل' }) : null].filter(Boolean),
         note: { text: m.void ? 'حركة ملغاة: بقيت في السجل ولا تُحتسب.' : m.w && m.wl ? 'دفعة مرتبطة بحساب العامل: إلغاؤها يُعيد المبلغ إلى حسابه.' : m.x ? 'جزء من تحويل بين رصيدين: يُلغى طرفاه معًا.' : 'الحركات لا تُحذف، والإلغاء يُبقيها في السجل.', tone: m.void || (m.w && m.wl) ? 'warn' : 'info' },
         ft: { label: 'إغلاق', ok: true, go: shut }, ft2: m.void ? null : { label: 'إلغاء الحركة', go: function () { voidMove(m.id); } } };
@@ -2595,7 +2596,7 @@ function rcvAlerts(it, lid, rq, price) {
 /* ===== 4) ملخص اليوم ===== */
 function dayFacts() {
   var t = today(), wd = E.wDay(S, t), bs = dayBatches(), rc = S.moves.filter(function (m) { return m.kind === 'receive' && m.date === t; }),
-    pays = (S.wl || []).filter(function (e) { return e.kind === 'pay' && e.date === t; }), adj = S.moves.filter(function (m) { return (m.kind === 'adjust' || m.kind === 'issue') && m.date === t; });
+    pays = wlOn().filter(function (e) { return e.kind === 'pay' && e.date === t; }), adj = S.moves.filter(function (m) { return (m.kind === 'adjust' || m.kind === 'issue') && m.date === t; });
   return { t: t, wd: wd, bs: bs, rc: rc, pays: pays, adj: adj, paid: r2(pays.reduce(function (a, e) { return a + e.amt; }, 0)), closed: isClosed(), unconf: unconfDay().length,
     any: !!(bs.length || rc.length || pays.length || adj.length || wd.total - wd.none > 0) };
 }
@@ -2621,7 +2622,7 @@ function monthStmt(w, ym) {
   (S.att || []).forEach(function (a) { if (a.w === w.id && a.date >= from && a.date < to) last[a.date] = a; });
   var days = Object.keys(last).sort().map(function (k) { return last[k]; }), earned = r2(days.reduce(function (a, x) { return a + E.attAmt(x); }, 0)), byName = {};
   days.forEach(function (x) { var s = stat(x.st) || { name: x.st }; byName[s.name] = (byName[s.name] || 0) + 1; });
-  var es = (S.wl || []).filter(function (e) { return e.w === w.id && e.kind !== 'open' && e.date >= from && e.date < to; }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.ts - b.ts; });
+  var es = wlOn().filter(function (e) { return e.w === w.id && e.kind !== 'open' && e.date >= from && e.date < to; }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.ts - b.ts; });
   return { from: from, open: wBalBefore(w, from), days: days, earned: earned, byName: byName, es: es, close: wBalBefore(w, to), partial: nx > dayOff(1) };
 }
 function monthText(w, ym) {
@@ -2918,7 +2919,8 @@ function doEditMove(id) {
   if (rule && cat) { S.settings.catRules = S.settings.catRules || {}; S.settings.catRules[noteKey(note)] = cat; }
   if (mLocked(m)) { m.note = note || m.note; if (cat) m.cat = cat; audit('تعديل بيان/تصنيف حركة «' + was + '»'); shut(); mutated('حُفظ التعديل'); return; }
   var n = Object.assign({}, m, { id: mid(S.fm, 'm'), void: false, edFrom: m.id, note: note || m.note, date: d });
-  if (cat) n.cat = cat; else delete n.cat;
+  var nd = fv('dir') === 'in' || fv('dir') === 'out' ? fv('dir') : m.dir; n.dir = nd;
+  if (cat && nd === m.dir) n.cat = cat; else delete n.cat;
   if (conv) { n.ils = a; n.amt = r2(a / m.rate); } else { n.amt = a; }
   m.void = true; m.edTo = n.id; S.fm.push(n);
   audit('تعديل حركة «' + was + '»: ' + fTxt(m.cur, m.amt) + ' ← ' + fTxt(n.cur, n.amt));
@@ -2932,8 +2934,67 @@ function doCount(fid) {
   audit('جرد «' + f.name + '»: فرق ' + fTxt(cur, diff)); shut(); mutated('سُجّلت تسوية الجرد ' + fTxt(cur, Math.abs(diff)), function () { S.fm = S.fm.filter(function (x) { return x.id !== m.id; }); save(); render(); });
 }
 function catChips(dir, m0) { var nt = (fv('note') || '').trim(), g = nt ? catName(catOf({ dir: dir, note: nt, w: m0 && m0.w, x: m0 && m0.x, ini: m0 && m0.ini })) : ''; return fChips('cat', 'التصنيف', [['', 'تلقائي']].concat(dir === 'in' ? CATS_IN : CATS_OUT), g ? 'التلقائي الآن: ' + g : 'التلقائي يخمّنه من البيان'); }
+
+/* ---------- حركات العمال (مكافأة، خصم، دفعة، مخالفة): تعديل، تغيير التاريخ، إلغاء. الأصل يبقى في السجل ملغى ولا يُحذف ---------- */
+function wlLink(e) { return (S.fm || []).filter(function (m) { return m.wl === e.id && !m.void; })[0] || null; }
+function wlLocked(e) { return e.kind === 'open' || wCat(e) === 'rev'; }
+function wlForm(e, only) { return { amt: e.amt ? String(e.amt) : '', note: e.note || '', dtxt: e.date, only: only || '' }; }
+function wlOpenEdit(e, only) { openSh({ t: 'wlEdit', id: e.id }, wlForm(e, only)); }
+function wlRow(e, w, past) {
+  var lab = wLabel(e), isV = e.kind === 'viol', v = !!e.void, nt = e.note || '', sub = (nt ? nt + (past ? ' · ' : '') : '') + (past || !nt ? dlabel(e.date) : '');
+  var o = isV ? { icon: 'i-alert', icTone: 'bad', title: 'مخالفة', sub: sub, tag: v ? 'ملغاة' : e.amt ? 'خصم ' + money(e.amt) : 'تنبيه فقط', tagTone: v ? 'mute' : 'bad' }
+    : { title: lab, sub: sub, end: v ? '' : money(e.amt), tag: v ? 'ملغاة' : '', tagTone: 'mute', endTone: v ? undefined : e.kind === 'add' && wTone(e) === 'ok' ? 'ok' : wTone(e) === 'bad' ? 'bad' : undefined };
+  if (!wlLocked(e)) { o.chev = true; o.go = function () { openSh({ t: 'wlv', id: e.id }); }; o.lp = function () { wlQa(e); }; }
+  return phRow(o, e, w.name + ' · ' + lab);
+}
+function wlQa(e) {
+  var lm = wlLink(e), w = wk(e.w), a = [['عرض الحركة', 'i-book', function () { openSh({ t: 'wlv', id: e.id }); }]];
+  if (!e.void) {
+    if (!lm) { a.push(['تعديل المبلغ والبيان', 'i-pencil', function () { wlOpenEdit(e); }]); a.push(['تغيير التاريخ', 'i-calendar', function () { wlOpenEdit(e, 'date'); }]); }
+    a.push(['إلغاء الحركة', 'i-x', function () { wlCancel(e); }]);
+  }
+  qa(wLabel(e) + ' · ' + (w ? w.name : ''), dlabel(e.date) + (e.amt ? ' · ' + money(e.amt) : ''), a);
+}
+function wlCancel(e) {
+  var lm = wlLink(e); if (lm) { voidMove(lm.id); return; } /* دفعة مرتبطة برصيد: إلغاء حركة الرصيد يُعيد المبلغ إلى حساب العامل */
+  e.void = true; audit('إلغاء ' + wLabel(e) + ' ' + money(e.amt) + ' — ' + (wk(e.w) || {}).name);
+  shut(); mutated('أُلغيت ' + wLabel(e) + ' وبقي سجلها', function () { e.void = false; save(); render(); });
+}
+function doWlEdit(id) {
+  var e = E.by(S.wl, id); if (!e || e.void) return;
+  var only = fv('only') === 'date', amt = only ? e.amt : r2(num('amt')), note = only ? e.note : (fv('note') || '').trim(), d = moveDate();
+  var n = E.wEntry(S, { date: d, w: e.w, kind: e.kind, amt: amt, note: note }); if (e.cat) n.cat = e.cat; if (e.ph) n.ph = e.ph; n.ed = e.id;
+  e.void = true; e.edTo = n.id;
+  audit('تعديل ' + wLabel(e) + ' — ' + (wk(e.w) || {}).name + ': ' + money(e.amt) + ' ← ' + money(amt) + (d !== e.date ? ' · ' + dlabel(e.date) + ' ← ' + dlabel(d) : ''));
+  shut(); mutated(only ? 'نُقلت الحركة إلى ' + dlabel(d) : 'حُفظ التعديل وبقي الأصل ملغى في السجل', function () { S.wl = S.wl.filter(function (x) { return x.id !== n.id; }); e.void = false; delete e.edTo; save(); render(); });
+}
+function wlSheet(sh) {
+  var e = E.by(S.wl, sh.id); if (!e) return null;
+  var w = wk(e.w) || {}, lm = wlLink(e);
+  if (sh.t === 'wlv') {
+    var acts = e.void ? undefined : (lm ? [] : [X({ title: 'تعديل', icon: 'i-pencil', go: function () { wlOpenEdit(e); } }), X({ title: 'التاريخ', icon: 'i-calendar', go: function () { wlOpenEdit(e, 'date'); } })]).concat([X({ title: 'إلغاء', icon: 'i-x', tone: 'bad', go: function () { wlCancel(e); } })]);
+    var rows = [X({ title: 'المبلغ', sub: wLabel(e), tag: e.amt ? money(e.amt) : 'تنبيه فقط', tagTone: e.kind === 'add' ? 'ok' : e.kind === 'pay' ? 'mute' : 'bad' })];
+    if (e.note) rows.push(X({ title: 'البيان', sub: e.note }));
+    if (e.ed) rows.push(X({ title: 'حركة معدَّلة', sub: 'حلّت محل حركة سابقة بقيت ملغاة في السجل' }));
+    var R = { title: wLabel(e) + ' · ' + w.name, sub: dlong(e.date), acts: acts, rows: rows,
+      note: { text: e.void ? 'حركة ملغاة: بقيت في السجل ولا تُحتسب.' : lm ? 'دفعة مرتبطة برصيد «' + ((fund(lm.h) || {}).name || '') + '»: إلغاؤها يُعيد المبلغ إلى حساب العامل ويُعيده إلى الرصيد. لتغيير مبلغها ألغِها وسجّلها من جديد.' : 'الحركات لا تُحذف: التعديل والإلغاء يُبقيان الأصل في السجل.', tone: e.void || lm ? 'warn' : 'info' },
+      ft: { label: 'إغلاق', ok: true, go: shut } };
+    if (e.ph) R.rows.push(phRow({ icon: 'i-image', icTone: 'ok', title: 'صورة التوثيق', sub: 'اضغط لفتحها', tag: 'مرفقة', tagTone: 'ok' }, e, wLabel(e)));
+    return R;
+  }
+  if (sh.t === 'wlEdit') {
+    var only = fv('only') === 'date', isV = e.kind === 'viol', a = num('amt'), fl = [];
+    if (!only) { fl.push(fText('amt', isV ? 'مبلغ الخصم (0 = تنبيه فقط)' : 'المبلغ بالشيكل', '0', 'decimal')); fl.push(fText('note', 'البيان', '')); }
+    fl = fl.concat(dayFields());
+    return { title: only ? 'تغيير التاريخ' : 'تعديل ' + wLabel(e), sub: w.name + ' · ' + dlong(e.date) + (e.amt ? ' · ' + money(e.amt) : ''), fields: fl,
+      note: { text: 'الأصل يبقى في السجل ملغى، وتُضاف حركة معدَّلة بدلًا منه. حساب العامل وكشفه يتبعان القيمة الجديدة.', tone: 'info' },
+      ft: { label: only ? 'نقل إلى هذا التاريخ' : 'حفظ التعديل', ok: (only || isV || a > 0) && dayOk(), go: function () { doWlEdit(e.id); } } };
+  }
+  return null;
+}
 function finSheet(sh) {
   var m, f;
+  if (sh.t === 'wlv' || sh.t === 'wlEdit') return wlSheet(sh);
   switch (sh.t) {
     case 'fcat': {
       var D = finData(sh.ym), rows = movesDesc(D.ms.filter(function (x) { return catOf(x) === sh.c && x.dir === sh.dir; })).map(function (x) {
@@ -2944,8 +3005,9 @@ function finSheet(sh) {
     case 'fEdit': {
       m = E.by(S.fm, sh.id); var lk = mLocked(m), conv = m.cur === 'usd' && m.ils > 0, a = num('amt'), fl = [];
       if (!lk) fl.push(fText('amt', conv ? 'المبلغ بالشيكل' : m.cur === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالشيكل', '0', 'decimal'));
+      if (!lk) fl.push(fChips('dir', 'نوع الحركة', [['in', 'وارد'], ['out', 'ناقص (صرف)']]));
       fl.push(fText('note', 'البيان', ''));
-      fl.push(catChips(m.dir, m)); if ((fv('cat') || '') && (fv('note') || '').trim()) fl.push(fChips('rule', 'تطبيق التصنيف', [['no', 'هذه الحركة فقط'], ['yes', 'كل حركات بنفس البيان']], 'يُصنَّف أيضًا ما تسجّله لاحقًا بالبيان نفسه'));
+      fl.push(catChips(fv('dir') || m.dir, m)); if ((fv('cat') || '') && (fv('note') || '').trim()) fl.push(fChips('rule', 'تطبيق التصنيف', [['no', 'هذه الحركة فقط'], ['yes', 'كل حركات بنفس البيان']], 'يُصنَّف أيضًا ما تسجّله لاحقًا بالبيان نفسه'));
       if (!lk) fl = fl.concat(dayFields());
       return { title: 'تعديل الحركة', sub: (fund(m.h) || {}).name + ' · ' + dlong(m.date), fields: fl,
         note: { text: lk ? 'هذه الحركة مرتبطة بتحويل أو بحساب عامل: يمكن تعديل البيان والتصنيف فقط. لتغيير المبلغ ألغِها وسجّلها من جديد.' : 'الأصل يبقى في السجل ملغى، وتُضاف حركة معدَّلة بدلًا منه.', tone: lk ? 'warn' : 'info' },
@@ -3242,7 +3304,7 @@ function instQa(i, init) {
 function moveQa(m) {
   var a = [['عرض الحركة', 'i-book', function () { openSh({ t: 'fView', id: m.id }); }]];
   if (!m.void) {
-    a.push(['تعديل', 'i-pencil', function () { var cv = m.cur === 'usd' && m.ils > 0; openSh({ t: 'fEdit', id: m.id }, { amt: String(cv ? m.ils : m.amt), note: m.note || '', cat: m.cat || '', rule: 'no', day: 'd', dtxt: m.date }); }]);
+    a.push(['تعديل', 'i-pencil', function () { var cv = m.cur === 'usd' && m.ils > 0; openSh({ t: 'fEdit', id: m.id }, { amt: String(cv ? m.ils : m.amt), note: m.note || '', cat: m.cat || '', rule: 'no', dir: m.dir, day: 'd', dtxt: m.date }); }]);
     a.push(['إلغاء الحركة', 'i-x', function () { voidMove(m.id); }]);
   }
   qa(m.note || (m.dir === 'in' ? 'وارد' : 'ناقص'), dlabel(m.date), a);
@@ -3737,7 +3799,7 @@ function wBalBefore(w, date) {
   var t = 0, days = {};
   (S.att || []).forEach(function (a) { if (a.w === w.id && a.date < date) days[a.date] = a; });
   Object.keys(days).forEach(function (k) { t += E.attAmt(days[k]); });
-  (S.wl || []).forEach(function (e) {
+  wlOn().forEach(function (e) {
     if (e.w !== w.id || e.date >= date) return;
     if (e.kind === 'open' || e.kind === 'add') t += e.amt; else t -= e.amt;
   });
@@ -3769,12 +3831,8 @@ function pgWorker() {
   if (wf) bl.push(B('rows', { items: [X({ icon: 'i-wallet', icTone: 'info', title: 'عهدة المطبخ بحوزته', sub: 'مال المطبخ، لا يدخل في مستحقاته ولا في كشفه', end: money(fBal(wf.id, 'ils')), chev: true, go: function () { open('fund', { fid: wf.id }); } })] }));
   /* سجل واحد: اليوم أولًا (حضوره وحركاته) ثم الأيام السابقة، والرصيد أعلاه هو الإجمالي */
   var td = [X({ title: 'اليوم', tag: st ? st.name : 'لم يُسجَّل', tagTone: st ? st.tone : 'warn', end: st && a.st !== 'h' ? money(E.attAmt(a)) : '', chev: true, go: function () { openSh({ t: 'status', wid: w.id }); } })];
-  wToday(w).forEach(function (e) {
-    td.push(phRow({ title: wLabel(e), sub: e.note || 'اليوم', end: money(e.amt), endTone: e.kind === 'add' && wTone(e) === 'ok' ? 'ok' : wTone(e) === 'bad' ? 'bad' : undefined }, e, w.name + ' · ' + wLabel(e)));
-  });
-  (S.wl || []).filter(function (e) { return e.w === w.id && e.kind === 'viol' && e.date === today(); }).forEach(function (e) {
-    td.push(phRow({ icon: 'i-alert', icTone: 'bad', title: 'مخالفة', sub: e.note || 'اليوم', tag: e.amt ? 'خصم ' + money(e.amt) : 'تنبيه فقط', tagTone: 'bad' }, e, w.name + ' · مخالفة'));
-  });
+  wToday(w).forEach(function (e) { td.push(wlRow(e, w)); });
+  wlOn().filter(function (e) { return e.w === w.id && e.kind === 'viol' && e.date === today(); }).forEach(function (e) { td.push(wlRow(e, w)); });
   wHist(w, 7).filter(function (h) { return h.date !== today(); }).forEach(function (h) {
     var t = stat(h.st) || {};
     td.push(X({ title: dlong(h.date).replace(/ \d{4}$/, ''), tag: t.name, tagTone: t.tone, end: h.st === 'h' ? '' : money(E.attAmt(h)) }));
@@ -3782,8 +3840,11 @@ function pgWorker() {
   bl.push(B('rows', { title: 'السجل', items: td }));
   var vs = wViol(w);
   if (vs.length) bl.push(B('rows', { title: 'سجل المخالفات (' + vs.length + ')', items: vs.map(function (v) {
-    return phRow({ icon: 'i-alert', icTone: 'bad', title: v.note || 'مخالفة', sub: dlabel(v.date), tag: v.amt ? 'خصم ' + money(v.amt) : 'تنبيه', tagTone: 'bad' }, v, w.name + ' · مخالفة');
+    return wlRow(v, w, true);
   }) }));
+  /* حركات الأيام السابقة (مكافآت، خصومات، دفعات): كانت لا تظهر في صفحته فلا تُعدَّل. الأحدث أولًا، والملغاة تبقى ظاهرة */
+  var pastW = (S.wl || []).filter(function (e) { return e.w === w.id && e.kind !== 'open' && (e.void || (e.kind !== 'viol' && e.date < today())); }).sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : b.ts - a.ts; });
+  if (pastW.length) bl.push(B('rows', { title: 'حركات سابقة', items: pastW.map(function (e) { return wlRow(e, w, true); }) }));
   if (w.stints && w.stints.length) bl.push(B('rows', { title: 'فترات العمل', items: stintRows(w, false) }));
   bl.push(B('rows', { title: 'كشف حساب ' + monthLabel(ym0), items: [X({ icon: 'i-doc', icTone: 'info', title: 'كشف ' + w.name, sub: 'صورة بالحضور والمكافآت والخصومات والدفعات: أرسلها أو احفظها', chev: true, go: function () { wstOpen(w); } })] }));
   return bl;
