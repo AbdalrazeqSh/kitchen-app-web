@@ -28,8 +28,18 @@ function X(o) {
     bd: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[1] : 'rgba(27,36,33,.22)')
   };
 }
+/* قاعدة عامة لكل قائمة صفوف في التطبيق: لا تُعرض أكثر من ROW_CAP صفًا؛ الباقي خلف «عرض N أخرى». تُطبَّق هنا مرة واحدة فتشمل كل الشاشات الحالية والقادمة. الاستثناء الصريح: all:true. */
+var ROW_CAP = 5, rowsOpen = {};
+function capRows(o) {
+  var it = o.items || [];
+  if (o.all || it.length <= ROW_CAP + 1) return o;
+  var k = (o.title || '') + '|' + it.length, open = !!rowsOpen[k], n = it.length - ROW_CAP, c = Object.assign({}, o);
+  c.items = (open ? it : it.slice(0, ROW_CAP)).concat([X({ icon: open ? 'i-minus' : 'i-chevD', icTone: 'mute', title: open ? 'طيّ القائمة' : 'عرض ' + n + ' أخرى', go: function () { rowsOpen[k] = !open; UI.render(); } })]);
+  return c;
+}
 function B(t, o) {
   o = o || {};
+  if (t === 'rows') o = capRows(o);
   var tn = T[o.tone] || T.info, pick = t === 'pick', unfilled = o.filled === false;
   return {
     isKpi: t === 'kpi', isSeg: t === 'seg', isChips: t === 'chips', isRows: t === 'rows', isGrid: t === 'grid', isNote: t === 'note',

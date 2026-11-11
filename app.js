@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.69';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.72';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1540,6 +1540,8 @@ function usdK(n) { return usdTxt(r2(n)); }
 function fTxt(cur, n) { return cur === 'usd' ? usdTxt(n) : money(n); }
 function hasCur(f, c) { return f.curs.indexOf(c) >= 0; }
 function fMain(f) { return f.curs[0]; }
+/* الرصيد كاملًا بكل عملاته (الدولار والشيكل معًا) حيث يُختار رصيد أو يُعرض */
+function fBalAll(f) { return f.curs.map(function (c) { return fTxt(c, fBal(f.id, c)); }).join(' · '); }
 function fBalTxt(f) { return fTxt(fMain(f), fBal(f.id, fMain(f))); }
 function fKind(f) { var w = f.w ? wk(f.w) : null; return f.w || f.curs.length === 1 && fMain(f) === 'ils' ? (w ? 'عند العامل · شيكل' : 'شيكل') : f.curs.length > 1 ? 'دولار وشيكل' : 'دولار'; }
 function lastRate() { var l = movesDesc((S.fm || []).filter(function (m) { return m.rate > 0 && !m.void; }))[0]; return l ? l.rate : 0; }
@@ -1576,7 +1578,7 @@ function payPlan(f, ils, rate) {
 }
 function fundFields() {
   if (!A.form.fund) A.form.fund = defFund(); if (!A.form.src) A.form.src = 'usd';
-  var f = fund(fv('fund')), fl = [fChips('fund', 'من أي رصيد؟', funds().map(function (x) { return [x.id, x.name + ' · ' + fBalTxt(x)]; }))];
+  var f = fund(fv('fund')), fl = [fChips('fund', 'من أي رصيد؟', funds().map(function (x) { return [x.id, x.name + ' · ' + fBalAll(x)]; }))];
   if (f && f.curs.length > 1) fl.push(fChips('src', 'يُصرف من', [['usd', 'الدولار بسعر الصرف'], ['ils', 'رصيد الشيكل']]));
   if (f && hasCur(f, 'usd') && (fv('src') || 'usd') === 'usd') { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); fl.push(fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'ما يقابل المبلغ يُخصم من الدولار')); }
   return fl;
@@ -1635,7 +1637,8 @@ function pgFund() {
 /* ---------- الإجراءات ---------- */
 function modesOf(f, dir) {
   if (f.curs.length === 1) return [[f.curs[0], f.curs[0] === 'usd' ? 'دولار' : 'شيكل']];
-  return dir === 'out' ? [['conv', 'شيكل من الدولار'], ['ils', 'من رصيد الشيكل'], ['usd', 'دولار']] : [['usd', 'دولار'], ['ils', 'شيكل']];
+  var bi = fTxt('ils', fBal(f.id, 'ils')), bu = fTxt('usd', fBal(f.id, 'usd'));
+  return dir === 'out' ? [['conv', 'شيكل يُخصم من الدولار'], ['ils', 'شيكل من رصيد الشيكل (' + bi + ')'], ['usd', 'دولار (' + bu + ')']] : [['usd', 'دولار'], ['ils', 'شيكل']];
 }
 function doMove() {
   var dir = fv('dir') || 'out', f = fund(fv('fund')), ms0 = modesOf(f, dir), md = ms0.some(function (x) { return x[0] === fv('mode'); }) ? fv('mode') : ms0[0][0], a = num('amt'), rt = num('rate'), note = (fv('note') || '').trim(), m = { id: mid(S.fm, 'm'), date: moveDate(), h: f.id, dir: dir, note: note }; if (fv('cat')) m.cat = fv('cat'); phTag(m, phTake());
@@ -1687,14 +1690,14 @@ function moneySheet(sh) {
       var ms = modesOf(f, dir), md = ms.some(function (x) { return x[0] === fv('mode'); }) ? fv('mode') : ms[0][0], a = num('amt'), rt = num('rate'), fl = [];
       var cl = (dir === 'in' ? CATS_IN : CATS_OUT).map(function (c) { return c[0]; }); if (fv('cat') && cl.indexOf(fv('cat')) < 0) A.form.cat = '';
       fl.push(fChips('dir', 'نوع الحركة', [['out', 'ناقص (صرف)', 'bad'], ['in', 'وارد (دخل)', 'ok']]));
-      fl.push(fChips('fund', 'الرصيد', funds().map(function (x) { return [x.id, x.name + ' · ' + fBalTxt(x)]; })));
+      fl.push(fChips('fund', 'الرصيد', funds().map(function (x) { return [x.id, x.name + ' · ' + fBalAll(x)]; })));
       if (ms.length > 1) fl.push(fChips('mode', 'العملة', ms));
       fl.push(fText('amt', md === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالشيكل', '0', 'decimal'));
       if (md === 'conv') { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); fl.push(fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'ما يقابل المبلغ يُخصم من الدولار')); }
       fl.push(fText('note', 'البيان', dir === 'in' ? 'مثال: مبيعات، إيداع' : 'مثال: كارة، نقل، كهرباء'));
       fl.push(catChips(dir)); fl = fl.concat(dayFields()); fl.push(fPhoto('صورة الوصل أو السند (اختياري)'));
       var usd = md === 'conv' && a > 0 && rt > 0 ? r2(a / rt) : 0, cur = md === 'conv' ? 'usd' : md, delta = md === 'conv' ? usd : a, after = r2(fBal(f.id, cur) + (dir === 'in' ? delta : -delta));
-      R = { title: 'حركة جديدة', sub: f.name + ' · الرصيد الآن: ' + fBalTxt(f), fields: fl,
+      R = { title: 'حركة جديدة', sub: f.name + ' · الرصيد الآن: ' + fBalAll(f), fields: fl,
         note: a > 0 && (md !== 'conv' || usd > 0) ? { text: (md === 'conv' ? 'يُخصم ' + usdTxt(usd) + '. ' : '') + 'الرصيد بعد الحركة: ' + fTxt(cur, after), tone: after < 0 ? 'warn' : 'info' } : null,
         ft: { label: dir === 'in' ? 'تسجيل الوارد' : 'تسجيل الناقص', ok: a > 0 && (fv('note') || '').trim().length > 0 && (md !== 'conv' || rt > 0) && dayOk(), go: doMove } };
       break;
@@ -1707,7 +1710,7 @@ function moneySheet(sh) {
       if (to) fl2.push(fText('got', dc === 'usd' ? 'الواصل بالدولار' : 'الواصل بالشيكل' + (diff ? '' : ' (اختياري)'), '0', 'decimal', diff ? 'يُحسب سعر الصرف من الرقمين' : 'اتركه فارغًا إن وصل كاملًا، أو اكتب ما وصل فعلًا'));
       fl2 = fl2.concat(dayFields()); fl2.push(fPhoto('صورة الوصل (اختياري)'));
       var gt = num('got') || (diff ? 0 : am), fee = diff ? 0 : r2(am - gt);
-      R = { title: 'تحويل بين الأرصدة', sub: fo ? fo.name + ' · ' + fBalTxt(fo) : 'اختر الرصيدين', fields: fl2,
+      R = { title: 'تحويل بين الأرصدة', sub: fo ? fo.name + ' · ' + fBalAll(fo) : 'اختر الرصيدين', fields: fl2,
         note: fo && to && am > 0 && gt > 0 ? { text: diff ? 'سعر الصرف ' + r3(gt / am) + '. «' + fo.name + '» بعدها ' + fTxt(cu, r2(fBal(fo.id, cu) - am)) : (fee > 0 ? 'سيصل ' + fTxt(cu, gt) + ' من ' + fTxt(cu, am) + '. ' : '') + '«' + fo.name + '» بعدها ' + fTxt(cu, r2(fBal(fo.id, cu) - am)), tone: fBal(fo.id, cu) - am < 0 || fee < 0 ? 'warn' : 'info' } : null,
         ft: { label: 'تحويل', ok: !!fo && !!to && fo.id !== to.id && am > 0 && gt > 0 && fee >= 0 && dayOk(), go: doXfer } };
       break;
@@ -3266,7 +3269,7 @@ function pgToday() {
       var q = E.balance(S, l.id, it.id), st = stStatus(q, it.id);
       if (alertable(l, it, q) && st.rank <= 2) att.push({ rank: st.rank, row: X({ icon: 'i-box', icTone: st.tone, title: it.name + ' · ' + l.name,
         sub: q > 0 ? (st.plan ? planTxt(st.plan) : 'يكفي ' + daysTxt(st.days)) + ' (' + fmt(q) + ' ' + it.unit + ')' : q < 0 ? 'ناقص ' + fmt(-q) + ' ' + it.unit : 'لا يوجد رصيد', tag: st.t, tagTone: st.tone, chev: true,
-        go: function () { setState({ tab: 'stock', led: l.id }); }, lp: function () { stockQa(it, l.id, q); } }) });
+        go: function () { A.led = l.id; openSh({ t: 'item', id: it.id }); }, lp: function () { stockQa(it, l.id, q); } }) });
     });
   });
   if (!hol && wd.none > 0) att.push({ rank: 2.5, row: X({ icon: 'i-users', icTone: 'info', title: 'حضور ' + pl(wd.none, 'عامل واحد', 'عاملين', 'عمال') + ' لم يُسجَّل',
