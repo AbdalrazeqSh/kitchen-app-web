@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.96';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.97';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -358,7 +358,7 @@ function fTime(k, label, hint) { var f = fText(k, label, '', 'text', hint); f.is
 /* قائمة منسدلة: تُعرض القيمة الحالية وحدها، والنقر عليها يفتح الخيارات الأخرى. تُستعمل لكل اختيار عملة في النوافذ */
 function fSelect(k, label, opts, sel) {
   var ok = k + '_o', open = fv(ok) === '1', cur = opts.filter(function (o) { return o[0] === sel; })[0] || opts[0], f = fChips(k, label, opts);
-  f.fd = ''; f.ai = ''; f.gp = ''; f.lf = '';
+  f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cdir = 'column'; f.cflex = '1 1 auto'; f.ctal = 'start';
   f.chips = open ? opts.map(function (o) { return X({ label: o[1], on: o[0] === cur[0], go: function () { A.form[k] = o[0]; A.form[ok] = ''; render(); } }); })
     : [X({ label: cur[1] + '  ▾', go: function () { A.form[ok] = '1'; render(); } })];
   return f;
@@ -368,6 +368,13 @@ function fChips(k, label, opts, hint) {
   f = { label: label, hint: hint || '', hasHint: !!hint, isText: false, isChips: true, value: '', ph: '', mode: 'text', onInput: noop,
     chips: opts.map(function (o) { var sel = cur === o[0]; return X({ label: o[1], on: sel, selTone: o[2], tone: sel ? undefined : o[2], go: function () { fset(k, o[0]); } }); }) };
   if (short) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = '1'; }
+  return f;
+}
+/* شريط بنصفين متساويين لاختيار من 2 إلى 3 (نوع الحركة، العملة) */
+function fSeg(k, label, opts) {
+  var f = fChips(k, label, opts); f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cbg = '#EEF1EC'; f.cpad = '4px'; f.cflex = '1'; f.cjc = 'center';
+  f.chips = opts.map(function (o) { var sel = fv(k) === o[0]; return X({ label: o[1], on: sel, selTone: o[2] === 'bad' ? 'bad' : undefined, go: function () { fset(k, o[0]); } }); });
+  f.chips.forEach(function (c, i) { var on = fv(k) === opts[i][0], bad = on && opts[i][2] === 'bad'; c.bg = on ? '#FFFFFF' : 'transparent'; c.fg = bad ? '#9B2C2C' : on ? '#14563A' : '#5B6660'; c.bd = on ? (bad ? '#9B2C2C' : '#14563A') : 'transparent'; });
   return f;
 }
 function fQuick(k, label, arr) {
@@ -1753,13 +1760,13 @@ function moneySheet(sh) {
   var R, m, f;
   switch (sh.t) {
     case 'fMove': {
-      var dir = fv('dir') || 'out', fo0 = fund(fv('fund')) || fund(defFund()); if (!fund(fv('fund'))) A.form.fund = fo0.id; f = fo0;
+      var dir = fv('dir') || 'out'; if (!fv('dir')) A.form.dir = dir; var fo0 = fund(fv('fund')) || fund(defFund()); if (!fund(fv('fund'))) A.form.fund = fo0.id; f = fo0;
       var ms = modesOf(f, dir), md = ms.some(function (x) { return x[0] === fv('mode'); }) ? fv('mode') : ms[0][0], a = num('amt'), rt = num('rate'), fl = [];
       var cl = (dir === 'in' ? CATS_IN : CATS_OUT).map(function (c) { return c[0]; }); if (fv('cat') && cl.indexOf(fv('cat')) < 0) A.form.cat = '';
-      if (!fv('dlock')) fl.push(fChips('dir', 'نوع الحركة', [['out', 'ناقص (صرف)', 'bad'], ['in', 'وارد (دخل)', 'ok']]));
-      fl.push(fChips('fund', 'الرصيد', funds().map(function (x) { return [x.id, fName(x) + ' · ' + fBalAll(x)]; })));
-      if (ms.length > 1) fl.push(fSelect('mode', 'العملة', ms, md));
-      fl.push(fText('amt', md === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالشيكل', '0', 'decimal'));
+      if (!fv('dlock')) fl.push(fSeg('dir', 'نوع الحركة', [['out', 'ناقص (صرف)', 'bad'], ['in', 'وارد (دخل)', 'ok']]));
+      fl.push(fSelect('fund', 'من أي رصيد', funds().map(function (x) { return [x.id, fName(x) + ' · ' + fBalAll(x)]; }), fv('fund')));
+      if (ms.length > 1) { A.form.mode = md; fl.push(ms.length <= 3 ? fSeg('mode', 'العملة', ms) : fSelect('mode', 'العملة', ms, md)); }
+      var fa = fText('amt', md === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالشيكل', '0', 'decimal'); fa.fd = 'column'; fa.ai = 'stretch'; fa.gp = '6px'; fa.lf = '0'; fa.cw = '100%'; fl.push(fa);
       if (md === 'conv') { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); fl.push(fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'ما يقابل المبلغ يُخصم من الدولار')); }
       fl.push(fText('note', 'البيان', dir === 'in' ? 'مثال: مبيعات، إيداع' : 'مثال: كارة، نقل، كهرباء'));
       fl.push(catChips(dir)); fl = fl.concat(dayFields()); fl.push(fPhoto('صورة الوصل أو السند (اختياري)'));
