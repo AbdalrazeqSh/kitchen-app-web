@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.80';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.81';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1623,9 +1623,11 @@ function pgFunds() {
     X({ label: 'الدولار', value: usdK(fTot('usd')), sub: 'في كل الأرصدة' }),
     X({ label: 'الشيكل', value: money(fTot('ils')), sub: 'في كل الأرصدة' })
   ] }));
+  /* وارد وناقص في سطر وحدهما يتقاسمان العرض (الأهم)، وبقية الإجراءات في سطر كامل تحتهما */
   bl.push(B('acts', { items: [
     X({ title: 'وارد', icon: 'i-plus', tone: 'ok', go: function () { openMove(ff || '', 'in'); } }),
-    X({ title: 'ناقص', icon: 'i-minus', tone: 'bad', go: function () { openMove(ff || '', 'out'); } }),
+    X({ title: 'ناقص', icon: 'i-minus', tone: 'bad', go: function () { openMove(ff || '', 'out'); } })] }));
+  bl.push(B('acts', { items: [
     X({ title: 'تحويل', icon: 'i-send', go: function () { openSh({ t: 'fXfer' }, { from: ff || defFund(), to: '', cur: '', amt: '', got: '', dtxt: today() }); } }),
     X({ title: 'رصيد جديد', icon: 'i-plus', go: function () { openSh({ t: 'fAdd' }, {}); } }),
     X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'fCount', f: ff || defFund() }, { cur: '', cnt: '' }); } }),
@@ -1653,7 +1655,8 @@ function pgFund() {
   bl.push(fundBig(f));
   bl.push(B('acts', { items: [
     X({ title: 'وارد', icon: 'i-plus', tone: 'ok', go: function () { openMove(f.id, 'in'); } }),
-    X({ title: 'ناقص', icon: 'i-minus', tone: 'bad', go: function () { openMove(f.id, 'out'); } }),
+    X({ title: 'ناقص', icon: 'i-minus', tone: 'bad', go: function () { openMove(f.id, 'out'); } })] }));
+  bl.push(B('acts', { items: [
     X({ title: 'تحويل', icon: 'i-send', go: function () { openSh({ t: 'fXfer' }, { from: f.id, to: '', cur: '', amt: '', got: '', dtxt: today() }); } }),
     X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'fCount', f: f.id }, { cur: '', cnt: '' }); } })] }));
   bl.push(B('seg', { items: [['all', 'الكل'], ['in', 'وارد'], ['out', 'ناقص']].map(function (a) {
