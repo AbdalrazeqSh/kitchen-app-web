@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.89';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.90';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1569,8 +1569,8 @@ function openMove(fid, dir) { openSh({ t: 'fMove' }, { fund: fid || defFund(), d
 function moveRowX(m, withFund, mini) {
   var conv = m.cur === 'usd' && m.ils > 0, f0 = fund(m.h);
   return X({ mini: !!mini, ph: !!m.ph, icon: mini ? '' : m.x ? 'i-send' : m.dir === 'in' ? 'i-plus' : 'i-minus', icTone: m.x ? 'info' : m.dir === 'in' ? 'ok' : 'bad', title: m.note || (m.dir === 'in' ? 'وارد' : 'ناقص'),
-    sub: joinSub(withFund && f0 ? fName(f0) : '', dlabel(m.date) + (m.x ? ' · تحويل' : ''), mini && conv ? usdTxt(m.amt) : ''),
-    end: sg(m.dir, conv ? money(m.ils) : fTxt(m.cur, m.amt)), endSub: mini ? '' : conv ? usdTxt(m.amt) : m.x ? 'تحويل' : '', endTone: m.dir === 'in' ? 'ok' : 'bad', chev: true, go: function () { openSh({ t: 'fView', id: m.id }); }, lp: function () { moveQa(m); } });
+    sub: joinSub(withFund && f0 ? fName(f0) : '', dlabel(m.date), mini && conv ? usdTxt(m.amt) : ''),
+    end: sg(m.dir, conv ? money(m.ils) : fTxt(m.cur, m.amt)), endSub: mini ? '' : conv ? usdTxt(m.amt) : '', tag: m.x ? 'تحويل' : '', tagTone: 'info', endTone: m.dir === 'in' ? 'ok' : 'bad', chev: true, go: function () { openSh({ t: 'fView', id: m.id }); }, lp: function () { moveQa(m); } });
 }
 function recentMoves(n, fid) { return movesDesc(fmOn(fid)).slice(0, n); }
 /* أرصدة الصندوق بالعملتين بحجم واحد */
