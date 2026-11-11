@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.78';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.79';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1618,15 +1618,16 @@ function shMark(sec, onlyNew) { var sent = S.settings.shSent = S.settings.shSent
 /* ---------- الأرصدة ---------- */
 function pgFunds() {
   var bl = [], L = funds(), ff = A.fFeed && fund(A.fFeed) ? A.fFeed : '', n = A.fN || 8;
-  bl.push(B('kpi', { items: [
+  if (ff) bl.push(fundBig(fund(ff), 'رصيد ' + fName(fund(ff))));
+  else bl.push(B('kpi', { items: [
     X({ label: 'الدولار', value: usdK(fTot('usd')), sub: 'في كل الأرصدة' }),
     X({ label: 'الشيكل', value: money(fTot('ils')), sub: 'في كل الأرصدة' })
   ] }));
   bl.push(B('acts', { items: [
-    X({ title: 'حركة', icon: 'i-wallet', on: true, go: function () { openMove(); } }),
-    X({ title: 'تحويل', icon: 'i-send', go: function () { openSh({ t: 'fXfer' }, { from: defFund(), to: '', cur: '', amt: '', got: '', dtxt: today() }); } }),
+    X({ title: 'حركة', icon: 'i-wallet', on: true, go: function () { openMove(ff || ''); } }),
+    X({ title: 'تحويل', icon: 'i-send', go: function () { openSh({ t: 'fXfer' }, { from: ff || defFund(), to: '', cur: '', amt: '', got: '', dtxt: today() }); } }),
     X({ title: 'رصيد جديد', icon: 'i-plus', go: function () { openSh({ t: 'fAdd' }, {}); } }),
-    X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'fCount', f: defFund() }, { cur: '', cnt: '' }); } }),
+    X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'fCount', f: ff || defFund() }, { cur: '', cnt: '' }); } }),
     X({ title: 'نسخ للشيت', icon: 'i-copy', go: function () { var d = SH_SECS.filter(function (x) { return shRows(x.id, true).length; })[0]; openSh({ t: 'shCopy' }, { sec: (d || SH_SECS[0]).id, scope: 'new' }); } }),
     X({ title: 'الملخص', icon: 'i-list', go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } })] }));
   /* آخر الحركات أولًا: للتأكد أنها سُجّلت، ومن أي رصيد */
@@ -1641,11 +1642,14 @@ function pgFunds() {
   return bl;
 }
 
+/* تفاصيل الرصيد الواحد (الرصيد والوارد والناقص والشهر): واحدة لصفحة الرصيد ولأعلى صفحة الأرصدة عند اختياره */
+function fundBig(f, label) {
+  var last = movesDesc(fmOn(f.id))[0], c0 = fMain(f), ym = today().slice(0, 7), xn = fXnet(f.id, c0);
+  return B('big', { label: label || 'الرصيد', value: fBalTxt(f), value2: f.curs.length > 1 ? fTxt(f.curs[1], fBal(f.id, f.curs[1])) : '', text: 'وارد ' + fTxt(c0, fSum(f.id, c0, 'in')) + ' · ناقص ' + fTxt(c0, fSum(f.id, c0, 'out')) + (xn ? ' · صافي التحويلات ' + fTxt(c0, xn) : '') + '\nهذا الشهر: وارد ' + fTxt(c0, fMonth(f.id, c0, 'in', ym)) + ' · ناقص ' + fTxt(c0, fMonth(f.id, c0, 'out', ym)) + '\n' + (last ? 'آخر حركة: ' + dlabel(last.date) + ' · ' + (last.note || '') : 'لا حركات بعد') });
+}
 function pgFund() {
   var f = fund(A.fid), bl = [], all = movesDesc(fmOn(f.id)), flt = A.fF || 'all', last = all[0], c0 = fMain(f);
-  var ym = today().slice(0, 7), xn = fXnet(f.id, c0);
-  var ym = today().slice(0, 7), xn = fXnet(f.id, c0);
-  bl.push(B('big', { label: 'الرصيد', value: fBalTxt(f), value2: f.curs.length > 1 ? fTxt(f.curs[1], fBal(f.id, f.curs[1])) : '', text: 'وارد ' + fTxt(c0, fSum(f.id, c0, 'in')) + ' · ناقص ' + fTxt(c0, fSum(f.id, c0, 'out')) + (xn ? ' · صافي التحويلات ' + fTxt(c0, xn) : '') + '\nهذا الشهر: وارد ' + fTxt(c0, fMonth(f.id, c0, 'in', ym)) + ' · ناقص ' + fTxt(c0, fMonth(f.id, c0, 'out', ym)) + '\n' + (last ? 'آخر حركة: ' + dlabel(last.date) + ' · ' + (last.note || '') : 'لا حركات بعد') }));
+  bl.push(fundBig(f));
   bl.push(B('acts', { items: [
     X({ title: 'وارد', icon: 'i-plus', tone: 'ok', go: function () { openMove(f.id, 'in'); } }),
     X({ title: 'ناقص', icon: 'i-minus', tone: 'bad', go: function () { openMove(f.id, 'out'); } }),
