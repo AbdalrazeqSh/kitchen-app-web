@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.91';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.92';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4826,7 +4826,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { shText: shText, shMark: shMark, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { syncMergeData: syncMergeData, shText: shText, shMark: shMark, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
@@ -4842,11 +4842,12 @@ function checkUpdate(force) {
   if (!(native || hook)) { if (force) say('التحديث الصامت يعمل داخل التطبيق على الهاتف'); return Promise.resolve(); } // في المتصفح والاختبارات لا يُجلب شيء إلا بتحديد عنوان تجريبي صراحةً
   if (!base || !navigator.onLine || !window.crypto || !crypto.subtle) { if (force) say('لا اتصال بالإنترنت الآن'); return Promise.resolve(); }
   try { if (!force && Date.now() - (+localStorage.getItem('kitchen_upd_chk') || 0) < 30 * 6e4) return Promise.resolve(); localStorage.setItem('kitchen_upd_chk', String(Date.now())); } catch (e) { return Promise.resolve(); }
-  return fetch(base + 'version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('v'); return r.json(); }).then(function (v) {
-    if (!v || !v.ver || !v.files) return;
+  var ac = window.AbortController ? new AbortController() : null, tm = ac ? setTimeout(function () { ac.abort(); }, 15000) : 0;
+  return fetch(base + 'version.json?t=' + Date.now(), { cache: 'no-store', signal: ac ? ac.signal : undefined }).then(function (r) { clearTimeout(tm); if (!r.ok) throw new Error('v'); return r.json(); }).then(function (v) {
+    if (!v || !v.ver || !v.files) { if (force) say('تعذّر التأكد من آخر إصدار: الاتصال ضعيف'); return; }
     if (vcmp(window.PKG_VER || '0.0.0', v.minPkg || '0.0.0') < 0) { if (force) say('الإصدار ' + v.ver + ' يحتاج تثبيت APK جديد'); return; }
     if (updPending() === v.ver) { if (force) say('التحديث ' + v.ver + ' جاهز: أغلق التطبيق وافتحه'); return; }
-    if (vcmp(v.ver, VERSION) <= 0) { if (force) say('أنت على أحدث إصدار (' + VERSION + ')'); return; }
+    if (vcmp(v.ver, VERSION) <= 0) { if (force) say('الإصدار عندك ' + VERSION + ' والمنشور ' + v.ver + (v.ver === VERSION ? ': أنت على أحدث إصدار' : '')); return; }
     var names = Object.keys(v.files);
     return Promise.all(names.map(function (n) {
       return fetch(base + n + '?v=' + v.ver, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error(n); return r.text(); }).then(function (t) { return sha256hex(t).then(function (h) { if (h !== v.files[n]) throw new Error('hash ' + n); return [n, t]; }); });
@@ -4855,7 +4856,7 @@ function checkUpdate(force) {
       localStorage.setItem(UPD_K, JSON.stringify({ ver: v.ver, f: f })); localStorage.removeItem(UPD_K + '_bad');
       say('تحديث ' + v.ver + ' جاهز: يعمل عند فتح التطبيق في المرة القادمة');
     });
-  }).catch(function () { if (force) say('تعذّر فحص التحديث، حاول لاحقًا'); });
+  }).catch(function () { clearTimeout(tm); if (force) say('تعذّر التأكد من آخر إصدار: الاتصال ضعيف أو منقطع، حاول لاحقًا'); });
 }
 
 /* ===== 06v-sync.js ===== */
@@ -4900,6 +4901,44 @@ function syncPull(rev, data) {
     syncMark(rev, JSON.stringify(syncPayload())); resetCaches(); OPV = null; return mergeHistory().then(mergeMoney).then(function () { render(); });
   });
 }
+/* دمج تلقائي عند التعارض: بيانات التطبيق سجلات بمعرّفات (append-only)، فنجمع سجلات الجهازين معًا بدل أن يختار المستخدم نسخة تُسقط الأخرى.
+   لكل مصفوفة سجلات بمعرّف: ما انفرد به الخادم يُضاف، وما اتفق معرّفه يبقى كما هنا إلا إذا كان الملغي (void) على الخادم فيُؤخذ.
+   الإعدادات والقيم المفردة تبقى كما هنا. تُحفظ لقطة قبل الدمج. */
+function syncMergeData(loc, rem) {
+  var out = JSON.parse(JSON.stringify(loc)), added = 0, clash = 0;
+  Object.keys(rem || {}).forEach(function (k) {
+    var a = out[k], b = rem[k];
+    if (a === undefined) { out[k] = b; return; }
+    if (!Array.isArray(a) || !Array.isArray(b)) return;
+    var withId = function (x) { return x.length && x.every(function (o) { return o && typeof o === 'object' && o.id != null; }); };
+    if (!withId(b) || (a.length && !withId(a))) return;
+    var idx = {}; a.forEach(function (o, i) { idx[o.id] = i; });
+    b.forEach(function (o) {
+      if (idx[o.id] === undefined) { a.push(o); idx[o.id] = a.length - 1; added++; return; }
+      var mine = a[idx[o.id]];
+      if (JSON.stringify(mine) === JSON.stringify(o)) return;
+      if (o.void && !mine.void) { a[idx[o.id]] = o; added++; } else clash++;
+    });
+  });
+  return { data: out, added: added, clash: clash };
+}
+function syncMerge() {
+  return syncApi('/rest/v1/app_state?id=eq.1&select=rev,data').then(function (r) {
+    var rem = r && r[0]; if (!rem) throw new Error('no-remote');
+    var m = syncMergeData(syncPayload(), rem.data), keep = {};
+    Object.keys(S.settings || {}).forEach(function (k) { if (k.indexOf('sync') === 0) keep[k] = S.settings[k]; });
+    return bkAdd('pre').then(function () {
+      var prev = S;
+      try { S = m.data; S.settings = Object.assign(S.settings || {}, keep); runMigrations(); } catch (er) { S = prev; throw er; }
+      var txt = JSON.stringify(syncPayload());
+      return syncApi('/rest/v1/rpc/push_state', { method: 'POST', body: JSON.stringify({ p_base: rem.rev, p_data: JSON.parse(txt), p_device: syncDevice() }) }).then(function (rev) {
+        syncMark(rev, txt); resetCaches(); OPV = null;
+        SYNCMSG = m.added ? 'دُمجت بيانات الجهازين (' + m.added + ' سجل من الجهاز الآخر)' : 'متزامن';
+        return mergeHistory().then(mergeMoney).then(function () { render(); });
+      });
+    });
+  });
+}
 function syncNow(manual) {
   if (SYNCBUSY || !S || !syncSess()) return Promise.resolve();
   if (!navigator.onLine) { SYNCMSG = 'لا اتصال'; return Promise.resolve(); }
@@ -4919,8 +4958,8 @@ function syncNow(manual) {
     if (!dirty || (!hasData() && base === 0)) {
       return syncApi('/rest/v1/app_state?id=eq.1&select=rev,data').then(function (r2) { return syncPull(r2[0].rev, r2[0].data); }).then(function () { SYNCMSG = 'وصلت تحديثات من ' + (rem.device || 'جهاز آخر'); });
     }
-    S.settings.syncConflict = rr; save(); SYNCMSG = 'تعارض: عدّلتَ هنا وعلى جهاز آخر'; render();
-  }).catch(function (er) { SYNCMSG = (er && er.message) || 'تعذّرت المزامنة'; if (/conflict/.test(SYNCMSG)) { S.settings.syncConflict = -1; save(); SYNCMSG = 'تعارض: عدّلتَ هنا وعلى جهاز آخر'; } if (manual) say(SYNCMSG); })
+    return syncMerge().catch(function () { S.settings.syncConflict = rr; save(); SYNCMSG = 'تعارض: عدّلتَ هنا وعلى جهاز آخر'; render(); });
+  }).catch(function (er) { SYNCMSG = (er && er.message) || 'تعذّرت المزامنة'; if (/conflict/.test(SYNCMSG)) { return syncMerge().catch(function () { S.settings.syncConflict = -1; save(); SYNCMSG = 'تعارض: عدّلتَ هنا وعلى جهاز آخر'; }); } if (manual) say(SYNCMSG); })
     .then(function () { SYNCBUSY = false; if (manual && SYNCMSG && !/تعارض/.test(SYNCMSG)) say(SYNCMSG); try { render(); } catch (e) {} });
 }
 function syncSoon() { if (!syncSess()) return; clearTimeout(SYNC_T); SYNC_T = setTimeout(function () { syncNow(false); }, 8000); }
