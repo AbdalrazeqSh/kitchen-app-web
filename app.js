@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.73';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.75';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1173,7 +1173,7 @@ function calSheet(sh) {
 
 /* ===== 02d-day.js ===== */
 /* ---------- اليوم: المستفيدون وتوزيع القدور والعطلة والإغلاق (كما في التصميم) ---------- */
-var LOCKT = ['distDay', 'dist', 'issue', 'adjust', 'holiday'], LOCKN = { distDay: 'توزيع القدور', dist: 'توزيع القدور', issue: 'صرف المواد', adjust: 'تسوية المخزن', holiday: 'إعلان العطلة', batch: 'طبخة جديدة' };
+var LOCKT = ['distDay', 'dist', 'issue', 'adjust', 'count', 'holiday'], LOCKN = { distDay: 'توزيع القدور', dist: 'توزيع القدور', issue: 'صرف المواد', adjust: 'جرد المخزن', count: 'جرد المخزن', holiday: 'إعلان العطلة', batch: 'طبخة جديدة' };
 function dayInfo(d) { return (S.days || {})[d || today()] || {}; }
 function dayW() { S.days = S.days || {}; var t = today(); if (!S.days[t]) S.days[t] = {}; return S.days[t]; }
 function isHol() { return dayInfo().holiday || null; }
@@ -2092,7 +2092,7 @@ function pgPeople() {
   bl.push(B('note', { tone: 'info', icon: 'i-shield', text: 'الأدوار جاهزة وقابلة للتعديل. التفاصيل (ماذا يرى كل شخص وماذا يعدّل) في شاشة الصلاحيات على الحاسوب.' }));
   return bl;
 }
-/* أسباب تسوية المخزن (تالف، هدر، تبرع، فرق جرد): لكل سبب أثر ينقص أو يزيد */
+/* أسباب جرد المخزن (تالف، هدر، تبرع، فرق جرد): لكل سبب أثر ينقص أو يزيد */
 function whys() {
   var d = [{ id: 'w1', name: 'تالف أو منتهي', dir: -1 }, { id: 'w2', name: 'هدر في الطبخ', dir: -1 }, { id: 'w3', name: 'تبرع', dir: -1 }, { id: 'w4', name: 'فرق جرد', dir: 0 }];
   if (!(S.whys && S.whys.length)) return d;
@@ -2108,7 +2108,7 @@ function pgLists() {
     row('bens', 'i-users', 'المستفيدون (المخيمات والنقاط)', bens().map(function (g) { return g.name; }).join('، ') || 'لا مستفيدين بعد'),
     row('hol', 'i-calendar', 'العطل', 'العطلة المعتادة: ' + (S.settings.weekHol || 'لا يوجد') + (isHol() ? ' · اليوم عطلة' : '')),
     row('stats', 'i-calendar', 'حالات الحضور وأثرها على الأجر', (S.stats || []).map(function (t) { return t.name; }).join('، ')),
-    row('whys', 'i-box', 'أسباب تسوية المخزن', whys().map(function (w) { return w.name; }).join('، ')),
+    row('whys', 'i-box', 'أسباب جرد المخزن', whys().map(function (w) { return w.name; }).join('، ')),
     row('units', 'i-list', 'وحدات القياس', (S.units || []).join('، ')),
     row('presets', 'i-shield', 'أدوار الصلاحيات', presets().map(function (p) { return p.name; }).join('، ')),
     row('fields', 'i-pencil', 'الحقول المخصصة', (S.fields || []).map(function (f) { return f.name; }).join('، ') || 'لا حقول بعد')
@@ -2122,7 +2122,7 @@ function archList(k) { return archSrc(k).filter(function (x) { return !x.arch &&
 function archCheck(k, id) {
   var e = E.by(archSrc(k), id), out = [];
   if (k === 'worker') { var b = wBal(e); out.push({ ok: b === 0, title: 'رصيد العامل', sub: b === 0 ? 'خالص: لا له ولا عليه' : balTxt(b) + ': صفِّ الحساب أولًا', fix: b === 0 ? null : { go: function () { open('worker', { wid: id }); } } }); }
-  else if (k === 'ledger') { var bl = E.balances(S, id), ks = Object.keys(bl).filter(function (x) { return bl[x] !== 0; }); out.push({ ok: !ks.length, title: 'أرصدة المخزن', sub: ks.length ? pl(ks.length, 'صنف واحد', 'صنفان', 'أصناف') + ' برصيد غير صفر: انقله أو سجّل تسوية' : 'كل الأرصدة صفر' }); }
+  else if (k === 'ledger') { var bl = E.balances(S, id), ks = Object.keys(bl).filter(function (x) { return bl[x] !== 0; }); out.push({ ok: !ks.length, title: 'أرصدة المخزن', sub: ks.length ? pl(ks.length, 'صنف واحد', 'صنفان', 'أصناف') + ' برصيد غير صفر: انقله أو سجّل جردًا' : 'كل الأرصدة صفر' }); }
   else if (k === 'recipe') { var np = plans().filter(function (p) { return p.recipeId === id; }).length; out.push({ ok: !np, title: 'الخطط القادمة', sub: np ? pl(np, 'خطة واحدة', 'خطتان', 'خطط') + ' تستعملها: احذفها أولًا' : 'لا خطط قادمة' }); }
   else if (k === 'asset') { out.push({ ok: !(e.out > 0), title: 'المعار', sub: e.out > 0 ? fmt(e.out) + ' معار لجهة: سجّل عودته أولًا' : 'لا معار' }); }
   else out.push({ ok: true, title: 'الفحص', sub: 'لا شيء يمنع' });
@@ -2192,7 +2192,7 @@ function adminSheet(sh) {
     case 'addRole': { nm = fv('name').trim(); dup = dupOf(presets(), nm);
       R = { title: 'دور جديد', sub: 'مثل: محاسب أو مشرف مخزن', fields: [fText('name', 'اسم الدور', 'مثال: محاسب'), fText('desc', 'وصف قصير', 'ماذا يرى وماذا يعدّل')], dup: dup ? 'يوجد دور بنفس الاسم.' : '', note: { text: 'تفاصيل الصلاحيات لكل قسم تُضبط من شاشة الصلاحيات على الحاسوب.', tone: 'info' }, ft: { label: 'حفظ الدور', ok: nm.length > 1 && !dup, go: function () { doSimple('role'); } } }; break; }
     case 'addWhy': { nm = fv('name').trim(); dup = dupOf(whys(), nm);
-      R = { title: 'سبب تسوية جديد', sub: 'لماذا تتغير كمية بغير طبخ أو استلام', fields: [fText('name', 'اسم السبب', 'مثال: عينة تذوق'), fChips('dir', 'الأثر', [['down', 'ينقص'], ['up', 'يزيد']])], dup: dup ? 'يوجد سبب بنفس الاسم.' : '', ft: { label: 'حفظ السبب', ok: nm.length > 1 && !dup, go: function () { doSimple('why'); } } }; break; }
+      R = { title: 'سبب جرد جديد', sub: 'لماذا تتغير كمية بغير طبخ أو استلام', fields: [fText('name', 'اسم السبب', 'مثال: عينة تذوق'), fChips('dir', 'الأثر', [['down', 'ينقص'], ['up', 'يزيد']])], dup: dup ? 'يوجد سبب بنفس الاسم.' : '', ft: { label: 'حفظ السبب', ok: nm.length > 1 && !dup, go: function () { doSimple('why'); } } }; break; }
     case 'addUnit': { nm = fv('name').trim(); dup = (S.units || []).filter(function (u) { return norm(u) === norm(nm); })[0];
       R = { title: 'وحدة قياس جديدة', sub: 'مثل: صندوق أو حزمة', fields: [fText('name', 'اسم الوحدة', 'مثال: صندوق')], dup: dup ? 'يوجد وحدة بهذا الاسم.' : '', ft: { label: 'حفظ الوحدة', ok: nm.length > 0 && !dup, go: function () { doSimple('unit'); } } }; break; }
     case 'addField': { nm = fv('name').trim(); dup = dupOf(S.fields || [], nm);
@@ -2207,7 +2207,7 @@ function adminSheet(sh) {
         stats: ['حالات الحضور', (S.stats || []).map(function (t) { return X({ title: t.name, sub: t.sys ? 'نظامية: بلا أجر ولا تُحسب غيابًا' : (t.mult === 0 ? 'بلا أجر' : t.mult !== 1 ? '× ' + t.mult + ' من اليومية' : 'يومية كاملة') + (t.bonus ? ' + ' + money(t.bonus) : ''), tag: t.name, tagTone: t.tone }); }), 'إضافة حالة حضور', function () { openSh({ t: 'addStat' }, { name: '', mult: '1', bonus: '' }); }],
         bens: ['المستفيدون', bens().map(function (g) { return X({ title: g.name, sub: benSub(g), chev: true, go: function () { openSh({ t: 'benEdit', id: g.id }, benForm(g)); },
           lp: function () { benQa(g); } }); }), 'إضافة مستفيد جديد', function () { openSh({ t: 'addBen' }, benForm(null)); }],
-        whys: ['أسباب تسوية المخزن', whys().map(function (w) { return X({ title: w.name, tag: w.dir === 0 ? 'يزيد أو ينقص' : w.dir > 0 ? 'يزيد' : 'ينقص', tagTone: w.dir === 0 ? 'info' : w.dir > 0 ? 'ok' : 'warn' }); }), 'إضافة سبب تسوية', function () { openSh({ t: 'addWhy' }, { name: '', dir: 'down' }); }],
+        whys: ['أسباب جرد المخزن', whys().map(function (w) { return X({ title: w.name, tag: w.dir === 0 ? 'يزيد أو ينقص' : w.dir > 0 ? 'يزيد' : 'ينقص', tagTone: w.dir === 0 ? 'info' : w.dir > 0 ? 'ok' : 'warn' }); }), 'إضافة سبب جرد', function () { openSh({ t: 'addWhy' }, { name: '', dir: 'down' }); }],
         units: ['وحدات القياس', (S.units || []).map(function (u) { return X({ title: u }); }), 'إضافة وحدة قياس', function () { openSh({ t: 'addUnit' }, { name: '' }); }],
         presets: ['أدوار الصلاحيات', presets().map(function (p) { return X({ title: p.name, sub: p.desc }); }), 'إضافة دور جديد', function () { openSh({ t: 'addRole' }, { name: '', desc: '' }); }],
         fields: ['الحقول المخصصة', (S.fields || []).map(function (f) { return X({ title: f.name, sub: f.type + ' · ' + WH[f.where] }); }), 'إضافة حقل مخصص', function () { openSh({ t: 'addField' }, { name: '', type: 'نص', where: 'all' }); }]
@@ -2218,7 +2218,7 @@ function adminSheet(sh) {
     case 'arch': {
       R = { title: 'إنهاء التعامل: ' + AK[sh.k][0], sub: 'اختر ما انتهى العمل معه ليختفي من القوائم', rows: archList(sh.k).map(function (e) {
         var ck = archCheck(sh.k, e.id), bad = ck.filter(function (c) { return !c.ok; }).length;
-        return X({ title: e.name, sub: bad ? ck.filter(function (c) { return !c.ok; })[0].sub : 'جاهز للإنهاء', tag: bad ? 'يحتاج تسوية' : 'جاهز', tagTone: bad ? 'warn' : 'ok', chev: true, go: function () { openSh({ t: 'archConfirm', k: sh.k, id: e.id }, { why: 'انتهى التعامل' }); } });
+        return X({ title: e.name, sub: bad ? ck.filter(function (c) { return !c.ok; })[0].sub : 'جاهز للإنهاء', tag: bad ? 'يحتاج جردًا' : 'جاهز', tagTone: bad ? 'warn' : 'ok', chev: true, go: function () { openSh({ t: 'archConfirm', k: sh.k, id: e.id }, { why: 'انتهى التعامل' }); } });
       }), empty: 'لا عناصر فعّالة' };
       break;
     }
@@ -3188,7 +3188,7 @@ function batchQa(b) {
 }
 function stockQa(it, l0, q) {
   if (q == null) q = E.balance(S, l0, it.id);
-  qa(it.name, 'الرصيد ' + fmt(q) + ' ' + it.unit, [['فتح الصنف', 'i-box', function () { openSh({ t: 'item', id: it.id }); }], ['استلام', 'i-truck', function () { openSh({ t: 'recv', item: it.id }, { led: l0, unitMode: 'base', qty: '', price: '' }); }], ['صرف', 'i-box', function () { openSh({ t: 'issue', item: it.id }, { led: l0, qty: '', why: '' }); }], ['تسوية: تالف أو جرد', 'i-check', function () { openSh({ t: 'adjust', item: it.id }, { led: l0, how: 'amt', why: '', sign: '', unitMode: 'base', qty: '', note: '', day: '0', dtxt: '' }); }], ['تعديل بيانات الصنف', 'i-pencil', function () { openItemEdit(it); }]]);
+  qa(it.name, 'الرصيد ' + fmt(q) + ' ' + it.unit, [['فتح الصنف', 'i-box', function () { openSh({ t: 'item', id: it.id }); }], ['استلام', 'i-truck', function () { openSh({ t: 'recv', item: it.id }, { led: l0, unitMode: 'base', qty: '', price: '' }); }], ['صرف', 'i-box', function () { openSh({ t: 'issue', item: it.id }, { led: l0, qty: '', why: '' }); }], ['جرد: تالف أو فرق', 'i-check', function () { openSh({ t: 'adjust', item: it.id }, { led: l0, how: 'amt', why: '', sign: '', unitMode: 'base', qty: '', note: '', day: '0', dtxt: '' }); }], ['تعديل بيانات الصنف', 'i-pencil', function () { openItemEdit(it); }]]);
 }
 function instQa(i, init) {
   var l = led(i.led);
@@ -3439,7 +3439,7 @@ function pgStock() {
     X({ title: 'صرف مواد', icon: 'i-box', go: function () { openSh({ t: 'issue', item: null }, { led: l0, qty: '', why: '' }); } }),
     X({ title: 'صنف جديد', icon: 'i-plus', go: function () { openSh({ t: 'addItem', then: '' }, { name: '', unit: 'كيلو', price: '', packType: 'none', packN: '', cond: 'جاف' }); } }),
     X({ title: 'مسودة توريد', icon: 'i-doc', go: function () { openSh({ t: 'draftNew' }, { led: l0, otxt: '', dtxt: today() }); } }),
-    X({ title: 'تسوية', icon: 'i-check', go: function () { openSh({ t: 'adjust', item: null }, { led: l0, how: 'amt', why: '', unitMode: 'base', qty: '', note: '', dtxt: today() }); } })] }));
+    X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'count' }, { led: l0 }); } })] }));
   if (drafts().length) bl.push(B('rows', { title: 'مسودات توريد تنتظر مراجعتك (' + drafts().length + ')', items: drafts().map(function (d) {
     var nd = dNeeds(d).length;
     return X({ icon: 'i-doc', icTone: nd ? 'warn' : 'ok', title: pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف') + ' · ' + (led(d.led) ? led(d.led).name : ''), sub: 'من ' + (d.src || 'نص') + ' · ' + dlabel(d.created || d.date), tag: nd ? nd + ' للمراجعة' : 'جاهزة', tagTone: nd ? 'warn' : 'ok', chev: true,
@@ -3817,7 +3817,7 @@ function newId(prefix, list) { var n = list.length + 1, id; do { id = prefix + n
 /* ضغطة مطوّلة على صف: نافذة إجراءات سريعة (كلها تفتح نوافذ التطبيق المعتادة، ولا شيء يُنفَّذ مباشرة) */
 function qa(title, sub, acts) { openSh({ t: 'qa', title: title, sub: sub, acts: acts }); }
 function openItemEdit(it) { openSh({ t: 'itemEdit', id: it.id }, { unit: it.unit, unitNew: '', packType: it.pack ? it.pack.name : 'none', packNew: '', packN: it.pack ? String(it.pack.n) : '', cond: it.cond || 'جاف', condNew: '', grp: it.grp || '', alias: (it.alias || []).join('، '), sup: it.sup || '', price: String(it.price || '') }); }
-var KIND = { opening: 'رصيد افتتاحي', receive: 'استلام', batch: 'طبخة', adjust: 'تسوية', hist: 'سجل قديم', issue: 'صرف', cover: 'تغطية (ملغاة)' };
+var KIND = { opening: 'رصيد افتتاحي', receive: 'استلام', batch: 'طبخة', adjust: 'جرد', hist: 'سجل قديم', issue: 'صرف', cover: 'تغطية (ملغاة)' };
 function dupOf(list, name) { return list.filter(function (x) { return norm(x.name) === norm(name); })[0]; }
 function dupMsg(x, what) { return !x ? '' : x.arch ? '«' + x.name + '» مؤرشف سابقًا.' : 'يوجد ' + what + ' «' + x.name + '» بنفس الاسم، اخترْه بدل التكرار.'; }
 
@@ -3904,14 +3904,29 @@ function shDesc() {
       R = { title: sh.title, sub: sh.sub || 'إجراءات سريعة', rows: sh.acts.map(function (a) { return X({ icon: a[1], icTone: 'mute', title: a[0], chev: true, go: a[2] }); }) };
       break;
     }
+    case 'count': {
+      var cl = fv('led') || (led(A.led) && !led(A.led).arch ? A.led : 'kitchen'), cin = {};
+      S.moves.forEach(function (m) { if (m.led === cl && m.kind !== 'hist') cin[m.item] = 1; });
+      var cits = spiceLast(itemList(cl).filter(function (x) { return cin[x.id]; }), function (x) { return x.id; }), cf = [], cdiff = [];
+      if (ledgers().length > 1) cf.push(fChips('led', 'المخزن', ledgers().map(function (x) { return [x.id, x.name]; })));
+      cits.forEach(function (x) {
+        var ci = item(x.id), cb = E.balance(S, cl, x.id), cv = fv('c_' + x.id);
+        cf.push(fText('c_' + x.id, ci.name + ' · الرصيد ' + fmt(cb) + ' ' + ci.unit, fmt(cb), 'decimal'));
+        if (cv !== '' && cv != null && !isNaN(+cv) && r3(+cv - cb) !== 0) cdiff.push({ it: ci, dq: r3(+cv - cb) });
+      });
+      R = { title: 'جرد المخزن', sub: led(cl).name + ' · اكتب الكمية الفعلية فقط لما تغيّر، والباقي يبقى كما هو', fields: cf,
+        note: cdiff.length ? { text: pl(cdiff.length, 'صنف واحد يتغيّر', 'صنفان يتغيّران', 'أصناف تتغيّر') + ': ' + cdiff.slice(0, 4).map(function (d) { return d.it.name + ' ' + (d.dq > 0 ? '+' : '') + fmt(d.dq); }).join('، ') + (cdiff.length > 4 ? '…' : ''), tone: 'info' } : { text: 'الخانة الفارغة تعني أن الرصيد المسجّل صحيح.', tone: 'info' },
+        ft: { label: cdiff.length ? 'حفظ الجرد (' + cdiff.length + ')' : 'حفظ الجرد', ok: cdiff.length > 0, go: function () { doCount2(cl, cdiff); } } };
+      break;
+    }
     case 'adjust': {
       var al = fv('led') || (led(A.led) && !led(A.led).arch ? A.led : 'kitchen');
       if (!sh.item) {
-        R = pickOr(itemList(al), { title: 'تسوية المخزن', sub: 'تالف أو هدر أو تبرع أو فرق جرد · ' + led(al).name + ' · اختر الصنف', plural: 'الأصناف', then: 'adjust', addLabel: '', sel: '',
+        R = pickOr(itemList(al), { title: 'جرد المخزن', sub: 'تالف أو هدر أو تبرع أو فرق جرد · ' + led(al).name + ' · اختر الصنف', plural: 'الأصناف', then: 'adjust', addLabel: '', sel: '',
           onPick: function (id) { openSh({ t: 'adjust', item: id }, { led: al, how: 'amt', why: '', sign: '', unitMode: 'base', qty: '', note: '', day: '0', dtxt: '' }); } });
         break;
       }
-      it = item(sh.item); var ac = adjCalc(it, al), ap = packsOf(it), afl = [fChips('led', 'المخزن', ledgers().map(function (x) { return [x.id, x.name]; })), fChips('how', 'طريقة التسوية', [['amt', 'كمية تالفة أو ناقصة'], ['cnt', 'جرد: الرصيد الفعلي']])];
+      it = item(sh.item); var ac = adjCalc(it, al), ap = packsOf(it), afl = [fChips('led', 'المخزن', ledgers().map(function (x) { return [x.id, x.name]; })), fChips('how', 'طريقة الجرد', [['amt', 'كمية تالفة أو ناقصة'], ['cnt', 'جرد: الرصيد الفعلي']])];
       if (ac.how === 'amt') afl.push(fChips('why', 'السبب', whys().map(function (w) { return [w.id, w.name + (w.dir === 0 ? ' (+ أو −)' : w.dir > 0 ? ' (+)' : ' (−)')]; })));
       var aw = E.by(whys(), fv('why')); if (ac.how === 'amt' && aw && aw.dir === 0) afl.push(fChips('sign', 'اتجاه الفرق', [['up', 'زيادة (+)'], ['down', 'نقص (−)']]));
       if (ap.length) afl.push(fChips('unitMode', 'الوحدة', [['base', it.unit]].concat(ap.map(function (p, i) { return ['p' + i, p.name + ' · ' + fmt(p.n) + ' ' + it.unit]; }))));
@@ -3919,9 +3934,9 @@ function shDesc() {
       afl.push(fText('note', 'ملاحظة (اختياري)', 'مثال: انتهت صلاحيته'));
       var adw = rcvWhen(), ad = rcvDate(); afl.push(adw[0]);
       var aOk = ac.dq !== 0 && rcvOk(ad) && ac.after >= 0 && (ac.how === 'cnt' || !!ac.wn);
-      R = { title: 'تسوية: ' + it.name, sub: 'الرصيد المسجّل ' + fmt(ac.bal) + ' ' + it.unit + ' في ' + led(al).name, fields: afl,
-        note: rcvNote(ad) || (ac.dq ? { text: (ac.dq > 0 ? 'يزيد ' : 'ينقص ') + fmt(Math.abs(ac.dq)) + ' ' + it.unit + (ac.wn ? ' (' + ac.wn + ')' : '') + ' · الرصيد بعد التسوية ' + fmt(ac.after) + ' ' + it.unit + (ac.after < 0 ? ' — أكبر من الرصيد الموجود' : '') + '. لا تُحسب استهلاكًا في التقارير.', tone: ac.after < 0 ? 'warn' : 'info' } : (ac.how === 'cnt' && fv('qty') !== '' ? { text: 'الرصيد الفعلي مطابق للمسجّل: لا حاجة لتسوية.', tone: 'ok' } : null)),
-        ft: { label: 'تسجيل التسوية', ok: aOk, go: function () { doAdjust(it, al); } } };
+      R = { title: 'جرد: ' + it.name, sub: 'الرصيد المسجّل ' + fmt(ac.bal) + ' ' + it.unit + ' في ' + led(al).name, fields: afl,
+        note: rcvNote(ad) || (ac.dq ? { text: (ac.dq > 0 ? 'يزيد ' : 'ينقص ') + fmt(Math.abs(ac.dq)) + ' ' + it.unit + (ac.wn ? ' (' + ac.wn + ')' : '') + ' · الرصيد بعد الجرد ' + fmt(ac.after) + ' ' + it.unit + (ac.after < 0 ? ' — أكبر من الرصيد الموجود' : '') + '. لا تُحسب استهلاكًا في التقارير.', tone: ac.after < 0 ? 'warn' : 'info' } : (ac.how === 'cnt' && fv('qty') !== '' ? { text: 'الرصيد الفعلي مطابق للمسجّل: لا حاجة لتسوية.', tone: 'ok' } : null)),
+        ft: { label: 'تسجيل الجرد', ok: aOk, go: function () { doAdjust(it, al); } } };
       break;
     }
     case 'issue': {
@@ -3968,7 +3983,7 @@ function shDesc() {
         X({ title: 'نوع التخزين', tag: it.cond || 'جاف', tagTone: 'mute' }),
         X({ title: 'المجموعة', tag: it.grp === 'spice' ? 'بهارات' : 'أساسي', tagTone: 'mute' }),
         X({ title: 'أسماء أخرى', sub: 'ما تكتبه المؤسسات في طلبياتها', tag: (it.alias || []).length ? it.alias.join('، ') : 'لا يوجد', tagTone: 'mute' }),
-        X({ icon: 'i-check', icTone: 'warn', title: 'تسوية الرصيد', sub: 'تالف أو هدر أو تبرع أو فرق جرد', chev: true, go: function () { openSh({ t: 'adjust', item: it.id }, { led: l, how: 'amt', why: '', unitMode: 'base', qty: '', note: '', day: '0', dtxt: '' }); } })
+        X({ icon: 'i-check', icTone: 'warn', title: 'جرد الرصيد', sub: 'تالف أو هدر أو تبرع أو فرق جرد', chev: true, go: function () { openSh({ t: 'adjust', item: it.id }, { led: l, how: 'amt', why: '', unitMode: 'base', qty: '', note: '', day: '0', dtxt: '' }); } })
       ];
       if (uu) info.splice(1, 0, X({ title: 'المعتاد في يوم طبخ', sub: 'آخر استعمال ' + dlabel(uu.last) + ' · في ' + pl(uu.days, 'يوم واحد', 'يومين', 'أيام') + ' من السجل', tag: qtyU(uu.typical, it.unit), tagTone: 'mute' }));
       R = { title: it.name, sub: 'آخر سعر ' + money(it.price || 0) + ' للـ' + it.unit + (st.rank < 3 ? ' · ' + st.t : ''),
@@ -4339,7 +4354,7 @@ function doEditItem(id) {
   it.alias = aliasList(fv('alias')); it.sup = (fv('sup') || '').trim(); if (price > 0) it.price = price;
   setState({ sh: { t: 'item', id: id }, form: {} }); mutated('حُفظت بيانات «' + it.name + '»');
 }
-/* تاريخ حركة المخزن (استلام أو تسوية): اليوم أو يوم سابق، لا مستقبل */
+/* تاريخ حركة المخزن (استلام أو جرد): اليوم أو يوم سابق، لا مستقبل */
 function rcvDate() {
   var t = fv('dtxt').trim(); if (t) return dateNear(t);
   var d = fv('day'); return dayOff(d === '' ? 0 : (+d || 0));
@@ -4357,7 +4372,7 @@ function doRecv(it, l) {
   if (price > 0 && !E.isFree(led(l))) it.price = price;
   A.led = l; shut(); mutated('سُجّل استلام ' + fmt(q) + ' ' + it.unit + ' من ' + it.name);
 }
-/* تسوية المخزن: تالف/هدر/تبرع/فرق جرد. تُسجَّل حركة «تصحيح» بسببها، ولا تُحسب استهلاكًا في التقارير */
+/* جرد المخزن: تالف/هدر/تبرع/فرق جرد. تُسجَّل حركة «تصحيح» بسببها، ولا تُحسب استهلاكًا في التقارير */
 function adjCalc(it, l) {
   var how = fv('how') || 'amt', f = unitF(it, fv('unitMode')), bal = E.balance(S, l, it.id), w = E.by(whys(), fv('why')), q = r3(num('qty') * f), dq = 0, wn = '';
   if (how === 'cnt') { if (fv('qty') !== '') { dq = r3(q - bal); wn = dq !== 0 ? 'فرق جرد' : ''; } }
@@ -4367,8 +4382,15 @@ function adjCalc(it, l) {
 function doAdjust(it, l) {
   var c = adjCalc(it, l), note = c.wn + ((fv('note') || '').trim() ? ' — ' + fv('note').trim() : ''), dt = rcvDate();
   E.addMove(S, { date: dt, led: l, item: it.id, q: c.dq, kind: 'adjust', note: note });
-  audit('تسوية «' + it.name + '» في ' + led(l).name + ': ' + (c.dq > 0 ? '+' : '') + fmt(c.dq) + ' ' + it.unit + ' (' + note + ')');
-  shut(); mutated('سُجّلت التسوية: ' + (c.dq > 0 ? 'زيادة ' : 'نقص ') + fmt(Math.abs(c.dq)) + ' ' + it.unit + ' من ' + it.name);
+  audit('جرد «' + it.name + '» في ' + led(l).name + ': ' + (c.dq > 0 ? '+' : '') + fmt(c.dq) + ' ' + it.unit + ' (' + note + ')');
+  shut(); mutated('سُجّل الجرد: ' + (c.dq > 0 ? 'زيادة ' : 'نقص ') + fmt(Math.abs(c.dq)) + ' ' + it.unit + ' من ' + it.name);
+}
+/* جرد جماعي: كل صنف كُتب له رصيد فعلي يختلف عن المسجّل يُسجَّل له فرق جرد (حركة تصحيح)، والبقية لا تُمسّ */
+function doCount2(l, diffs) {
+  var dt = today();
+  diffs.forEach(function (d) { E.addMove(S, { date: dt, led: l, item: d.it.id, q: d.dq, kind: 'adjust', note: 'فرق جرد' }); });
+  audit('جرد «' + led(l).name + '»: ' + diffs.map(function (d) { return d.it.name + ' ' + (d.dq > 0 ? '+' : '') + fmt(d.dq); }).join('، '));
+  shut(); mutated('سُجّل جرد ' + pl(diffs.length, 'صنف واحد', 'صنفين', 'أصناف'));
 }
 function doIssue(it, l) {
   var q = num('qty'); E.addMove(S, { date: today(), led: l, item: it.id, q: -q, kind: 'issue', note: (fv('why') || '').trim() });
