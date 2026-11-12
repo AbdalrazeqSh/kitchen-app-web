@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.12';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.13';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -374,7 +374,7 @@ function fChips(k, label, opts, hint) {
 function fSeg(k, label, opts) {
   var f = fChips(k, label, opts); f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cbg = '#EEF1EC'; f.cpad = '4px'; f.cflex = '1'; f.cjc = 'center';
   f.chips = opts.map(function (o) { var sel = fv(k) === o[0]; return X({ label: o[1], on: sel, selTone: o[2] === 'bad' ? 'bad' : undefined, go: function () { fset(k, o[0]); } }); });
-  f.chips.forEach(function (c, i) { var on = fv(k) === opts[i][0], bad = on && opts[i][2] === 'bad'; c.bg = on ? '#FFFFFF' : 'transparent'; c.fg = bad ? '#9B2C2C' : on ? '#14563A' : '#5B6660'; c.bd = on ? (bad ? '#9B2C2C' : '#14563A') : 'transparent'; });
+  f.chips.forEach(function (c, i) { var on = fv(k) === opts[i][0], bad = on && opts[i][2] === 'bad'; c.bg = on ? (bad ? '#B3261E' : '#14563A') : 'transparent'; c.fg = on ? '#FFFFFF' : '#5B6660'; c.bd = on ? (bad ? '#B3261E' : '#14563A') : 'transparent'; });
   return f;
 }
 function fQuick(k, label, arr) {
