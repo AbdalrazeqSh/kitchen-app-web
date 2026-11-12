@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.19';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.20';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1842,7 +1842,7 @@ var GW_FROM = '2026-11-11', GW_BUSY = false, GW_T = null, GW_ERR = '';
 function gwUrl() { return String(S.settings.syncGwUrl || '').trim(); }
 function gwSec(m) {
   var f = fund(m.h); if (!f) return '';
-  if (f.w) return /حميدا/.test(f.name || '') ? 'ham' : '';
+  if (f.w) return S.settings.gwHam && /حميدا/.test(f.name || '') ? 'ham' : ''; /* تبويب «رصيد مع حميدا» لا يُرسَل إليه افتراضيًا: له دفتر حميدا المستقل، وتُفعَّل بقرار المالك فقط */
   return m.cur === 'ils' ? 'ils' : f.name === 'بايننس' ? 'bin' : 'bank';
 }
 function gwRow(m, sec, n, rev, pre) {
