@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.1';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.2';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -479,10 +479,10 @@ function wCat(e) {
   if (e.kind === 'pay') return /^سلفة/.test(e.note || '') ? 'adv' : 'pay';
   if (e.kind === 'viol') return 'viol';
   if (e.kind === 'deduct') return e.cat === 'buy' ? 'buy' : 'ded';
-  if (e.kind === 'add') return /^إلغاء/.test(e.note || '') ? 'rev' : 'bonus';
+  if (e.kind === 'add') return /^إلغاء/.test(e.note || '') ? 'rev' : e.cat === 'kbuy' ? 'kbuy' : 'bonus';
   return e.kind;
 }
-var WCAT = { pay: ['دفعة', 'mute'], adv: ['سلفة', 'mute'], bonus: ['مكافأة', 'ok'], viol: ['مخالفة', 'bad'], buy: ['مشتريات', 'bad'], ded: ['خصم', 'bad'], rev: ['تصحيح', 'mute'], open: ['رصيد سابق', 'mute'] };
+var WCAT = { pay: ['دفعة', 'mute'], adv: ['سلفة', 'mute'], bonus: ['مكافأة', 'ok'], kbuy: ['شراء للمطبخ', 'info'], viol: ['مخالفة', 'bad'], buy: ['مشتريات', 'bad'], ded: ['خصم', 'bad'], rev: ['تصحيح', 'mute'], open: ['رصيد سابق', 'mute'] };
 function wLabel(e) { return (WCAT[wCat(e)] || [e.kind])[0]; }
 function wTone(e) { return (WCAT[wCat(e)] || [0, 'mute'])[1]; }
 function wlOn() { return (S.wl || []).filter(function (e) { return !e.void; }); } /* حركات العمال السارية: الملغاة تبقى في السجل ولا تُحتسب */
@@ -2986,7 +2986,7 @@ function wlForm(e, only) { return { amt: e.amt ? String(e.amt) : '', note: e.not
 function wlOpenEdit(e, only) { openSh({ t: 'wlEdit', id: e.id }, wlForm(e, only)); }
 /* حركة عامل كسطر ملاصق ليومها: ملاحظة ثم غمامة بلون معناها ثم المبلغ، بنفس نسق صف الحضور */
 function wlEnt(e, w, last, hasHead) {
-  var c = wCat(e), v = !!e.void, tone = c === 'bonus' ? 'info' : c === 'viol' || c === 'buy' || c === 'ded' ? 'bad' : c === 'rev' ? 'ok' : 'mute', neg = c === 'viol' || c === 'buy' || c === 'ded' || c === 'pay' || c === 'adv';
+  var c = wCat(e), v = !!e.void, tone = c === 'bonus' || c === 'kbuy' ? 'info' : c === 'viol' || c === 'buy' || c === 'ded' ? 'bad' : c === 'rev' ? 'ok' : 'mute', neg = c === 'viol' || c === 'buy' || c === 'ded' || c === 'pay' || c === 'adv';
   var o = { ent: true, entLast: last, title: e.note && e.note !== wLabel(e) ? e.note : '', tag: wLabel(e), tagTone: v ? 'mute' : tone, end: e.amt ? sg(neg ? 'out' : 'in', money(e.amt)) : 'تنبيه فقط', endTone: v || !e.amt ? undefined : tone === 'info' ? 'info' : tone === 'bad' ? 'bad' : tone === 'ok' ? 'ok' : undefined };
   if (v && !e.edTo) { o.dim = true; o.undo = function () { wlRestore(e); }; }
   if (!wlLocked(e)) { o.chev = true; o.go = function () { openSh({ t: 'wlv', id: e.id }); }; o.lp = function () { wlQa(e); }; }
@@ -3287,7 +3287,7 @@ function wstDoc(w, from, to, opt) {
   d.days = Object.keys(dm).sort().map(function (k) {
     var g = dm[k], sx = g.att ? (stat(g.att.st) || { name: g.att.st, tone: 'mute' }) : null, am = g.att ? E.attAmt(g.att) : 0;
     return { title: dlong(k).replace(/ \d{4}$/, ''), pill: sx ? sx.name : '', pillTone: sx ? sx.tone : 'mute', a: sx && g.att.st !== 'h' ? money(am) : '', tone: '',
-      rows: g.es.map(function (e) { var c = wCat(e), n = !!neg[c]; return { note: e.note && e.note !== WCAT[c][0] ? e.note : '', pill: WCAT[c][0], pillTone: c === 'bonus' ? 'info' : c === 'viol' || c === 'buy' || c === 'ded' ? 'bad' : c === 'rev' ? 'ok' : 'mute', a: e.amt ? (n ? '− ' : '+ ') + money(e.amt) : 'تنبيه فقط', tone: e.amt ? (c === 'bonus' ? 'info' : c === 'viol' || c === 'buy' || c === 'ded' ? 'bad' : c === 'rev' ? 'ok' : '') : '' }; }) };
+      rows: g.es.map(function (e) { var c = wCat(e), n = !!neg[c]; return { note: e.note && e.note !== WCAT[c][0] ? e.note : '', pill: WCAT[c][0], pillTone: c === 'bonus' || c === 'kbuy' ? 'info' : c === 'viol' || c === 'buy' || c === 'ded' ? 'bad' : c === 'rev' ? 'ok' : 'mute', a: e.amt ? (n ? '− ' : '+ ') + money(e.amt) : 'تنبيه فقط', tone: e.amt ? (c === 'bonus' || c === 'kbuy' ? 'info' : c === 'viol' || c === 'buy' || c === 'ded' ? 'bad' : c === 'rev' ? 'ok' : '') : '' }; }) };
   });
   d.closeL = to === today() ? 'الرصيد حتى اليوم' : 'الرصيد حتى ' + dlabel(to); d.closeV = balTxtTo(close); d.closeTone = balTone(close);
   return d;
@@ -3996,12 +3996,13 @@ function wQa(w) {
 function pgWorker() {
   var w = wk(A.wid), a = wAtt(w), st = a ? stat(a.st) : null, b = wBal(w), bl = [];
   var ent = function (type) { return wEnt(w, type); }, ym0 = monthKeys(1)[0], ms = monthStmt(w, ym0), mc = { bonus: 0, ded: 0, pay: 0 };
-  ms.es.forEach(function (e) { var c = wCat(e); if (c === 'bonus') mc.bonus += e.amt; else if (c === 'viol' || c === 'buy' || c === 'ded') mc.ded += e.amt; else if (c === 'pay' || c === 'adv') mc.pay += e.amt; });
+  ms.es.forEach(function (e) { var c = wCat(e); if (c === 'bonus') mc.bonus += e.amt; else if (c === 'kbuy') mc.kb = (mc.kb || 0) + e.amt; else if (c === 'viol' || c === 'buy' || c === 'ded') mc.ded += e.amt; else if (c === 'pay' || c === 'adv') mc.pay += e.amt; });
   bl.push(B('big', { label: 'الرصيد الحالي', value: balTxt(b),
     text: 'آخر دفعة: ' + wLastPay(w) + '\n' + (st ? 'حضور اليوم: ' + st.name + ' (' + money(E.attAmt(a)) + ')' : 'حضور اليوم لم يُسجَّل بعد') }));
   bl.push(B('acts', { items: [
     X({ title: 'دفعة', icon: 'i-wallet', on: true, go: ent('دفعة نقدية') }),
     X({ title: 'مكافأة', icon: 'i-plus', tone: 'ok', go: ent('مكافأة') }),
+    X({ title: 'شراء للمطبخ', icon: 'i-truck', tone: 'info', go: ent('شراء للمطبخ') }),
     X({ title: 'مشتريات', icon: 'i-minus', tone: 'bad', go: ent('مشتريات') }),
     X({ title: 'خصم', icon: 'i-minus', tone: 'bad', go: ent('خصم') }),
     X({ title: 'مخالفة', icon: 'i-alert', tone: 'warn', go: ent('مخالفة') })
@@ -4359,9 +4360,9 @@ function shDesc() {
     }
     case 'entry': {
       w = wk(sh.wid);
-      var type = fv('type') || 'دفعة نقدية', amt = num('amt'), plus = type === 'مكافأة', isV = type === 'مخالفة', sev = fv('sev') || 'warn';
+      var type = fv('type') || 'دفعة نقدية', amt = num('amt'), plus = type === 'مكافأة' || type === 'شراء للمطبخ', isV = type === 'مخالفة', sev = fv('sev') || 'warn';
       var bw = wBal(w), after = r2(bw + (plus ? 1 : -1) * ((isV && sev === 'warn') ? 0 : amt)), ef = [];
-      ef.push(fChips('type', 'نوع الحركة', [['دفعة نقدية', 'دفعة'], ['سلفة', 'سلفة'], ['مكافأة', 'مكافأة'], ['مشتريات', 'خصم مشتريات'], ['خصم', 'خصم'], ['مخالفة', 'مخالفة']]));
+      ef.push(fChips('type', 'نوع الحركة', [['دفعة نقدية', 'دفعة'], ['سلفة', 'سلفة'], ['مكافأة', 'مكافأة'], ['شراء للمطبخ', 'شراء للمطبخ'], ['مشتريات', 'خصم مشتريات'], ['خصم', 'خصم'], ['مخالفة', 'مخالفة']]));
       if (isV) {
         ef.push(fChips('sev', 'الإجراء', [['warn', 'تنبيه فقط'], ['ded', 'تنبيه وخصم']]));
         ef.push(fText('note', 'ما المخالفة؟ (اختياري)', 'مثال: تأخر عن الدوام'));
@@ -4369,12 +4370,12 @@ function shDesc() {
       } else {
         ef.push(fText('amt', 'المبلغ بالشيكل', '0', 'decimal'));
         ef.push(fQuick('amt', 'مبالغ سريعة', [5, 10, 20, 50, 100].concat(type === 'دفعة نقدية' && bw > 0 && [5, 10, 20, 50, 100].indexOf(bw) < 0 ? [[bw, 'المستحق كاملًا ' + fmt(bw) + ' ₪']] : [])));
-        ef.push(fText('note', 'البيان (اختياري)', type === 'مكافأة' ? 'مثال: امتياز، ساعات إضافية، أجرة نقل' : type === 'مشتريات' ? 'مثال: 8 لتر زيت أخذها' : type === 'خصم' ? 'سبب الخصم' : ''));
+        ef.push(fText('note', 'البيان (اختياري)', type === 'مكافأة' ? 'مثال: امتياز، ساعات إضافية، أجرة نقل' : type === 'شراء للمطبخ' ? 'مثال: خرطوم، أكياس نفايات' : type === 'مشتريات' ? 'مثال: 8 لتر زيت أخذها' : type === 'خصم' ? 'سبب الخصم' : ''));
         if (type === 'دفعة نقدية' || type === 'سلفة') ef = ef.concat(fundFields());
       }
       ef.push(fPhoto(isV ? 'صورة توثيق المخالفة (اختياري)' : type === 'دفعة نقدية' || type === 'سلفة' ? 'صورة سند الصرف (اختياري)' : 'صورة توثيق (اختياري)'));
       var okV = isV ? (sev === 'warn' || amt > 0) : amt > 0, payT = type === 'دفعة نقدية' || type === 'سلفة', pp = payT ? payPlan(fund(fv('fund') || defFund()), amt, num('rate')) : null; if (payT) okV = okV && pp.ok;
-      var HINT = { 'دفعة نقدية': 'مبلغ يُدفع من مستحقاته', 'سلفة': 'مبلغ قبل استحقاقه، يُخصم من حسابه', 'مكافأة': 'تُضاف إلى حسابه', 'مشتريات': 'مواد أخذها من المطبخ، تُخصم من حسابه', 'خصم': 'يُخصم من حسابه بسبب تذكره', 'مخالفة': 'تنبيه، مع خصم أو بدونه' };
+      var HINT = { 'دفعة نقدية': 'مبلغ يُدفع من مستحقاته', 'سلفة': 'مبلغ قبل استحقاقه، يُخصم من حسابه', 'مكافأة': 'تُضاف إلى حسابه', 'شراء للمطبخ': 'اشتراه من ماله للمطبخ: يُعوَّض مع راتبه', 'مشتريات': 'مواد أخذها من المطبخ، تُخصم من حسابه', 'خصم': 'يُخصم من حسابه بسبب تذكره', 'مخالفة': 'تنبيه، مع خصم أو بدونه' };
       R = { title: w.name, sub: 'الرصيد الآن: ' + balTxt(bw), fields: ef,
         note: { text: (HINT[type] ? HINT[type] + (amt > 0 || isV ? ' · ' : '') : '') + (isV ? (sev === 'warn' ? 'تُسجَّل في سجله بلا خصم.' : amt > 0 ? 'تُسجَّل في سجله ويُخصم ' + money(amt) + '. الرصيد بعدها: ' + balTxt(after) : '') : amt > 0 ? 'الرصيد بعد الحركة: ' + balTxt(after) + (pp && pp.txt ? ' · ' + pp.txt : '') : ''), tone: isV ? 'warn' : 'info' },
         ft: { label: isV ? 'تسجيل المخالفة' : 'تسجيل ' + (type === 'دفعة نقدية' ? 'الدفعة' : type), ok: okV, go: function () { doEntry(w, type, amt, (fv('note') || '').trim(), sev, fv('fund') || defFund(), num('rate')); } } };
@@ -4725,6 +4726,7 @@ function doEntry(w, type, amt, note, sev, fid, rate) {
   var d = today(), pid = phTake();
   if (type === 'مخالفة') phTag(E.wEntry(S, { date: d, w: w.id, kind: 'viol', amt: sev === 'warn' ? 0 : amt, note: note }), pid);
   else if (type === 'مكافأة') { var eb = E.wEntry(S, { date: d, w: w.id, kind: 'add', amt: amt, note: note }); eb.cat = 'bonus'; phTag(eb, pid); }
+  else if (type === 'شراء للمطبخ') { var ek = E.wEntry(S, { date: d, w: w.id, kind: 'add', amt: amt, note: note }); ek.cat = 'kbuy'; phTag(ek, pid); }
   else if (type === 'مشتريات') { var ep = E.wEntry(S, { date: d, w: w.id, kind: 'deduct', amt: amt, note: note }); ep.cat = 'buy'; phTag(ep, pid); }
   else if (type === 'خصم') phTag(E.wEntry(S, { date: d, w: w.id, kind: 'deduct', amt: amt, note: note }), pid);
   else { var we = phTag(E.wEntry(S, { date: d, w: w.id, kind: 'pay', amt: amt, note: (type === 'سلفة' ? 'سلفة' + (note ? ' — ' + note : '') : note) }), pid); if (fid) { payFund(fid, w, amt, note, type === 'سلفة' ? 'سلفة' : 'راتب', rate, we.id); var lm = S.fm[S.fm.length - 1]; if (lm && lm.wl === we.id) phTag(lm, pid); } }
