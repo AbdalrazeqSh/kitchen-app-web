@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.17';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.18';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -891,14 +891,11 @@ function chefCanvas(sp0) {
   x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد · بلا أسعار', W / 2, H - 24);
   return c;
 }
-function shareChef(sp) {
-  say('جارٍ تجهيز الصورة…');
-  var go = function () { try { var png = chefCanvas(sp).toDataURL('image/png').split(',')[1]; deliverFile('مطبخ-عهد-' + sp.name + (sp.date ? '-' + sp.date : '') + '.png', png, 'image/png', sp.name + ' — ' + (sp.sub || dlabel(sp.date))).then(function () { say('جُهّزت نسخة الشيف كصورة'); }).catch(function (e) { if (!(e && /cancel|dismiss/i.test(String(e.message || e)))) say('تعذّر تجهيز الصورة'); }); } catch (e) { say('تعذّر تجهيز الصورة'); } };
-  if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
-}
+function shareChef(sp) { imgPreview(function () { return chefCanvas(sp); }, 'مطبخ-عهد-' + sp.name + (sp.date ? '-' + sp.date : '') + '.png', sp.name + ' — ' + (sp.sub || dlabel(sp.date))); }
 /* حفظ نسخة الشيف عندك: صورة أو PDF (تُسلَّم كملف تحفظه أو تشاركه) أو نسخ النص */
 function saveChef(sp, how) {
   if (how === 'txt') { copyText(chefText(sp), 'نُسخ نص نسخة الشيف'); return; }
+  if (how === 'png') { shareChef(sp); return; }
   say('جارٍ تجهيز الملف…');
   var go = function () {
     try {
@@ -1552,6 +1549,22 @@ function phWire() {
   var f = $('pfile') || phMk('pfile', false), c = $('pcam') || phMk('pcam', true);
   if (f) f.addEventListener('change', function () { if (f.files[0]) phFileIn(f.files[0], 'file'); f.value = ''; });
   if (c) c.addEventListener('change', function () { if (c.files[0]) phFileIn(c.files[0], 'cam'); c.value = ''; });
+}
+
+/* معاينة أي صورة مولَّدة (كشف، تقرير، ملخص، نسخة الشيف) داخل التطبيق أولًا، وتحتها «مشاركة» و«حفظ في المستندات» */
+var IMGP = null;
+function imgShow(c, name, title, text) { IMGP = { url: c.toDataURL('image/png'), name: name, title: title, text: text || '' }; openSh({ t: 'imgp' }, {}); }
+function imgPreview(make, name, title, text) {
+  say('جارٍ تجهيز الصورة…');
+  var go = function () { try { imgShow(make(), name, title, text); } catch (e) { say('تعذّر تجهيز الصورة'); } };
+  if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
+}
+function imgSheet(sh) {
+  if (sh.t !== 'imgp' || !IMGP) return null;
+  var g = IMGP;
+  return { title: g.title, sub: 'هكذا ستصل الصورة', fields: [fPhotoView(g.url)],
+    ft: { label: 'مشاركة', ok: true, go: function () { deliverFile(g.name, g.url.split(',')[1], 'image/png', g.title, g.text).catch(function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); }); } },
+    ft2: { label: 'حفظ في المستندات', go: function () { saveFile(g.name, g.url.split(',')[1], 'image/png', g.title).then(function (r) { say(savedMsg(r, 'الصورة')); }, function () { say('تعذّر حفظ الصورة'); }); } } };
 }
 
 /* ===== 02m-money.js ===== */
@@ -2851,11 +2864,7 @@ function stmtCanvas(i, ym) {
   x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد', W / 2, H - 22);
   return c;
 }
-function shareStmt(i, ym) {
-  say('جارٍ تجهيز الكشف…');
-  var go = function () { try { var png = stmtCanvas(i, ym).toDataURL('image/png').split(',')[1]; deliverFile('كشف-' + i.name + '-' + ym + '.png', png, 'image/png', 'كشف حساب ' + i.name).then(function () { say('جُهّز الكشف كصورة'); }).catch(function (e) { if (!/cancel|dismiss/i.test(String(e && e.message || e))) say('تعذّر تجهيز الكشف'); }); } catch (e) { say('تعذّر تجهيز الكشف'); } };
-  if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
-}
+function shareStmt(i, ym) { imgPreview(function () { return stmtCanvas(i, ym); }, 'كشف-' + i.name + '-' + ym + '.png', 'كشف حساب ' + i.name); }
 
 /* ---------- نوافذ التعديل ---------- */
 function fixSheet(sh) {
@@ -2975,11 +2984,7 @@ function finCanvas(ym) {
   x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد', W / 2, H - 22);
   return c;
 }
-function shareFin(ym) {
-  say('جارٍ تجهيز الملخص…');
-  var go = function () { try { var png = finCanvas(ym).toDataURL('image/png').split(',')[1]; deliverFile('ملخص-مالي-' + ym + '.png', png, 'image/png', 'الملخص المالي').then(function () { say('جُهّز الملخص كصورة'); }).catch(function (e) { if (!/cancel|dismiss/i.test(String(e && e.message || e))) say('تعذّر تجهيز الملخص'); }); } catch (e) { say('تعذّر تجهيز الملخص'); } };
-  if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
-}
+function shareFin(ym) { imgPreview(function () { return finCanvas(ym); }, 'ملخص-مالي-' + ym + '.png', 'الملخص المالي'); }
 
 /* ---------- تعديل الحركة وجرد الصندوق ---------- */
 function mLocked(m) { return !!(m.x || m.pair || (m.w && m.wl)); }
@@ -3258,9 +3263,7 @@ function exportReport(k, how) {
     var title = rptName(k);
     if (how === 'sharepdf') return deliverFile(exName(k, 'pdf'), u8b64(pdfFromCanvas(c)), 'application/pdf', title, shortText(k)).then(function () { done(); say('جُهّز «' + title + '» كملف PDF'); });
     if (how === 'pdf') return saveFile(exName(k, 'pdf'), u8b64(pdfFromCanvas(c)), 'application/pdf', title).then(function (r) { done(); say(savedMsg(r, 'ملف PDF لـ«' + title + '»')); });
-    var png = c.toDataURL('image/png').split(',')[1];
-    if (how !== 'share') return saveFile(exName(k, 'png'), png, 'image/png', title).then(function (r) { done(); say(savedMsg(r, 'صورة «' + title + '»')); });
-    return deliverFile(exName(k, 'png'), png, 'image/png', title, how === 'share' ? shortText(k) : '').then(function () { done(); say(how === 'share' ? 'جُهّز «' + title + '» كصورة مع نص قصير' : 'جُهّزت صورة «' + title + '»'); });
+    done(); imgShow(c, exName(k, 'png'), title, how === 'share' ? shortText(k) : '');
   }).catch(function (e) { if (e && /cancel|dismiss/i.test(String(e.message || e))) { done(); return; } fail(); });
 }
 function shortText(k) { var d = repDoc(k, true); return d.title + ' — ' + d.date + (d.lead ? '\n' + d.lead : ''); }
@@ -3417,12 +3420,12 @@ function wstCanvas(d) {
 function wstSend(w, o, how) {
   var d = wstDoc(w, o.from, o.to, o), ym = o.from + '_' + o.to;
   if (how === 'txt') { copyText(wstText(d), 'نُسخ كشف ' + w.name); return; }
+  var ttl = d.sub + ' — ' + w.name, nm = 'كشف-' + w.name + '-' + ym;
+  if (how !== 'pdf') { imgPreview(function () { return wstCanvas(d); }, nm + '.png', ttl, ttl + '\n' + d.closeL + ': ' + d.closeV); return; }
   say('جارٍ تجهيز الكشف…');
   var go = function () {
-    try {
-      var c = wstCanvas(d), nm = 'كشف-' + w.name + '-' + ym, pr = how === 'pdf' ? saveFile(nm + '.pdf', u8b64(pdfFromCanvas(c)), 'application/pdf', d.sub + ' — ' + w.name).then(function (r) { return { r: r, what: 'ملف PDF' }; }) : how === 'png' ? saveFile(nm + '.png', c.toDataURL('image/png').split(',')[1], 'image/png', d.sub + ' — ' + w.name).then(function (r) { return { r: r, what: 'الصورة' }; }) : deliverFile(nm + '.png', c.toDataURL('image/png').split(',')[1], 'image/png', d.sub + ' — ' + w.name, how === 'share' ? d.sub + ' — ' + w.name + '\n' + d.closeL + ': ' + d.closeV : '');
-      pr.then(function (x) { say(x && x.r ? savedMsg(x.r, x.what) : 'جُهّز الكشف للإرسال'); }).catch(function (e) { if (!(e && /cancel|dismiss/i.test(String(e.message || e)))) say('تعذّر تجهيز الكشف'); });
-    } catch (e) { say('تعذّر تجهيز الكشف'); }
+    try { saveFile(nm + '.pdf', u8b64(pdfFromCanvas(wstCanvas(d))), 'application/pdf', ttl).then(function (r) { say(savedMsg(r, 'ملف PDF')); }).catch(function (e) { if (!(e && /cancel|dismiss/i.test(String(e.message || e)))) say('تعذّر تجهيز الكشف'); }); }
+    catch (e) { say('تعذّر تجهيز الكشف'); }
   };
   if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
 }
@@ -4703,7 +4706,7 @@ function shDesc() {
       break;
     }
     case 'search': R = searchSheet(); break;
-    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
+    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
   }
   return R;
 }
