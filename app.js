@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.3';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.4';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3795,6 +3795,7 @@ function pgWorkers() {
   bl.push(B('acts', { items: [
     X({ title: 'عامل جديد', icon: 'i-userPlus', on: true, go: function () { openSh({ t: 'addWorker' }, { name: '', wage: '' }); } }),
     X({ title: 'حضور الباقين', icon: 'i-check', go: function () { allPresent(); } }),
+    X({ title: 'يوم من الرصيد المرحّل', icon: 'i-calendar', go: function () { var d0 = dayOff(-((new Date().getDay() + 1) % 7) + 7 * (A.wkOff || 0)); openSh({ t: 'carry', d0: d0 }, { cdate: d0, sel: '' }); } }),
     X({ title: 'تسوية الأسبوع', icon: 'i-wallet', go: function () { openSh({ t: 'settle' }, { sel: W.filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); } })] }));
   if (m === 'wk') { bl.push(weekBlock(W)); return bl; }
   var wl = (S.workers || []).filter(function (w) { return !w.arch || A.showArch; }), wm = A.sort.workers;
@@ -4396,6 +4397,16 @@ function shDesc() {
         ft: { label: tot > 0 ? 'صرف ' + money(tot) + ' · ' + pl(picked.length, 'عامل واحد', 'عاملان', 'عمال') : 'اختر عمالًا للصرف', ok: tot > 0 && payPlan(fund(fv('fund') || defFund()), tot, num('rate')).ok, go: function () { doSettle(picked, fv('fund') || defFund(), num('rate')); } } };
       break;
     }
+    case 'carry': {
+      var cdt = dateNear(fv('cdate')) || sh.d0, cl = activeW().filter(function (x) { return !E.attOn(S, cdt, x.id); }), csel = (fv('sel') || '').split(',').filter(Boolean);
+      var cpk = cl.filter(function (x) { return csel.indexOf(x.id) >= 0; }), ctot = r2(cpk.reduce(function (a, x) { return a + (x.daily || 0); }, 0));
+      R = { title: 'يوم كان في الرصيد المرحّل', sub: 'يُسجَّل حضوره هنا ويُخصم من الرصيد المرحّل بالمبلغ نفسه، فلا يتغيّر رصيد أحد',
+        fields: [fDate('cdate', 'اليوم', '', today())],
+        rows: cl.map(function (x) { return X({ title: x.name, sub: 'رصيد سابق ' + money(wOpenAmt(x)), tag: money(x.daily || 0), tagTone: 'ok', sel: csel.indexOf(x.id) >= 0, go: function () { var s2 = csel.indexOf(x.id) >= 0 ? csel.filter(function (i) { return i !== x.id; }) : csel.concat([x.id]); fset('sel', s2.join(',')); } }); }),
+        note: cl.length ? { text: 'اختر من حضر ذلك اليوم. الرصيد قبل وبعد متطابق: ' + (ctot ? 'ينتقل ' + money(ctot) + ' من «رصيد سابق» إلى الحضور.' : ''), tone: 'info' } : { text: 'لا عمال بلا حضور مسجَّل في هذا اليوم.', tone: 'info' },
+        ft: { label: cpk.length ? 'تسجيل حضور ' + pl(cpk.length, 'عامل واحد', 'عاملين', 'عمال') : 'اختر العمال', ok: cpk.length > 0 && !!dateNear(fv('cdate')) && dateNear(fv('cdate')) <= today(), go: function () { doCarry(cpk, cdt); } } };
+      break;
+    }
     case 'bview': {
       var bacts = [], b = E.by(S.batches, sh.id), l0 = led(b.order[0]), freeB = E.isFree(l0), canEdit = !b.void && !!rec(b.recipe), unc = b.done === false && !b.void, costFree = b.kind === 'external' && freeB;
       R = { title: batchName(b), sub: KN[b.kind] + ' · ' + pl(b.pots || 0, 'قدر واحد', 'قدران', 'قدور') + ' · ' + (inst(b.inst) ? inst(b.inst).name + ' · ' : '') + dlabel(b.date),
@@ -4724,6 +4735,16 @@ function doAddStat() {
   var name = fv('name').trim(), mult = parseFloat(fv('mult') || '1'), bonus = num('bonus'), id = newId('s', S.stats);
   S.stats.push({ id: id, name: name, mult: mult, bonus: bonus, tone: mult === 0 ? 'bad' : mult < 1 ? 'warn' : bonus > 0 ? 'info' : 'ok' });
   setState({ sh: A.sh && A.sh.wid ? { t: 'status', wid: A.sh.wid } : null, q: '', form: {} }); mutated('أُضيفت حالة الحضور «' + name + '»');
+}
+function doCarry(list, date) {
+  var n = 0;
+  list.forEach(function (w) {
+    if (E.attOn(S, date, w.id)) return;
+    var a = E.setAtt(S, date, w.id, 'p'), amt = E.attAmt(a);
+    if (amt > 0) E.wEntry(S, { date: date, w: w.id, kind: 'open', amt: -amt, note: 'حضور ' + dlabel(date) + ' كان داخل الرصيد المرحّل' }); n++;
+  });
+  audit('نقل حضور ' + dlabel(date) + ' من الرصيد المرحّل إلى الحضور لـ' + pl(n, 'عامل واحد', 'عاملين', 'عمال'));
+  shut(); mutated('سُجّل حضور ' + dlabel(date) + ' لـ' + pl(n, 'عامل واحد', 'عاملين', 'عمال') + ' بلا تغيير في الأرصدة');
 }
 function doEntry(w, type, amt, note, sev, fid, rate) {
   var d = today(), pid = phTake();
