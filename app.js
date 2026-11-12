@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.16';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.17';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3339,6 +3339,10 @@ function wstDoc(w, from, to, opt) {
   (S.att || []).forEach(function (a) { if (a.w === w.id && a.date >= from && a.date <= to) last[a.date] = a; });
   var days = Object.keys(last).sort().map(function (k) { return last[k]; });
   var es = wlOn().filter(function (e) { return e.w === w.id && e.kind !== 'open' && e.cat !== 'adjw' && e.date >= from && e.date <= to; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : x.ts - y.ts; });
+  /* دفعة «دفع الأسبوع» التي أُلغيت لها قيد عكسي («إلغاء دفعة: …»): الاثنان يُحذفان معًا من الكشف لأنهما يلغيان بعضهما، ولا تُحسب في الشريط الختامي */
+  es.filter(function (r) { return r.kind === 'add' && /^إلغاء دفعة:.*(تسوية|دفع) الأسبوع/.test(r.note || ''); }).forEach(function (r) {
+    var o = es.filter(function (e) { return isSettleE(e) && e.amt === r.amt; })[0]; if (o) es = es.filter(function (x) { return x !== o && x !== r; });
+  });
   es.forEach(function (e) { var c = wCat(e); (by[c] = by[c] || []).push(e); });
   var sum = function (a) { return r2((a || []).reduce(function (t, e) { return t + (e.amt || 0); }, 0)); };
   var bon = sum(by.bonus), rev = sum(by.rev), pay = r2(sum(by.pay) + sum(by.adv)), ded = r2(sum(by.viol) + sum(by.buy) + sum(by.ded)), close = wBalBefore(w, nx);
