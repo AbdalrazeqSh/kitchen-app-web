@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.11';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.12';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1692,8 +1692,10 @@ function pgFunds() {
 
 /* تفاصيل الرصيد الواحد (الرصيد والوارد والناقص والشهر): واحدة لصفحة الرصيد ولأعلى صفحة الأرصدة عند اختياره */
 function fundBig(f, label) {
-  var last = movesDesc(fmOn(f.id))[0], c0 = fMain(f), ym = today().slice(0, 7), xn = fXnet(f.id, c0);
-  return B('big', { label: label || 'الرصيد', value: fBalTxt(f), value2: f.curs.length > 1 ? fTxt(f.curs[1], fBal(f.id, f.curs[1])) : '', text: 'وارد ' + fTxt(c0, fGross(f.id, c0, 'in')) + ' · ناقص ' + fTxt(c0, fGross(f.id, c0, 'out')) + '\nهذا الشهر: وارد ' + fTxt(c0, fGross(f.id, c0, 'in', ym)) + ' · ناقص ' + fTxt(c0, fGross(f.id, c0, 'out', ym)) + '\n' + (last ? 'آخر حركة: ' + dlabel(last.date) + ' · ' + (last.note || '') : 'لا حركات بعد') });
+  var last = movesDesc(fmOn(f.id))[0], ym = today().slice(0, 7);
+  var tot = f.curs.map(function (c) { return 'وارد ' + fTxt(c, fGross(f.id, c, 'in')) + ' · ناقص ' + fTxt(c, fGross(f.id, c, 'out')); });
+  var mon = f.curs.map(function (c) { return 'هذا الشهر: وارد ' + fTxt(c, fGross(f.id, c, 'in', ym)) + ' · ناقص ' + fTxt(c, fGross(f.id, c, 'out', ym)); });
+  return B('big', { label: label || 'الرصيد', value: fBalTxt(f), value2: f.curs.length > 1 ? fTxt(f.curs[1], fBal(f.id, f.curs[1])) : '', text: tot.concat(mon).join('\n') + '\n' + (last ? 'آخر حركة: ' + dlabel(last.date) + ' · ' + (last.note || '') : 'لا حركات بعد') });
 }
 function pgFund() {
   var f = fund(A.fid), bl = [], all = movesDesc(fmOn(f.id)), flt = A.fF || 'all', last = all[0], c0 = fMain(f);
@@ -1823,11 +1825,13 @@ function moneySheet(sh) {
         note: { text: m.void ? 'حركة ملغاة: بقيت في السجل ولا تُحتسب.' : m.w && m.wl ? 'دفعة مرتبطة بحساب العامل: إلغاؤها يُعيد المبلغ إلى حسابه.' : m.x ? 'جزء من تحويل بين رصيدين: يُلغى طرفاه معًا.' : 'الحركات لا تُحذف، والإلغاء يُبقيها في السجل.', tone: m.void || (m.w && m.wl) ? 'warn' : 'info' },
         ft: { label: 'إغلاق', ok: true, go: shut }, ft2: m.void ? null : { label: 'إلغاء الحركة', go: function () { voidMove(m.id); } } };
       if (m.ph) R.rows.push(phRow({ icon: 'i-image', icTone: 'ok', title: 'صورة الوصل', sub: 'اضغط لفتحها', tag: 'مرفقة', tagTone: 'ok' }, m, m.note || ''));
-      else if (!m.void && !reSrcOk(m)) {
+      else if (!m.void && !(reSrcOk(m) && fv('resrc') === '1')) {
         R.fields = [fPhoto('صورة الوصل أو السند (اختياري)')];
         if (fv('photo')) R.ft = { label: 'حفظ الصورة', ok: true, go: function () { var pid = phTake(); if (pid) { m.ph = pid; audit('أُرفقت صورة بحركة «' + (m.note || '') + '»'); } shut(); mutated('أُرفقت الصورة بالحركة'); } };
       }
-      if (reSrcOk(m)) {
+      /* تغيير مصدر الخصم (شيكل ↔ دولار) تصحيح نادر: يبقى مخفيًا خلف أيقونة ولا يُعرض سعر الصرف إلا إذا طلبه المستخدم */
+      if (!m.void && reSrcOk(m) && fv('resrc') !== '1') { R.acts = (R.acts || []).concat([X({ title: m.cur === 'ils' ? 'خصم من الدولار' : 'إرجاع للشيكل', icon: 'i-wallet', go: function () { fset('resrc', '1'); } })]); }
+      if (reSrcOk(m) && fv('resrc') === '1') {
         var toU = m.cur === 'ils', rt2 = num('rate');
         if (toU) { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); R.fields = [fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'يُخصم ما يقابل ' + money(m.amt) + ' من الدولار، ويعود رصيد الشيكل.')]; }
         R.note = { text: toU ? (rt2 > 0 ? 'سيُخصم ' + usdTxt(r2(m.amt / rt2)) + ' من الدولار بدل ' + money(m.amt) + ' من الشيكل. الأصل يُلغى ويبقى سجله، والدفعة تبقى مرتبطة بحساب العامل.' : 'هذه الحركة خُصمت من رصيد الشيكل. أدخل سعر الصرف لتُخصم من الدولار بدلًا منه.') : 'يمكن إرجاع الخصم إلى رصيد الشيكل بدل الدولار.', tone: 'info' };
