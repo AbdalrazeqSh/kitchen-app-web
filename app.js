@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.14';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.15';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2353,7 +2353,7 @@ function benToday(id) { var a = dayBatches('private').reduce(function (t, b) { r
 function searchGo(fn) { return function () { setState({ sh: null, q: '', form: {} }); fn(); }; }
 function searchCmds() {
   return [
-    ['تسوية الأسبوع', 'صرف مستحقات العمال دفعة واحدة', ['تسويه', 'راتب', 'رواتب', 'اجور', 'مستحقات'], function () { open('main', { tab: 'workers' }); openSh({ t: 'settle' }, { sel: activeW().filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); }],
+    ['دفع الأسبوع', 'صرف مستحقات العمال دفعة واحدة', ['تسويه', 'راتب', 'رواتب', 'اجور', 'مستحقات'], function () { open('main', { tab: 'workers' }); openSh({ t: 'settle' }, { sel: activeW().filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); }],
     ['حركة في رصيد', 'وارد أو ناقص أو تحويل بين الأرصدة', ['صرف', 'مصروف', 'مصاريف', 'دخل', 'وارد', 'صادر', 'ميزانيه', 'قيد', 'تحويل'], function () { open('funds'); }],
     ['دفعة لعامل', 'دفعة أو سلفة أو خصم', ['سلفه', 'خصم', 'اضافه'], function () { open('main', { tab: 'today' }); openSh({ t: 'pickWorker' }); }],
     ['حضور من لم يُسجَّل', 'تسجيل حضور الجميع دفعة واحدة', ['حضور', 'دوام'], function () { open('main', { tab: 'workers', wmode: 'att' }); }],
@@ -3307,7 +3307,7 @@ function kdetSheet(sh) {
    عهدة المطبخ التي بحوزة العامل ليست من مستحقاته، فلا تدخل في الكشف. */
 function wstNext(d) { var t = new Date(d + 'T12:00:00'); t.setDate(t.getDate() + 1); return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2); }
 /* كشف عن فترة محددة (من يوم إلى يوم). opt.sum: إظهار ملخص الإجماليات، opt.det: إظهار حركات المكافآت والخصومات داخل الأيام */
-function isSettleE(e) { return e.kind === 'pay' && e.note === 'تسوية الأسبوع'; }
+function isSettleE(e) { return e.kind === 'pay' && (e.note === 'دفع الأسبوع' || e.note === 'تسوية الأسبوع'); }
 function wstDoc(w, from, to, opt) {
   opt = opt || {}; var nx = wstNext(to), showSum = opt.sum !== false, showDet = opt.det !== false, last = {}, by = {};
   (S.att || []).forEach(function (a) { if (a.w === w.id && a.date >= from && a.date <= to) last[a.date] = a; });
@@ -3326,8 +3326,8 @@ function wstDoc(w, from, to, opt) {
   /* جدول واحد: لكل يوم صف (التاريخ + غمامة الحالة + المبلغ) وتحته حركاته ملاصقة (ملاحظة + غمامة + مبلغ) كما في صفحة العامل */
   var neg = { viol: 1, buy: 1, ded: 1, pay: 1, adv: 1 }, hid = { bonus: 1, rev: 1, viol: 1, buy: 1, ded: 1 }, dm = {};
   days.forEach(function (x) { (dm[x.date] = dm[x.date] || { es: [] }).att = x; });
-  /* دفعة «تسوية الأسبوع» ليست حركة عادية: تظهر في الشريط الأخضر الختامي بجانب «خالص» لا كصف بين الأيام */
-  var stl = es.filter(isSettleE); if (stl.length) d.settle = { l: 'تسوية الأسبوع', v: money(sum(stl)) };
+  /* دفعة «دفع الأسبوع» ليست حركة عادية: تظهر في الشريط الأخضر الختامي بجانب «خالص» لا كصف بين الأيام */
+  var stl = es.filter(isSettleE); if (stl.length) d.settle = { l: 'تم الدفع', v: money(sum(stl)) };
   es.forEach(function (e) { if (isSettleE(e) || (!showDet && hid[wCat(e)])) return; (dm[e.date] = dm[e.date] || { es: [] }).es.push(e); });
   d.days = Object.keys(dm).sort().map(function (k) {
     var g = dm[k], sx = g.att ? (stat(g.att.st) || { name: g.att.st, tone: 'mute' }) : null, am = g.att ? E.attAmt(g.att) : 0;
@@ -3839,7 +3839,7 @@ function pgWorkers() {
   bl.push(B('acts', { items: [
     X({ title: 'عامل جديد', icon: 'i-userPlus', on: true, go: function () { openSh({ t: 'addWorker' }, { name: '', wage: '' }); } }),
     X({ title: 'حضور الباقين', icon: 'i-check', go: function () { allPresent(); } }),
-    X({ title: 'تسوية الأسبوع', icon: 'i-wallet', go: function () { openSh({ t: 'settle' }, { sel: W.filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); } })] }));
+    X({ title: 'دفع الأسبوع', icon: 'i-wallet', go: function () { openSh({ t: 'settle' }, { sel: W.filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); } })] }));
   if (m === 'wk') { bl.push(weekBlock(W)); return bl; }
   var wl = (S.workers || []).filter(function (w) { return !w.arch || A.showArch; }), wm = A.sort.workers;
   wl.sort(function (a, b) {
@@ -4432,7 +4432,7 @@ function shDesc() {
     case 'settle': {
       var sel = (fv('sel') || '').split(',').filter(Boolean), owedL = activeW().filter(function (x) { return wBal(x) > 0; }), debtL = activeW().filter(function (x) { return wBal(x) < 0; });
       var picked = owedL.filter(function (x) { return sel.indexOf(x.id) >= 0; }), tot = r2(picked.reduce(function (a, x) { return a + wBal(x); }, 0)), unrec = picked.filter(function (x) { return !wAtt(x); }).length;
-      R = { title: 'تسوية الأسبوع', sub: S.settings.lastSettle ? 'آخر تسوية ' + dlabel(S.settings.lastSettle) : 'لم تُسجَّل تسوية بعد',
+      R = { title: 'دفع الأسبوع', sub: S.settings.lastSettle ? 'آخر دفع ' + dlabel(S.settings.lastSettle) : 'لم يُسجَّل دفع بعد',
         rows: owedL.map(function (x) {
           return X({ title: x.name, sub: wAtt(x) ? '' : 'حضور اليوم لم يُسجَّل', tag: money(wBal(x)), tagTone: 'info', sel: sel.indexOf(x.id) >= 0, go: function () { var s2 = sel.indexOf(x.id) >= 0 ? sel.filter(function (i) { return i !== x.id; }) : sel.concat([x.id]); fset('sel', s2.join(',')); } });
         }).concat(debtL.map(function (x) { return X({ title: x.name, sub: 'يُرحَّل ولا يُدفع', tag: 'عليه ' + money(-wBal(x)), tagTone: 'warn' }); })),
@@ -4803,8 +4803,8 @@ function doEntry(w, type, amt, note, sev, fid, rate) {
   shut(); mutated('سُجّل ' + (type === 'دفعة نقدية' ? 'دفع ' + money(amt) : type + (amt ? ' ' + money(amt) : '')) + ' — ' + w.name);
 }
 function doSettle(picked, fid, rate) {
-  picked.forEach(function (w) { var b = wBal(w); if (b > 0) { var se = E.wEntry(S, { date: today(), w: w.id, kind: 'pay', amt: b, note: 'تسوية الأسبوع' }); if (fid) payFund(fid, w, b, 'تسوية الأسبوع', 'راتب', rate, se.id); } });
-  S.settings.lastSettle = today(); shut(); mutated('سُجّلت تسوية ' + pl(picked.length, 'عامل واحد', 'عاملين', 'عمال'));
+  picked.forEach(function (w) { var b = wBal(w); if (b > 0) { var se = E.wEntry(S, { date: today(), w: w.id, kind: 'pay', amt: b, note: 'دفع الأسبوع' }); if (fid) payFund(fid, w, b, 'تسوية الأسبوع', 'راتب', rate, se.id); } });
+  S.settings.lastSettle = today(); shut(); mutated('سُجّل دفع ' + pl(picked.length, 'عامل واحد', 'عاملين', 'عمال'));
 }
 function shareStatement(w) { wstOpen(w); }
 
