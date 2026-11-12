@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '0.9.99';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.0';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2275,7 +2275,7 @@ function adminSheet(sh) {
       Object.keys(S.days || {}).sort().reverse().forEach(function (d) { if (S.days[d].holiday) holRows.push(X({ title: dlabel(d), sub: S.days[d].holiday.reason + ' · بلا طبخ ولا أجور', tag: 'عطلة', tagTone: 'mute' })); });
       var META = {
         ledgers: ['المخازن', ledgers().map(function (l) { return X({ title: l.name, sub: E.isFree(l) ? 'مواد عينية من جهة' : 'مدفوع على حسابك', tag: pl(itemsIn(l.id).length, 'صنف واحد', 'صنفان', 'أصناف') }); }), 'إضافة مخزن جديد', function () { openSh({ t: 'addLedger' }, { name: '', inkind: 'own' }); }],
-        insts: ['المؤسسات', S.insts.filter(function (i) { return !i.arch; }).map(function (i) { return X({ title: i.name, sub: i.init ? 'مبادرة' : 'مؤسسة' }); }), 'إضافة مؤسسة جديدة', function () { openSh({ t: 'addInst' }, { name: '', src: 'own' }); }],
+        insts: ['المؤسسات', S.insts.filter(function (i) { return !i.arch; }).map(function (i) { return X({ title: i.name, sub: i.init ? 'مبادرة' : 'مؤسسة', chev: true, go: function () { openSh({ t: 'instEdit', id: i.id }, { name: i.name }); }, lp: function () { openSh({ t: 'instEdit', id: i.id }, { name: i.name }); } }); }), 'إضافة مؤسسة جديدة', function () { openSh({ t: 'addInst' }, { name: '', src: 'own' }); }],
         hol: ['العطل', holRows, 'إعلان عطلة اليوم', function () { openSh({ t: 'holiday' }, { reason: 'الجمعة', other: '' }); }],
         stats: ['حالات الحضور', (S.stats || []).map(function (t) { return X({ title: t.name, sub: t.sys ? 'نظامية: بلا أجر ولا تُحسب غيابًا' : (t.mult === 0 ? 'بلا أجر' : t.mult !== 1 ? '× ' + t.mult + ' من اليومية' : 'يومية كاملة') + (t.bonus ? ' + ' + money(t.bonus) : ''), tag: t.name, tagTone: t.tone }); }), 'إضافة حالة حضور', function () { openSh({ t: 'addStat' }, { name: '', mult: '1', bonus: '' }); }],
         bens: ['المستفيدون', bens().map(function (g) { return X({ title: g.name, sub: benSub(g), chev: true, go: function () { openSh({ t: 'benEdit', id: g.id }, benForm(g)); },
@@ -2286,6 +2286,13 @@ function adminSheet(sh) {
         fields: ['الحقول المخصصة', (S.fields || []).map(function (f) { return X({ title: f.name, sub: f.type + ' · ' + WH[f.where] }); }), 'إضافة حقل مخصص', function () { openSh({ t: 'addField' }, { name: '', type: 'نص', where: 'all' }); }]
       }[sh.k];
       R = { title: META[0], sub: 'القائمة قابلة للإضافة متى احتجت', rows: META[1], add: { label: '+ ' + META[2], go: META[3] } };
+      break;
+    }
+    case 'instEdit': {
+      var ie = E.by(S.insts, sh.id); nm = fv('name').trim(); dup = S.insts.filter(function (i) { return i.id !== ie.id && norm(i.name) === norm(nm); })[0];
+      R = { title: ie.name, sub: ie.init ? 'جهة متفرقة' : 'مؤسسة', fields: [fText('name', 'الاسم', '')],
+        rows: [X({ icon: AK.inst[2], icTone: 'mute', title: 'إنهاء التعامل', sub: 'يختفي من الاختيار وتبقى حساباته القديمة', chev: true, go: function () { openSh({ t: 'archConfirm', k: 'inst', id: ie.id }, { why: 'انتهى التعامل' }); } })],
+        dup: dup ? 'يوجد اسم مماثل.' : '', ft: { label: 'حفظ', ok: nm.length > 1 && !dup, go: function () { if (nm !== ie.name) { audit('تعديل اسم «' + ie.name + '» إلى «' + nm + '»'); ie.name = nm; } shut(); mutated('حُفظ الاسم'); } } };
       break;
     }
     case 'arch': {
@@ -3848,7 +3855,7 @@ function pgMore() {
 function pgDevice() {
   return [B('rows', { title: 'الإدارة', items: [
     X({ icon: 'i-shield', icTone: 'ok', title: 'الأشخاص والصلاحيات', sub: pl(people().length, 'شخص واحد', 'شخصان', 'أشخاص') + ' · ' + people().slice(0, 3).map(function (x) { return x.name; }).join('، '), chev: true, go: function () { open('people'); } }),
-    X({ icon: 'i-sliders', icTone: 'warn', title: 'القوائم والحقول', sub: 'أضف مخزنًا أو حالة حضور أو وحدة أو حقلًا جديدًا متى احتجت', chev: true, go: function () { open('lists'); } }),
+    X({ icon: 'i-sliders', icTone: 'warn', title: 'القوائم والحقول', sub: 'المؤسسات والمستفيدون والمخازن والحالات والوحدات: عدّل أو أضف', chev: true, go: function () { open('lists'); } }),
     X({ icon: 'i-lock', icTone: 'bad', title: 'الأرشيف والإدارة', sub: 'للمدير التنفيذي: إنهاء التعامل، استعادة، سجل التعديلات', chev: true, go: function () { open('admin'); } }),
   ] }), B('rows', { title: 'متقدمة', items: [
     X({ icon: 'i-box', icTone: 'warn', title: 'الأرصدة الافتتاحية', sub: S.settings.openingDone ? 'اعتُمدت: يمكنك مراجعتها' : 'لم تُعتمد بعد: راجع المعبّأ من الشيت', tag: S.settings.openingDone ? '' : 'مطلوب', tagTone: 'warn', chev: true, go: function () { open('opening'); } }),
