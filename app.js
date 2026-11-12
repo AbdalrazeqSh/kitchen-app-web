@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.4';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.5';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3556,6 +3556,8 @@ function pgToday() {
   if (cs.n) att.push({ rank: 0.8, row: X({ icon: 'i-calendar', icTone: cs.late ? 'bad' : 'info', title: 'المواعيد: ' + (cs.today ? cs.today + ' اليوم' : '') + (cs.today && cs.late ? ' · ' : '') + (cs.late ? cs.late + ' متأخر' : ''), sub: cs.titles, tag: cs.late ? 'متأخر' : 'اليوم', tagTone: cs.late ? 'bad' : 'info', chev: true, go: function () { open('cal'); } }) });
   unconfAll().forEach(function (b) { att.push({ rank: 1.2, row: X({ icon: 'i-pot', icTone: 'warn', title: batchName(b), sub: 'كمياتها الفعلية لم تُؤكَّد · ' + dlabel(b.date), tag: 'تنتظر تأكيد', tagTone: 'warn', chev: true, go: function () { openSh({ t: 'bview', id: b.id }); }, lp: function () { batchQa(b); } }) }); });
   var dfx = dayFacts(); if (new Date().getHours() >= 17 && dfx.any && !dfx.closed) att.push({ rank: 1.5, row: X({ icon: 'i-doc', icTone: 'info', title: 'ملخص اليوم جاهز', sub: 'انسخه أو أرسله قبل إغلاق اليوم', chev: true, go: function () { openSh({ t: 'dsum' }); } }) });
+  /* لمرة واحدة: حضور السبت 2026-11-07 كان داخل الرصيد المرحّل من الشيت؛ يختفي بعد النقل أو بعد 15 نوفمبر */
+  if (!S.settings.carryDone && today() <= '2026-11-15' && activeW().some(function (w) { return wOpenAmt(w) !== 0 && !E.attOn(S, '2026-11-07', w.id); })) att.push({ rank: 0.5, row: X({ icon: 'i-calendar', icTone: 'info', title: 'حضور السبت 7 نوفمبر', sub: 'كان داخل الرصيد المرحّل من الشيت: سجّله هنا بلا تغيير في الأرصدة', chev: true, go: function () { openSh({ t: 'carry', d0: '2026-11-07' }, { cdate: '2026-11-07', sel: '' }); } }) });
   var bn = buyList(); if (bn.length) att.push({ rank: 2.8, row: X({ icon: 'i-truck', icTone: 'warn', title: 'قائمة المشتريات', sub: pl(bn.length, 'صنف واحد ينقص', 'صنفان ينقصان', 'أصناف تنقص') + ' للأيام القادمة', chev: true, go: function () { openSh({ t: 'buy' }); } }) });
   var aw = assetAttention();
   if (aw.length) att.push({ rank: 3, row: X({ icon: 'i-box', icTone: 'warn', title: 'الموجودات: ' + pl(aw.length, 'نوع واحد يحتاج', 'نوعان يحتاجان', 'أنواع تحتاج') + ' انتباهًا', sub: aw.filter(function (a) { return a.bad > 0; }).length + ' فيها معطّل · ' + aw.filter(aStale).length + ' يلزم جردها', tag: 'الموجودات', tagTone: 'warn', chev: true, go: function () { open('assets'); } }) });
@@ -3795,7 +3797,6 @@ function pgWorkers() {
   bl.push(B('acts', { items: [
     X({ title: 'عامل جديد', icon: 'i-userPlus', on: true, go: function () { openSh({ t: 'addWorker' }, { name: '', wage: '' }); } }),
     X({ title: 'حضور الباقين', icon: 'i-check', go: function () { allPresent(); } }),
-    X({ title: 'يوم من الرصيد المرحّل', icon: 'i-calendar', go: function () { var d0 = dayOff(-((new Date().getDay() + 1) % 7) + 7 * (A.wkOff || 0)); openSh({ t: 'carry', d0: d0 }, { cdate: d0, sel: '' }); } }),
     X({ title: 'تسوية الأسبوع', icon: 'i-wallet', go: function () { openSh({ t: 'settle' }, { sel: W.filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); } })] }));
   if (m === 'wk') { bl.push(weekBlock(W)); return bl; }
   var wl = (S.workers || []).filter(function (w) { return !w.arch || A.showArch; }), wm = A.sort.workers;
@@ -4743,6 +4744,7 @@ function doCarry(list, date) {
     var a = E.setAtt(S, date, w.id, 'p'), amt = E.attAmt(a);
     if (amt > 0) E.wEntry(S, { date: date, w: w.id, kind: 'open', amt: -amt, note: 'حضور ' + dlabel(date) + ' كان داخل الرصيد المرحّل' }); n++;
   });
+  S.settings.carryDone = true;
   audit('نقل حضور ' + dlabel(date) + ' من الرصيد المرحّل إلى الحضور لـ' + pl(n, 'عامل واحد', 'عاملين', 'عمال'));
   shut(); mutated('سُجّل حضور ' + dlabel(date) + ' لـ' + pl(n, 'عامل واحد', 'عاملين', 'عمال') + ' بلا تغيير في الأرصدة');
 }
