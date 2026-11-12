@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.7';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.8';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -474,7 +474,7 @@ function wLastPay(w) {
 function wHist(w, n) { // آخر الأيام المسجّلة
   return (S.att || []).filter(function (a) { return a.w === w.id; }).sort(function (a, b) { return a.date < b.date ? 1 : -1; }).slice(0, n || 6);
 }
-/* تصنيف حركة العامل للعرض في كل مكان (الصفحة، الكشف، الصورة، النص): دفعة، سلفة، مكافأة، مخالفة، مشتريات، خصم، تصحيح */
+/* تصنيف حركة العامل للعرض في كل مكان (الصفحة، الكشف، الصورة، النص): دفعة، سلفة، مكافأة، مخالفة، مسحوبات، خصم، تصحيح */
 function wCat(e) {
   if (e.kind === 'pay') return /^سلفة/.test(e.note || '') ? 'adv' : 'pay';
   if (e.kind === 'viol') return 'viol';
@@ -482,7 +482,7 @@ function wCat(e) {
   if (e.kind === 'add') return /^إلغاء/.test(e.note || '') ? 'rev' : e.cat === 'kbuy' ? 'kbuy' : 'bonus';
   return e.kind;
 }
-var WCAT = { pay: ['دفعة', 'mute'], adv: ['سلفة', 'mute'], bonus: ['مكافأة', 'ok'], kbuy: ['شراء للمطبخ', 'info'], viol: ['مخالفة', 'bad'], buy: ['مشتريات', 'bad'], ded: ['خصم', 'bad'], rev: ['تصحيح', 'mute'], open: ['رصيد سابق', 'mute'] };
+var WCAT = { pay: ['دفعة', 'mute'], adv: ['سلفة', 'mute'], bonus: ['مكافأة', 'ok'], kbuy: ['شراء للمطبخ', 'info'], viol: ['مخالفة', 'bad'], buy: ['مسحوبات', 'bad'], ded: ['خصم', 'bad'], rev: ['تصحيح', 'mute'], open: ['رصيد سابق', 'mute'] };
 function wLabel(e) { return (WCAT[wCat(e)] || [e.kind])[0]; }
 function wTone(e) { return (WCAT[wCat(e)] || [0, 'mute'])[1]; }
 function wlOn() { return (S.wl || []).filter(function (e) { return !e.void; }); } /* حركات العمال السارية: الملغاة تبقى في السجل ولا تُحتسب */
@@ -3264,7 +3264,7 @@ function kdetSheet(sh) {
 
 /* ===== 02y-wstmt.js ===== */
 /* ---------- كشف حساب العامل: صورة للإرسال (واتساب) أو الحفظ أو نص ----------
-   يُبنى من حركات العامل نفسها: يوميات الحضور، المكافآت، الخصومات (مخالفات ومشتريات وغيرها)، الدفعات والسلف.
+   يُبنى من حركات العامل نفسها: يوميات الحضور، المكافآت، الخصومات (مخالفات ومسحوبات وغيرها)، الدفعات والسلف.
    عهدة المطبخ التي بحوزة العامل ليست من مستحقاته، فلا تدخل في الكشف. */
 function wstNext(d) { var t = new Date(d + 'T12:00:00'); t.setDate(t.getDate() + 1); return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2); }
 /* كشف عن فترة محددة (من يوم إلى يوم). opt.sum: إظهار ملخص الإجماليات، opt.det: إظهار حركات المكافآت والخصومات داخل الأيام */
@@ -3996,7 +3996,7 @@ function wBalBefore(w, date) {
 }
 function wEnt(w, type) { return function () { openSh({ t: 'entry', wid: w.id }, { type: type, amt: '', note: '', sev: 'warn' }); }; }
 function wQa(w) {
-  qa(w.name, balTxt(wBal(w)), [['تسجيل حضور اليوم', 'i-check', function () { openSh({ t: 'status', wid: w.id }); }], ['دفعة نقدية', 'i-wallet', wEnt(w, 'دفعة نقدية')], ['سلفة', 'i-wallet', wEnt(w, 'سلفة')], ['مكافأة', 'i-plus', wEnt(w, 'مكافأة')], ['خصم مشتريات', 'i-minus', wEnt(w, 'مشتريات')], ['خصم', 'i-minus', wEnt(w, 'خصم')], ['مخالفة', 'i-alert', wEnt(w, 'مخالفة')], ['كشف الحساب', 'i-book', function () { shut(); open('worker', { wid: w.id }); }], ['إرسال كشف الحساب للعامل', 'i-send', function () { shut(); wstOpen(w); }]]);
+  qa(w.name, balTxt(wBal(w)), [['تسجيل حضور اليوم', 'i-check', function () { openSh({ t: 'status', wid: w.id }); }], ['دفعة نقدية', 'i-wallet', wEnt(w, 'دفعة نقدية')], ['سلفة', 'i-wallet', wEnt(w, 'سلفة')], ['مكافأة', 'i-plus', wEnt(w, 'مكافأة')], ['مسحوبات', 'i-minus', wEnt(w, 'مسحوبات')], ['خصم', 'i-minus', wEnt(w, 'خصم')], ['مخالفة', 'i-alert', wEnt(w, 'مخالفة')], ['كشف الحساب', 'i-book', function () { shut(); open('worker', { wid: w.id }); }], ['إرسال كشف الحساب للعامل', 'i-send', function () { shut(); wstOpen(w); }]]);
 }
 function pgWorker() {
   var w = wk(A.wid), a = wAtt(w), st = a ? stat(a.st) : null, b = wBal(w), bl = [];
@@ -4008,13 +4008,13 @@ function pgWorker() {
     X({ title: 'دفعة', icon: 'i-wallet', on: true, go: ent('دفعة نقدية') }),
     X({ title: 'مكافأة', icon: 'i-plus', tone: 'ok', go: ent('مكافأة') }),
     X({ title: 'شراء للمطبخ', icon: 'i-truck', tone: 'info', go: ent('شراء للمطبخ') }),
-    X({ title: 'مشتريات', icon: 'i-minus', tone: 'bad', go: ent('مشتريات') }),
+    X({ title: 'مسحوبات', icon: 'i-minus', tone: 'bad', go: ent('مسحوبات') }),
     X({ title: 'خصم', icon: 'i-minus', tone: 'bad', go: ent('خصم') }),
     X({ title: 'مخالفة', icon: 'i-alert', tone: 'warn', go: ent('مخالفة') })
   ] }));
   bl.push(B('kpi', { items: [
     X({ label: 'مكافآت ' + MN[+ym0.slice(5) - 1], value: money(mc.bonus), endTone: mc.bonus ? 'ok' : undefined, sub: 'هذا الشهر' }),
-    X({ label: 'خصومات', value: money(mc.ded), endTone: mc.ded ? 'bad' : undefined, sub: 'مخالفات ومشتريات' }),
+    X({ label: 'خصومات', value: money(mc.ded), endTone: mc.ded ? 'bad' : undefined, sub: 'مخالفات ومسحوبات' }),
     X({ label: 'دفعات', value: money(mc.pay), sub: 'نقدية وسلف' })
   ] }));
   var wf = funds().filter(function (f) { return f.w === w.id; })[0];
@@ -4367,7 +4367,7 @@ function shDesc() {
       w = wk(sh.wid);
       var type = fv('type') || 'دفعة نقدية', amt = num('amt'), plus = type === 'مكافأة' || type === 'شراء للمطبخ', isV = type === 'مخالفة', sev = fv('sev') || 'warn';
       var bw = wBal(w), after = r2(bw + (plus ? 1 : -1) * ((isV && sev === 'warn') ? 0 : amt)), ef = [];
-      ef.push(fChips('type', 'نوع الحركة', [['دفعة نقدية', 'دفعة'], ['سلفة', 'سلفة'], ['مكافأة', 'مكافأة'], ['شراء للمطبخ', 'شراء للمطبخ'], ['مشتريات', 'خصم مشتريات'], ['خصم', 'خصم'], ['مخالفة', 'مخالفة']]));
+      ef.push(fChips('type', 'نوع الحركة', [['دفعة نقدية', 'دفعة'], ['سلفة', 'سلفة'], ['مكافأة', 'مكافأة'], ['شراء للمطبخ', 'شراء للمطبخ'], ['مسحوبات', 'مسحوبات'], ['خصم', 'خصم'], ['مخالفة', 'مخالفة']]));
       if (isV) {
         ef.push(fChips('sev', 'الإجراء', [['warn', 'تنبيه فقط'], ['ded', 'تنبيه وخصم']]));
         ef.push(fText('note', 'ما المخالفة؟ (اختياري)', 'مثال: تأخر عن الدوام'));
@@ -4375,12 +4375,12 @@ function shDesc() {
       } else {
         ef.push(fText('amt', 'المبلغ بالشيكل', '0', 'decimal'));
         ef.push(fQuick('amt', 'مبالغ سريعة', [5, 10, 20, 50, 100].concat(type === 'دفعة نقدية' && bw > 0 && [5, 10, 20, 50, 100].indexOf(bw) < 0 ? [[bw, 'المستحق كاملًا ' + fmt(bw) + ' ₪']] : [])));
-        ef.push(fText('note', 'البيان (اختياري)', type === 'مكافأة' ? 'مثال: امتياز، ساعات إضافية، أجرة نقل' : type === 'شراء للمطبخ' ? 'مثال: خرطوم، أكياس نفايات' : type === 'مشتريات' ? 'مثال: 8 لتر زيت أخذها' : type === 'خصم' ? 'سبب الخصم' : ''));
+        ef.push(fText('note', 'البيان (اختياري)', type === 'مكافأة' ? 'مثال: امتياز، ساعات إضافية، أجرة نقل' : type === 'شراء للمطبخ' ? 'مثال: خرطوم، أكياس نفايات' : type === 'مسحوبات' ? 'مثال: 8 لتر زيت أخذها' : type === 'خصم' ? 'سبب الخصم' : ''));
         if (type === 'دفعة نقدية' || type === 'سلفة') ef = ef.concat(fundFields());
       }
       ef.push(fPhoto(isV ? 'صورة توثيق المخالفة (اختياري)' : type === 'دفعة نقدية' || type === 'سلفة' ? 'صورة سند الصرف (اختياري)' : 'صورة توثيق (اختياري)'));
       var okV = isV ? (sev === 'warn' || amt > 0) : amt > 0, payT = type === 'دفعة نقدية' || type === 'سلفة', pp = payT ? payPlan(fund(fv('fund') || defFund()), amt, num('rate')) : null; if (payT) okV = okV && pp.ok;
-      var HINT = { 'دفعة نقدية': 'مبلغ يُدفع من مستحقاته', 'سلفة': 'مبلغ قبل استحقاقه، يُخصم من حسابه', 'مكافأة': 'تُضاف إلى حسابه', 'شراء للمطبخ': 'اشتراه من ماله للمطبخ: يُعوَّض مع راتبه', 'مشتريات': 'مواد أخذها من المطبخ، تُخصم من حسابه', 'خصم': 'يُخصم من حسابه بسبب تذكره', 'مخالفة': 'تنبيه، مع خصم أو بدونه' };
+      var HINT = { 'دفعة نقدية': 'مبلغ يُدفع من مستحقاته', 'سلفة': 'مبلغ قبل استحقاقه، يُخصم من حسابه', 'مكافأة': 'تُضاف إلى حسابه', 'شراء للمطبخ': 'اشتراه من ماله للمطبخ: يُعوَّض مع راتبه', 'مسحوبات': 'مواد أخذها من المطبخ، تُخصم من حسابه', 'خصم': 'يُخصم من حسابه بسبب تذكره', 'مخالفة': 'تنبيه، مع خصم أو بدونه' };
       R = { title: w.name, sub: 'الرصيد الآن: ' + balTxt(bw), fields: ef,
         note: { text: (HINT[type] ? HINT[type] + (amt > 0 || isV ? ' · ' : '') : '') + (isV ? (sev === 'warn' ? 'تُسجَّل في سجله بلا خصم.' : amt > 0 ? 'تُسجَّل في سجله ويُخصم ' + money(amt) + '. الرصيد بعدها: ' + balTxt(after) : '') : amt > 0 ? 'الرصيد بعد الحركة: ' + balTxt(after) + (pp && pp.txt ? ' · ' + pp.txt : '') : ''), tone: isV ? 'warn' : 'info' },
         ft: { label: isV ? 'تسجيل المخالفة' : 'تسجيل ' + (type === 'دفعة نقدية' ? 'الدفعة' : type), ok: okV, go: function () { doEntry(w, type, amt, (fv('note') || '').trim(), sev, fv('fund') || defFund(), num('rate')); } } };
@@ -4753,7 +4753,7 @@ function doEntry(w, type, amt, note, sev, fid, rate) {
   if (type === 'مخالفة') phTag(E.wEntry(S, { date: d, w: w.id, kind: 'viol', amt: sev === 'warn' ? 0 : amt, note: note }), pid);
   else if (type === 'مكافأة') { var eb = E.wEntry(S, { date: d, w: w.id, kind: 'add', amt: amt, note: note }); eb.cat = 'bonus'; phTag(eb, pid); }
   else if (type === 'شراء للمطبخ') { var ek = E.wEntry(S, { date: d, w: w.id, kind: 'add', amt: amt, note: note }); ek.cat = 'kbuy'; phTag(ek, pid); }
-  else if (type === 'مشتريات') { var ep = E.wEntry(S, { date: d, w: w.id, kind: 'deduct', amt: amt, note: note }); ep.cat = 'buy'; phTag(ep, pid); }
+  else if (type === 'مسحوبات') { var ep = E.wEntry(S, { date: d, w: w.id, kind: 'deduct', amt: amt, note: note }); ep.cat = 'buy'; phTag(ep, pid); }
   else if (type === 'خصم') phTag(E.wEntry(S, { date: d, w: w.id, kind: 'deduct', amt: amt, note: note }), pid);
   else { var we = phTag(E.wEntry(S, { date: d, w: w.id, kind: 'pay', amt: amt, note: (type === 'سلفة' ? 'سلفة' + (note ? ' — ' + note : '') : note) }), pid); if (fid) { payFund(fid, w, amt, note, type === 'سلفة' ? 'سلفة' : 'راتب', rate, we.id); var lm = S.fm[S.fm.length - 1]; if (lm && lm.wl === we.id) phTag(lm, pid); } }
   shut(); mutated('سُجّل ' + (type === 'دفعة نقدية' ? 'دفع ' + money(amt) : type + (amt ? ' ' + money(amt) : '')) + ' — ' + w.name);
