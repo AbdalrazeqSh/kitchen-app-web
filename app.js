@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.18';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.19';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -66,7 +66,7 @@ function undoCover() {
   if (!S || !S.settings || S.settings.coverUndone) return; S.settings.coverUndone = true;
   var t = today(); S.moves.filter(function (m) { return m.kind === 'cover' && !m.rev; }).forEach(function (m) { m.rev = true; E.addMove(S, { date: t, led: m.led, item: m.item, q: -m.q, kind: 'cover', note: 'إلغاء تغطية خاطئة' }).rev = true; });
 }
-function save() { try { undoCover(); } catch (e) {} clearTimeout(saveT); if (typeof syncSoon === 'function') syncSoon(); saveT = setTimeout(function () { var j = JSON.stringify(S); dbPut('state', j); try { localStorage.setItem('kitchen_state_bak', j); } catch (e) {} }, 150); }
+function save() { try { undoCover(); } catch (e) {} clearTimeout(saveT); if (typeof syncSoon === 'function') syncSoon(); if (typeof gwKick === 'function') gwKick(); saveT = setTimeout(function () { var j = JSON.stringify(S); dbPut('state', j); try { localStorage.setItem('kitchen_state_bak', j); } catch (e) {} }, 150); }
 function load() {
   return idb().then(function (d) { DB = d; return dbGet('state'); }).then(function (j) {
     if (!j) { try { j = localStorage.getItem('kitchen_state_bak'); } catch (e) {} }
@@ -1650,29 +1650,6 @@ function payFund(fid, w, ils, note, kind, rate, wl) {
 }
 
 
-/* ---------- نسخ حركات الصناديق إلى الشيت (المرجع): بنفس ترتيب أعمدة كل قسم، للصق في أول خلية فارغة ---------- */
-var SH_SECS = [
-  { id: 'bank', name: 'البنك (دولار)', cols: 'التاريخ · وارد · صادر · مبلغ المعاملة · البيان · سعر الصرف', start: 'عمود التاريخ في قسم البنك (F)' },
-  { id: 'ils', name: 'الشيكل', cols: 'التاريخ · وارد · صادر · البيان', start: 'عمود التاريخ في قسم الشيكل (N)' },
-  { id: 'bin', name: 'بايننس', cols: 'التاريخ · وارد · صادر · البيان', start: 'عمود التاريخ في قسم بايننس (A)' }
-];
-function shSecOf(m) { var f = fund(m.h); return m.cur === 'ils' ? 'ils' : f && f.name === 'بايننس' ? 'bin' : 'bank'; }
-function shDate(d) { var p = String(d).split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
-/* الماضي مدخل في الشيت أصلًا: «الجديد» يبدأ من تاريخ اعتماد التطبيق أساسًا */
-var SH_FROM = '2026-11-11';
-function shRows(sec, onlyNew) {
-  var sent = S.settings.shSent || {};
-  return fmOn().filter(function (m) { return shSecOf(m) === sec && (!onlyNew || !sent[m.id] && m.date >= SH_FROM); })
-    .map(function (m, i) { return { m: m, i: i }; }).sort(function (a, b) { return a.m.date < b.m.date ? -1 : a.m.date > b.m.date ? 1 : a.i - b.i; }).map(function (o) { return o.m; });
-}
-function shLine(sec, m) {
-  var cell = function (n) { return n ? String(r2(n)) : ''; }, note = String(m.note || '').replace(/[\t\r\n]+/g, ' ').trim(), i = m.dir === 'in' ? m.amt : 0, o = m.dir === 'out' ? m.amt : 0;
-  if (sec === 'bank') return [shDate(m.date), cell(i), cell(o), m.ils > 0 ? cell(m.ils) : '', note, m.rate > 0 ? String(m.rate) : ''].join('\t');
-  return [shDate(m.date), cell(i), cell(o), note].join('\t');
-}
-function shText(sec, onlyNew) { return shRows(sec, onlyNew).map(function (m) { return shLine(sec, m); }).join('\n'); }
-function shMark(sec, onlyNew) { var sent = S.settings.shSent = S.settings.shSent || {}; shRows(sec, onlyNew).forEach(function (m) { sent[m.id] = 1; }); save(); }
-
 /* ---------- الأرصدة ---------- */
 function pgFunds() {
   var bl = [], L = funds(), ff = A.fFeed && fund(A.fFeed) ? A.fFeed : '', n = A.fN || 8;
@@ -1689,7 +1666,6 @@ function pgFunds() {
     X({ title: 'تحويل', icon: 'i-send', go: function () { openSh({ t: 'fXfer' }, { from: ff || defFund(), to: '', cur: '', amt: '', got: '', dtxt: today() }); } }),
     X({ title: 'رصيد جديد', icon: 'i-plus', go: function () { openSh({ t: 'fAdd' }, {}); } }),
     X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'fCount', f: ff || defFund() }, { cur: '', cnt: '' }); } }),
-    X({ title: 'للشيت', icon: 'i-copy', go: function () { var d = SH_SECS.filter(function (x) { return shRows(x.id, true).length; })[0]; openSh({ t: 'shCopy' }, { sec: (d || SH_SECS[0]).id, scope: 'new' }); } }),
     X({ title: 'الملخص', icon: 'i-list', go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } })] }));
   /* آخر الحركات أولًا: للتأكد أنها سُجّلت، ومن أي رصيد */
   var all = movesDesc(fmOn(ff)), items = all.slice(0, n).map(function (m) { return moveRowX(m, !ff, true); });
@@ -1855,6 +1831,70 @@ function moneySheet(sh) {
     }
   }
   return R;
+}
+
+/* ===== 02m2-sheetgw.js ===== */
+/* ---------- بوابة الشيت: يرسل التطبيق حركات الأرصدة تلقائيًا إلى شيت «المطبخ $» (من التطبيق إلى الشيت فقط) ----------
+   الشيت مرجع يستقبل: لا قراءة منه ولا تعديل لصف قديم. الإلغاء والاسترجاع يُرسَلان صف عكس/استرجاع.
+   رابط البوابة وكلمتها يخصان هذا الجهاز (مفاتيح sync* لا تُدمج مع الأجهزة الأخرى). تتبّع المُرسَل في S.settings.shSent: عدد العمليات المنفَّذة لكل حركة
+   (1 = صف الحركة، 2 = صف إلغائها، 3 = استرجاعها، ...) فلا يتكرر إرسال، والبوابة نفسها ترفض التكرار بمعرّف «رقم#عدد». */
+var GW_FROM = '2026-11-11', GW_BUSY = false, GW_T = null, GW_ERR = '';
+function gwUrl() { return String(S.settings.syncGwUrl || '').trim(); }
+function gwSec(m) {
+  var f = fund(m.h); if (!f) return '';
+  if (f.w) return /حميدا/.test(f.name || '') ? 'ham' : '';
+  return m.cur === 'ils' ? 'ils' : f.name === 'بايننس' ? 'bin' : 'bank';
+}
+function gwRow(m, sec, n, rev, pre) {
+  var dir = rev ? (m.dir === 'in' ? 'out' : 'in') : m.dir, a = r2(m.amt);
+  return { id: m.id + '#' + n, sec: sec, d: n === 1 ? m.date : today(), i: dir === 'in' ? a : null, o: dir === 'out' ? a : null, t: m.ils > 0 ? r2(m.ils) : null, r: m.rate > 0 ? m.rate : null, n: pre + String(m.note || '').replace(/[\t\r\n]+/g, ' ').trim() };
+}
+function gwOps() {
+  var sent = S.settings.shSent = S.settings.shSent || {}, ops = [];
+  (S.fm || []).forEach(function (m) {
+    var sec = gwSec(m); if (!sec) return;
+    var st = +sent[m.id] || 0, odd = st % 2 === 1;
+    if (m.void) { if (odd) ops.push(gwRow(m, sec, st + 1, true, 'إلغاء: ')); }
+    else if (!odd && !(st === 0 && m.date < GW_FROM)) ops.push(gwRow(m, sec, st + 1, false, st ? 'استرجاع: ' : ''));
+  });
+  return ops;
+}
+function gwPost(body) {
+  return fetch(gwUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ key: S.settings.syncGwKey || '' }, body)) })
+    .then(function (r) { return r.json(); }).then(function (j) { if (!j || !j.ok) throw new Error((j && j.err) || 'رفضت البوابة الطلب'); return j; });
+}
+function gwSend() {
+  if (!gwUrl() || GW_BUSY) return Promise.resolve();
+  var ops = gwOps(); if (!ops.length) return Promise.resolve();
+  var batch = ops.slice(0, 40); GW_BUSY = true;
+  return gwPost({ rows: batch }).then(function (j) {
+    var sent = S.settings.shSent, byId = {}; batch.forEach(function (o) { byId[o.id] = 1; });
+    (j.done || []).forEach(function (id) { if (!byId[id]) return; var k = id.lastIndexOf('#'), mid = id.slice(0, k), n = +id.slice(k + 1); if ((+sent[mid] || 0) === n - 1) sent[mid] = n; });
+    S.settings.syncGwAt = Date.now(); GW_ERR = ''; GW_BUSY = false; save();
+    if (ops.length > batch.length) return gwSend();
+  }).catch(function (e) { GW_BUSY = false; GW_ERR = String((e && e.message) || e || 'تعذّر الاتصال'); try { render(); } catch (x) {} });
+}
+function gwKick() {
+  if (!gwUrl() || !S.settings.syncGwAuto) return;
+  clearTimeout(GW_T); GW_T = setTimeout(function () { gwSend(); }, 2500);
+}
+try { window.addEventListener('online', gwKick); setTimeout(function () { try { gwKick(); } catch (e) {} }, 7000); } catch (e) {}
+function gwSub() {
+  if (!gwUrl()) return 'لم تُربط بعد: الحركات تُرسل تلقائيًا إلى الشيت';
+  var n = gwOps().length;
+  return (GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : n ? pl(n, 'حركة واحدة', 'حركتان', 'حركات') + ' بانتظار الإرسال' : 'كل الحركات في الشيت') + (S.settings.syncGwAt ? ' · آخر إرسال ' + dlabel(new Date(S.settings.syncGwAt).toISOString().slice(0, 10)) : '');
+}
+function gwTag() { return !gwUrl() ? { t: 'غير مربوط', tone: 'mute' } : GW_ERR ? { t: 'خطأ', tone: 'bad' } : gwOps().length ? { t: 'بانتظار', tone: 'warn' } : { t: 'متزامن', tone: 'ok' }; }
+function gwSave() { S.settings.syncGwUrl = (fv('gwurl') || '').trim(); S.settings.syncGwKey = (fv('gwkey') || '').trim(); save(); }
+function gwSheet(sh) {
+  if (sh.t !== 'shGw') return null;
+  var n = gwOps().length, tg = gwTag(), url = (fv('gwurl') || '').trim();
+  var rows = [X({ title: 'الحالة', sub: gwSub(), tag: tg.t, tagTone: tg.tone })];
+  if (GW_ERR) rows.push(X({ title: 'آخر خطأ', sub: GW_ERR }));
+  return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط', fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fText('gwkey', 'كلمة سر البوابة', '')], rows: rows,
+    acts: [X({ title: 'اختبار الاتصال', icon: 'i-wifi', go: function () { gwSave(); say('جارٍ الاختبار…'); gwPost({ ping: 1 }).then(function () { GW_ERR = ''; say('البوابة تعمل وكلمة السر صحيحة'); render(); }).catch(function (e) { GW_ERR = String((e && e.message) || e); say('تعذّر الاتصال: ' + GW_ERR); render(); }); } })],
+    note: { text: 'يُرسَل كل رصيد جديد تلقائيًا (البنك، الشيكل، بايننس، حميدا) إلى أول صف فارغ في قسمه. التعديل والإلغاء يُضيفان صف فرق ولا يمسّان القديم. الإرسال يبدأ بعد أول ضغطة على «حفظ وإرسال».', tone: 'info' },
+    ft: { label: n && url ? 'حفظ وإرسال ' + pl(n, 'حركة واحدة', 'حركتين', 'حركات') : 'حفظ', ok: !!url, go: function () { gwSave(); S.settings.syncGwAuto = 1; GW_ERR = ''; shut(); say('جارٍ الإرسال إلى الشيت…'); gwSend().then(function () { say(GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : 'الشيت محدَّث'); }); } } };
 }
 
 /* ===== 02n-init.js ===== */
@@ -3129,14 +3169,6 @@ function finSheet(sh) {
         note: { text: lk ? 'هذه الحركة مرتبطة بتحويل أو بحساب عامل: يمكن تعديل البيان والتصنيف فقط. لتغيير المبلغ ألغِها وسجّلها من جديد.' : 'الأصل يبقى في السجل ملغى، وتُضاف حركة معدَّلة بدلًا منه.', tone: lk ? 'warn' : 'info' },
         ft: { label: 'حفظ التعديل', ok: (lk || a > 0) && (fv('note') || '').trim().length > 0 && (lk || dayOk()), go: function () { doEditMove(m.id); } } };
     }
-    case 'shCopy': {
-      var sec = fv('sec') || 'bank', onlyNew = (fv('scope') || 'new') === 'new', sd = SH_SECS.filter(function (x) { return x.id === sec; })[0], rows = shRows(sec, onlyNew);
-      return { title: 'نسخ للشيت', sub: 'الشيت مرجع: الصق الحركات كما هي في قسمها', fields: [
-        fChips('sec', 'القسم', SH_SECS.map(function (x) { return [x.id, x.name + ' · ' + shRows(x.id, true).length]; })),
-        fChips('scope', 'ما يُنسخ', [['new', 'الجديد منذ آخر نسخ'], ['all', 'كل الحركات']])],
-        note: { text: rows.length ? 'الأعمدة: ' + sd.cols + '. الصق في أول خلية فارغة تحت ' + sd.start + '.' : 'لا حركات جديدة في هذا القسم.', tone: rows.length ? 'info' : 'ok' },
-        ft: { label: rows.length ? 'نسخ ' + pl(rows.length, 'سطر واحد', 'سطرين', 'أسطر') : 'لا شيء للنسخ', ok: rows.length > 0, go: function () { copyText(shText(sec, onlyNew), 'نُسخ ' + pl(rows.length, 'سطر واحد', 'سطران', 'أسطر') + '، الصقه في الشيت'); if (onlyNew) shMark(sec, true); setState({}); } } };
-    }
     case 'fCount': {
       f = fund(sh.f); var cur = fv('cur') || fDefCur(f), sys = fBal(f.id, cur), has = fv('cnt') !== '', cnt = num('cnt'), diff = r2(cnt - sys), fl2 = [];
       if (f.curs.length > 1) { A.form.cur = cur; fl2.push(fSeg('cur', 'العملة', f.curs.map(function (c) { return [c, c === 'usd' ? 'دولار' : 'شيكل']; }))); }
@@ -3930,6 +3962,7 @@ function pgMore() {
   ] }), B('rows', { title: 'أخرى', items: [
     X({ icon: 'i-sliders', icTone: 'mute', title: 'الإدارة والإعدادات', sub: 'الأشخاص والصلاحيات، القوائم، الأرشيف، إغلاق اليوم، الأرصدة الافتتاحية', chev: true, go: function () { open('device'); } }),
     X({ icon: 'i-wifi', icTone: 'info', title: 'الحساب والمزامنة', sub: syncSub(), tag: syncTag().t, tagTone: syncTag().tone, chev: true, go: function () { openSh({ t: 'sync' }, { email: '', pw: '' }); } }),
+    X({ icon: 'i-copy', icTone: 'info', title: 'مزامنة الشيت', sub: gwSub(), tag: gwTag().t, tagTone: gwTag().tone, chev: true, go: function () { openSh({ t: 'shGw' }, { gwurl: S.settings.syncGwUrl || '', gwkey: S.settings.syncGwKey || '' }); } }),
     X({ icon: 'i-doc', icTone: 'info', title: 'نسخة احتياطية', sub: S.settings.lastBackup ? 'آخر نسخة قبل ' + pl(backupDays(), 'يوم', 'يومين', 'أيام') + ' · شاركها أو احفظها خارج الهاتف' : 'لم تُصدَّر بعد: احفظ نسخة خارج الهاتف', chev: true, go: function () { exportBackup(); } }),
     X({ icon: 'i-lock', icTone: 'mute', title: 'عن التطبيق', sub: 'مطبخ عهد · الإصدار ' + VERSION + (updPending() ? ' · تحديث ' + updPending() + ' جاهز: أغلق التطبيق وافتحه' : '') + ' · البيانات محفوظة على هذا الجهاز', chev: false, go: function () { checkUpdate(true); } })
   ] })];
@@ -4706,7 +4739,7 @@ function shDesc() {
       break;
     }
     case 'search': R = searchSheet(); break;
-    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
+    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || gwSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
   }
   return R;
 }
@@ -5028,7 +5061,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { syncMergeData: syncMergeData, shText: shText, shMark: shMark, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
