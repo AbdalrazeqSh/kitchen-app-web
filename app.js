@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.2';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.3';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2868,7 +2868,7 @@ function fixSheet(sh) {
 /* ---------- المالية: تصنيف الحركات، الملخص الشهري، تعديل الحركة، جرد الصندوق، المستحقات ---------- */
 var CATS_OUT = [['pay', 'رواتب وعمال'], ['buy', 'مشتريات مواد'], ['move', 'نقل وكارة'], ['rent', 'إيجار وصيانة'], ['misc', 'متفرقات']];
 var CATS_IN = [['sales', 'مبيعات'], ['inst', 'من مؤسسة'], ['oth', 'وارد آخر']];
-var CAT_SYS = [['xfer', 'تحويل بين الأرصدة'], ['adj', 'تسوية جرد']];
+var CAT_SYS = [['xfer', 'تحويل بين الأرصدة'], ['adj', 'تسوية جرد'], ['kb', 'شراء العمال للمطبخ']];
 function catName(k) { var a = CATS_OUT.concat(CATS_IN, CAT_SYS).filter(function (c) { return c[0] === k; })[0]; return a ? a[1] : 'متفرقات'; }
 function noteKey(t) { return norm(String(t || '').replace(/\s+/g, ' ').trim()); }
 /* التصنيف: ما اخترته، ثم قاعدة البيان، ثم تخمين من الكلمات (بلا تعديل للحركات القديمة) */
@@ -2902,6 +2902,9 @@ function finData(ym) {
     if (m.dir === 'in') { T.inI = r2(T.inI + i); T.inU = r2(T.inU + u); } else { T.outI = r2(T.outI + i); T.outU = r2(T.outU + u);
       var pk = String(m.note || 'بلا بيان').replace(/\s+/g, ' ').split(' — ')[0].trim(); parties[pk] = parties[pk] || { n: 0, ils: 0, usd: 0 }; parties[pk].n++; parties[pk].ils = r2(parties[pk].ils + i); parties[pk].usd = r2(parties[pk].usd + u); }
   });
+  /* شراء العمال للمطبخ من مالهم: يظهر بنده في الصرف بقدر ما دُفع فعلًا لهم، ويُقتطع من «رواتب وعمال» فلا يتضاعف ولا يمسّ المجموع ولا الأرصدة */
+  var kb = r2(wlOn().filter(function (e) { return e.kind === 'add' && e.cat === 'kbuy' && (ym === 'all' || e.date.slice(0, 7) === ym); }).reduce(function (a, e) { return a + e.amt; }, 0)), pc = cats.o_pay;
+  if (kb > 0 && pc && pc.ils > 0) { var mv = Math.min(kb, pc.ils); pc.ils = r2(pc.ils - mv); cats.o_kb = { c: 'kb', dir: 'out', n: wlOn().filter(function (e) { return e.kind === 'add' && e.cat === 'kbuy' && (ym === 'all' || e.date.slice(0, 7) === ym); }).length, ils: mv, usd: 0 }; }
   T.dI = r2(T.inI - T.outI); T.dU = r2(T.inU - T.outU);
   return { ms: ms, cats: Object.keys(cats).map(function (k) { return cats[k]; }), parties: Object.keys(parties).map(function (k) { return { k: k, v: parties[k] }; }).sort(function (a, b) { return (b.v.ils + b.v.usd * 3.2) - (a.v.ils + a.v.usd * 3.2); }), T: T };
 }
@@ -2913,7 +2916,7 @@ function pgFinSum() {
   bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(t.inI), endTone: 'ok', sub: t.inU ? usdTxt(t.inU) : 'مكافئ بالشيكل' }), X({ label: 'صرف', value: money(t.outI), endTone: 'bad', sub: t.outU ? usdTxt(t.outU) : 'مكافئ بالشيكل' }), X({ label: 'الفرق (وارد − صرف)', value: money(t.dI), endTone: (t.dI < 0 || t.dU < 0) ? 'bad' : 'ok', sub: t.dU ? usdTxt(t.dU) : 'مكافئ بالشيكل' })] }));
   bl.push(B('note', { tone: 'info', icon: 'i-wallet', text: 'أثر الحركات على الأرصدة فعليًا: ' + money(t.nI) + ' شيكل و' + usdTxt(t.nU) + ' دولار. يختلف عن الفرق أعلاه لأن ما دُفع بالشيكل من رصيد الدولار يُحتسب شيكلًا في الصرف ويُنقص الدولار فعليًا.' }));
   bl.push(B('btns', { items: [X({ label: 'مشاركة الملخص (صورة)', icon: 'i-send', on: true, go: function () { shareFin(ym); } })] }));
-  var CI = { pay: 'i-users', buy: 'i-box', move: 'i-truck', rent: 'i-home', misc: 'i-list', sales: 'i-wallet', inst: 'i-shield', oth: 'i-plus', adj: 'i-check' };
+  var CI = { pay: 'i-users', kb: 'i-truck', buy: 'i-box', move: 'i-truck', rent: 'i-home', misc: 'i-list', sales: 'i-wallet', inst: 'i-shield', oth: 'i-plus', adj: 'i-check' };
   var shareBase = function (dir) { return D.cats.filter(function (c) { return c.dir === dir && c.c !== 'adj'; }).reduce(function (a, c) { return a + c.ils; }, 0); }, bOut = shareBase('out'), bIn = shareBase('in');
   /* الدلالة اللونية: الوارد أخضر والصرف أحمر؛ والأيقونة تميّز التصنيف، والنسبة من مجموع جهتها */
   var rowOf = function (c) { var bs = c.dir === 'in' ? bIn : bOut, pc = bs > 0 && c.ils ? Math.round(c.ils / bs * 100) : 0; return X({ icon: CI[c.c] || (c.dir === 'in' ? 'i-plus' : 'i-minus'), icTone: c.c === 'adj' ? 'info' : c.dir === 'in' ? 'ok' : 'bad', title: catName(c.c), sub: pl(c.n, 'حركة واحدة', 'حركتان', 'حركات') + (pc ? ' · ' + pc + '%' : ''), endTone: c.c === 'adj' ? '' : c.dir === 'in' ? 'ok' : 'bad', end: sg(c.dir, c.ils ? money(c.ils) : usdTxt(c.usd)), endSub: c.ils && c.usd ? usdTxt(c.usd) : '', chev: true, go: function () { openSh({ t: 'fcat', ym: ym, c: c.c, dir: c.dir }); } }); };
