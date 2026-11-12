@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.13';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.14';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3307,6 +3307,7 @@ function kdetSheet(sh) {
    عهدة المطبخ التي بحوزة العامل ليست من مستحقاته، فلا تدخل في الكشف. */
 function wstNext(d) { var t = new Date(d + 'T12:00:00'); t.setDate(t.getDate() + 1); return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2); }
 /* كشف عن فترة محددة (من يوم إلى يوم). opt.sum: إظهار ملخص الإجماليات، opt.det: إظهار حركات المكافآت والخصومات داخل الأيام */
+function isSettleE(e) { return e.kind === 'pay' && e.note === 'تسوية الأسبوع'; }
 function wstDoc(w, from, to, opt) {
   opt = opt || {}; var nx = wstNext(to), showSum = opt.sum !== false, showDet = opt.det !== false, last = {}, by = {};
   (S.att || []).forEach(function (a) { if (a.w === w.id && a.date >= from && a.date <= to) last[a.date] = a; });
@@ -3325,7 +3326,9 @@ function wstDoc(w, from, to, opt) {
   /* جدول واحد: لكل يوم صف (التاريخ + غمامة الحالة + المبلغ) وتحته حركاته ملاصقة (ملاحظة + غمامة + مبلغ) كما في صفحة العامل */
   var neg = { viol: 1, buy: 1, ded: 1, pay: 1, adv: 1 }, hid = { bonus: 1, rev: 1, viol: 1, buy: 1, ded: 1 }, dm = {};
   days.forEach(function (x) { (dm[x.date] = dm[x.date] || { es: [] }).att = x; });
-  es.forEach(function (e) { if (!showDet && hid[wCat(e)]) return; (dm[e.date] = dm[e.date] || { es: [] }).es.push(e); });
+  /* دفعة «تسوية الأسبوع» ليست حركة عادية: تظهر في الشريط الأخضر الختامي بجانب «خالص» لا كصف بين الأيام */
+  var stl = es.filter(isSettleE); if (stl.length) d.settle = { l: 'تسوية الأسبوع', v: money(sum(stl)) };
+  es.forEach(function (e) { if (isSettleE(e) || (!showDet && hid[wCat(e)])) return; (dm[e.date] = dm[e.date] || { es: [] }).es.push(e); });
   d.days = Object.keys(dm).sort().map(function (k) {
     var g = dm[k], sx = g.att ? (stat(g.att.st) || { name: g.att.st, tone: 'mute' }) : null, am = g.att ? E.attAmt(g.att) : 0;
     return { title: dlong(k).replace(/ \d{4}$/, ''), pill: sx ? sx.name : '', pillTone: sx ? sx.tone : 'mute', a: sx && g.att.st !== 'h' ? money(am) : '', tone: '',
@@ -3338,7 +3341,7 @@ function wstText(d) {
   var L = [d.sub + ' — ' + d.name, d.date, ''];
   d.sums.forEach(function (x) { L.push(x.l + ': ' + x.v + (x.sub ? ' (' + x.sub + ')' : '')); });
   L.push(''); d.days.forEach(function (g) { L.push(g.title + (g.pill ? ' · ' + g.pill : '') + (g.a ? ' ' + g.a : '')); g.rows.forEach(function (r) { L.push('   ' + r.pill + (r.note ? ' · ' + r.note : '') + ' ' + r.a); }); });
-  L.push('', d.closeL + ': ' + d.closeV);
+  L.push('', d.settle ? d.settle.l + ' ' + d.settle.v + ' · ' + d.closeV : d.closeL + ': ' + d.closeV);
   return L.join('\n');
 }
 var WST_COL = { ok: '#14563A', bad: '#B3261E', mute: '#5B6660', info: '#243C8F', warn: '#B54708' };
@@ -3376,7 +3379,7 @@ function wstCanvas(d) {
     y += g.rows.length ? 12 : 0;
   });
   var cc = d.closeTone === 'bad' ? '#B3261E' : d.closeTone === 'ok' ? '#14563A' : '#5B6660';
-  x.fillStyle = cc; x.fillRect(0, y, W, 84); x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '600 28px ' + F; x.fillText(d.closeL, W - PAD, y + 52); x.textAlign = 'left'; x.font = '700 34px ' + F; x.fillText(d.closeV, PAD, y + 54);
+  x.fillStyle = cc; x.fillRect(0, y, W, 84); x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '600 28px ' + F; x.fillText(d.settle ? d.settle.l : d.closeL, W - PAD, y + 52); x.textAlign = 'left'; x.font = '700 34px ' + F; x.fillText(d.settle ? d.settle.v + ' · ' + d.closeV : d.closeV, PAD, y + 54);
   x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد', W / 2, H - 20);
   return c;
 }
@@ -3402,7 +3405,7 @@ function wstSheet(sh) {
   return { title: 'كشف ' + w.name, sub: 'اختر الفترة وما يظهر في الكشف',
     fields: [fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()),
       fChips('sum', 'ملخص الإجماليات في الأعلى', [['1', 'إظهار'], ['0', 'إخفاء']]), fChips('det', 'حركات المكافآت والخصومات بتواريخها', [['1', 'إظهار'], ['0', 'إخفاء']])],
-    rows: d.sums.map(function (s) { return X({ title: s.l, end: s.v, endTone: s.tone }); }).concat([X({ title: d.closeL, end: d.closeV, endTone: d.closeTone })]),
+    rows: d.sums.map(function (s) { return X({ title: s.l, end: s.v, endTone: s.tone }); }).concat([X({ title: d.settle ? d.settle.l : d.closeL, end: d.settle ? d.settle.v + ' · ' + d.closeV : d.closeV, endTone: d.closeTone })]),
     acts: [X({ title: 'حفظ صورة', icon: 'i-download', go: function () { wstSend(w, o, 'png'); } }), X({ title: 'حفظ PDF', icon: 'i-download', go: function () { wstSend(w, o, 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { wstSend(w, o, 'txt'); } })],
     ft: { label: 'إرسال (أي تطبيق)', ok: true, go: function () { shut(); wstSend(w, o, 'share'); } } };
 }
