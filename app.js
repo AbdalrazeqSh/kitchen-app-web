@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.8';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.9';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1517,11 +1517,31 @@ function phRow(o, rec, title) {
   return X(o);
 }
 
+/* مشاركة الصورة بلا إغلاق النافذة: تُفتح قائمة النظام فيختار المستخدم أي تطبيق */
+function phShare(id, title) {
+  phGet(id).then(function (u) {
+    if (!u) { say('الصورة غير موجودة على هذا الجهاز'); return; }
+    deliverFile('kitchen-photo-' + id + '.jpg', u.split(',')[1], 'image/jpeg', title || 'صورة مرفقة').catch(function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); });
+  });
+}
+function phSave(id) {
+  phGet(id).then(function (u) {
+    if (!u) { say('الصورة غير موجودة على هذا الجهاز'); return; }
+    saveFile('صورة-' + id + '.jpg', u.split(',')[1], 'image/jpeg', 'صورة مرفقة').then(function (r) { say(savedMsg(r, 'الصورة')); }, function () { say('تعذّر حفظ الصورة'); });
+  });
+}
+/* نافذة الصورة المشتركة: تظهر الصورة داخل التطبيق ثم المشاركة لأي تطبيق والحفظ. تخدم كل صفوف الصور (phRow) */
+function fPhotoView(url) {
+  return { label: '', hint: '', hasHint: false, isText: false, isChips: false, isArea: false, value: '', ph: '', mode: 'text', onInput: noop, chips: [], isPhView: true,
+    phUrl: url || '', phShow: url ? 'block' : 'none', phWait: url ? 'none' : 'block', phH: url ? '0' : '160px', fd: 'column', ai: 'stretch', gp: '0', lf: 'none' };
+}
 function photoSheet(sh) {
   if (sh.t !== 'phv') return null;
-  return { title: 'صورة مرفقة', sub: sh.title || '',
-    rows: [X({ icon: 'i-image', icTone: 'ok', title: 'صورة التوثيق محفوظة على هذا الجهاز', sub: 'تُضغط تلقائيًا، وتدخل في النسخة الاحتياطية' })],
-    ft: { label: 'فتح الصورة', ok: true, go: function () { phOpenFile(sh.id); } } };
+  if (A.form.pvId !== sh.id) { A.form.pvId = sh.id; A.form.pvUrl = ''; phGet(sh.id).then(function (u) { if (A.form.pvId === sh.id) { A.form.pvUrl = u || ''; if (!u) say('الصورة غير موجودة على هذا الجهاز (ربما أتت من نسخة احتياطية بلا صور)'); render(); } }); }
+  var t = sh.title || 'صورة مرفقة';
+  return { title: 'صورة مرفقة', sub: sh.title || '', fields: [fPhotoView(A.form.pvUrl)],
+    ft: { label: 'مشاركة', ok: !!A.form.pvUrl, go: function () { phShare(sh.id, t); } },
+    ft2: { label: 'حفظ في المستندات', go: function () { phSave(sh.id); } } };
 }
 
 /* مدخلات الملفات المخفية (index.html) */
