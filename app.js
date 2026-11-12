@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.9';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.10';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -944,7 +944,7 @@ function chefOptSheet(sh) {
   return { title: 'نسخة للشيف', sub: multi ? 'اختر ما يصل الشيف' : 'اختر الأقسام التي تصل الشيف', fields: fl,
     note: !sel.length ? { text: 'اختر طبخة واحدة على الأقل.', tone: 'warn' } : !ok ? { text: 'اختر قسمًا واحدًا على الأقل.', tone: 'warn' } : null,
     acts: [X({ title: 'حفظ صورة', icon: 'i-download', go: function () { if (ok) saveChef(make(), 'png'); } }), X({ title: 'حفظ PDF', icon: 'i-download', go: function () { if (ok) saveChef(make(), 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { if (ok) saveChef(make(), 'txt'); } })],
-    ft: { label: 'مشاركة على واتساب', ok: ok, go: function () { var d = make(); shut(); shareChef(d); } } };
+    ft: { label: 'مشاركة (أي تطبيق)', ok: ok, go: function () { var d = make(); shut(); shareChef(d); } } };
 }
 function shareChefBatch(b, saved) { if (saved === false) chefOpen({ k: 'draft', label: batchName(b), spec: function () { return chefSpecBatch(b, false); } }); else chefOpen({ k: 'batch', id: b.id }); }
 function shareChefPlan(p) { chefOpen({ k: 'plan', id: p.id }); }
@@ -2583,9 +2583,9 @@ function pgReports() {
   }
   if (k !== 'workers' && roHasMe(k)) bl.push(B('chips', { items: [[false, 'عرضي'], [true, 'كما يُصدَّر']].map(function (a) { return X({ label: a[1], on: !!A.rexp === a[0], go: function () { setState({ rexp: a[0] }); } }); }) }));
   bl.push(B('paper', { pap: repDoc(k) }));
-  bl.push(B('btns', { items: [X({ label: k === 'workers' ? 'داخلي: بلا مشاركة' : 'مشاركة على واتساب', icon: 'i-send', on: k !== 'workers', go: function () { if (k === 'workers') say('كشف العمال داخلي ولا يُرسل'); else exportReport(k, 'share'); } })] }));
+  bl.push(B('btns', { items: [X({ label: k === 'workers' ? 'داخلي: بلا مشاركة' : 'مشاركة (أي تطبيق)', icon: 'i-send', on: k !== 'workers', go: function () { if (k === 'workers') say('كشف العمال داخلي ولا يُرسل'); else exportReport(k, 'share'); } })] }));
   if (k !== 'workers') bl.push(B('btns', { items: [X({ label: 'خيارات التقرير', icon: 'i-sliders', go: function () { var f = {}; RO[k].forEach(function (a) { f[a[0]] = roV(k, a[0]); }); f.order = secOrder(k).join(','); openSh({ t: 'repOpt', k: k }, f); } })] }));
-  bl.push(B('btns', { items: [X({ label: 'حفظ PDF', icon: 'i-download', go: function () { exportReport(k, 'pdf'); } }), X({ label: 'حفظ صورة', icon: 'i-download', go: function () { exportReport(k, 'png'); } }), X({ label: 'نسخ النص', icon: 'i-copy', go: function () { copyReport(k); } })] }));
+  bl.push(B('btns', { items: [X({ label: 'مشاركة PDF', icon: 'i-send', go: function () { exportReport(k, 'sharepdf'); } }), X({ label: 'حفظ PDF', icon: 'i-download', go: function () { exportReport(k, 'pdf'); } }), X({ label: 'حفظ صورة', icon: 'i-download', go: function () { exportReport(k, 'png'); } }), X({ label: 'نسخ النص', icon: 'i-copy', go: function () { copyReport(k); } })] }));
   if (k === 'stock' || k === 'wfp') bl.push(B('btns', { items: [X({ label: 'تغيير دورة تقرير المخزون', icon: 'i-clock', go: function () { openSh({ t: 'stockEvery' }, { n: String(S.settings.stockEvery || 3) }); } })] }));
   var di = dayInfo();
   if (k === 'wck' && di.sent && di.sent.ver > 1) bl.push(B('note', { tone: 'warn', icon: 'i-doc', text: 'النسخة الحالية معدَّلة رقم ' + di.sent.ver + '، وفيها: ' + di.sent.ch.join('، ') + '.' }));
@@ -3144,13 +3144,15 @@ function paperCanvas(k) {
     var tmp = document.createElement('div'); tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:' + EXW + 'px'; tmp.innerHTML = html.replace(' xmlns="http://www.w3.org/1999/xhtml"', ''); document.body.appendChild(tmp);
     var h = tmp.firstChild.offsetHeight; tmp.remove();
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + EXW + '" height="' + h + '"><foreignObject width="100%" height="100%"><style>' + css + '</style>' + html + '</foreignObject></svg>';
-    return new Promise(function (ok, bad) {
-      var img = new Image(); img.onload = function () {
-        var es = Math.min(EXS, 14000 / h), c = document.createElement('canvas'); c.width = Math.round(EXW * es); c.height = Math.round(h * es);
-        var x = c.getContext('2d'); x.fillStyle = '#EEF0EC'; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height); ok(c);
-      }; img.onerror = function () { bad(new Error('render')); };
-      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    });
+    var src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    /* الخطوط المضمَّنة داخل SVG تُفكّ ترميزها بعد onload، فأول رسم يخرج فارغًا أو بخط بديل (وكان الإرسال يعمل في المحاولة الثانية فقط).
+       لذلك نحمّل الصورة مرة تسخينًا ونرسمها خارج الشاشة، ننتظر قليلًا، ثم نحمّلها ونرسمها فعليًا */
+    var load = function () { return new Promise(function (ok2, bad2) { var im = new Image(); im.onload = function () { ok2(im); }; im.onerror = function () { bad2(new Error('render')); }; im.src = src; }); };
+    var paint = function (im) {
+      var es = Math.min(EXS, 14000 / h), c = document.createElement('canvas'); c.width = Math.round(EXW * es); c.height = Math.round(h * es);
+      var x = c.getContext('2d'); x.fillStyle = '#EEF0EC'; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height); return c;
+    };
+    return load().then(function (w1) { paint(w1); return new Promise(function (r) { setTimeout(r, 250); }); }).then(load).then(paint);
   });
 }
 /* PDF بسيط: صفحات A4 من صور JPEG للورقة */
@@ -3190,10 +3192,21 @@ function pdfFromCanvas(c) {
 function u8b64(u) { var s = '', i; for (i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 function exName(k, ext) { return 'مطبخ-عهد-' + { cook: 'الاستهلاك', supply: 'التوريد', wck: 'نسخة-المراقب', stock: 'حالة-المخزون', wfp: 'مخزون-WFP', workers: 'كشف-العمال' }[k] + '-' + today() + '.' + ext; }
 /* يسلّم الملف: مشاركة على الجوال، وتنزيل في المتصفح */
+/* تسليم ملف عبر قائمة المشاركة. الاسم المؤقت لاتيني فريد (الأسماء العربية المكرّرة في الكاش كانت تُظهر المعاينة فارغة في أول محاولة)، والنص لا يُترك فارغًا،
+   وإن فشلت أول محاولة (غير الإلغاء) تُعاد تلقائيًا مرة بالرابط بدل المصفوفة */
+var SHSEQ = 0;
+function shareTmpName(name) { var m = /\.([a-z0-9]{2,4})$/i.exec(name || ''); return 'kitchen-' + Date.now().toString(36) + (++SHSEQ) + '.' + (m ? m[1].toLowerCase() : 'png'); }
+function shareCancelled(er) { return /cancel|dismiss/i.test(String((er && er.message) || er || '')); }
 function deliverFile(name, b64data, mime, title, text) {
   if (P.Filesystem && P.Share) {
-    return P.Filesystem.writeFile({ path: name, data: b64data, directory: 'CACHE' }).then(function (r) {
-      return P.Share.share({ title: title, text: text || '', files: [r.uri], dialogTitle: title });
+    var tmp = shareTmpName(name), body = text || title || '';
+    return P.Filesystem.writeFile({ path: tmp, data: b64data, directory: 'CACHE' }).then(function (r) {
+      return new Promise(function (ok) { setTimeout(ok, 120); }).then(function () {
+        return P.Share.share({ title: title, text: body, files: [r.uri], dialogTitle: title }).catch(function (er) {
+          if (shareCancelled(er)) throw er;
+          return P.Share.share({ title: title, text: body, url: r.uri, dialogTitle: title });
+        });
+      });
     });
   }
   var a = document.createElement('a'); a.href = 'data:' + mime + ';base64,' + b64data; a.download = name; document.body.appendChild(a); a.click(); a.remove(); return Promise.resolve();
@@ -3212,6 +3225,7 @@ function exportReport(k, how) {
   var done = function () { EXBUSY = false; }, fail = function () { done(); say('تعذّر تجهيز التقرير'); };
   paperCanvas(k).then(function (c) {
     var title = rptName(k);
+    if (how === 'sharepdf') return deliverFile(exName(k, 'pdf'), u8b64(pdfFromCanvas(c)), 'application/pdf', title, shortText(k)).then(function () { done(); say('جُهّز «' + title + '» كملف PDF'); });
     if (how === 'pdf') return saveFile(exName(k, 'pdf'), u8b64(pdfFromCanvas(c)), 'application/pdf', title).then(function (r) { done(); say(savedMsg(r, 'ملف PDF لـ«' + title + '»')); });
     var png = c.toDataURL('image/png').split(',')[1];
     if (how !== 'share') return saveFile(exName(k, 'png'), png, 'image/png', title).then(function (r) { done(); say(savedMsg(r, 'صورة «' + title + '»')); });
@@ -3385,7 +3399,7 @@ function wstSheet(sh) {
       fChips('sum', 'ملخص الإجماليات في الأعلى', [['1', 'إظهار'], ['0', 'إخفاء']]), fChips('det', 'حركات المكافآت والخصومات بتواريخها', [['1', 'إظهار'], ['0', 'إخفاء']])],
     rows: d.sums.map(function (s) { return X({ title: s.l, end: s.v, endTone: s.tone }); }).concat([X({ title: d.closeL, end: d.closeV, endTone: d.closeTone })]),
     acts: [X({ title: 'حفظ صورة', icon: 'i-download', go: function () { wstSend(w, o, 'png'); } }), X({ title: 'حفظ PDF', icon: 'i-download', go: function () { wstSend(w, o, 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { wstSend(w, o, 'txt'); } })],
-    ft: { label: 'إرسال على واتساب', ok: true, go: function () { shut(); wstSend(w, o, 'share'); } } };
+    ft: { label: 'إرسال (أي تطبيق)', ok: true, go: function () { shut(); wstSend(w, o, 'share'); } } };
 }
 
 /* ===== 02z-sms.js ===== */
