@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.0';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.1';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3844,7 +3844,9 @@ function pgMore() {
   return [moneyCard(), B('rows', { title: 'الحسابات', items: moneyRows() }), B('rows', { title: 'المتابعة', items: [
     X({ icon: 'i-doc', icTone: 'info', title: 'التقارير والإرسال', sub: 'الاستهلاك والمخزون وكشف العمال: شارك أو انسخ', chev: true, go: function () { open('reports'); } }),
     X({ icon: 'i-calendar', icTone: 'info', title: 'التقويم والتنبيهات', sub: cs, chev: true, go: function () { open('cal'); } }),
-    X({ icon: 'i-box', icTone: 'ok', title: 'الموجودات', sub: pl(AA().length, 'نوع واحد', 'نوعان', 'أنواع') + ' · قدور وأدوات ومعدات: عدد وحالة وجرد', chev: true, go: function () { open('assets'); } })
+    X({ icon: 'i-box', icTone: 'ok', title: 'الموجودات', sub: pl(AA().length, 'نوع واحد', 'نوعان', 'أنواع') + ' · قدور وأدوات ومعدات: عدد وحالة وجرد', chev: true, go: function () { open('assets'); } }),
+    X({ icon: 'i-users', icTone: 'mute', title: 'المستفيدون', sub: pl(bens().length, 'مستفيد واحد', 'مستفيدان', 'مستفيدين') + ' · عدّل بياناتهم أو أضف', chev: true, go: function () { openSh({ t: 'list', k: 'bens' }); } }),
+    X({ icon: 'i-truck', icTone: 'mute', title: 'المؤسسات', sub: pl(S.insts.filter(function (i) { return !i.arch; }).length, 'مؤسسة واحدة', 'مؤسستان', 'مؤسسات') + ' · عدّل أو أنهِ التعامل', chev: true, go: function () { openSh({ t: 'list', k: 'insts' }); } })
   ] }), B('rows', { title: 'أخرى', items: [
     X({ icon: 'i-sliders', icTone: 'mute', title: 'الإدارة والإعدادات', sub: 'الأشخاص والصلاحيات، القوائم، الأرشيف، إغلاق اليوم، الأرصدة الافتتاحية', chev: true, go: function () { open('device'); } }),
     X({ icon: 'i-wifi', icTone: 'info', title: 'الحساب والمزامنة', sub: syncSub(), tag: syncTag().t, tagTone: syncTag().tone, chev: true, go: function () { openSh({ t: 'sync' }, { email: '', pw: '' }); } }),
