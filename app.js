@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.23';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.24';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1553,16 +1553,17 @@ function phWire() {
 
 /* معاينة أي صورة مولَّدة (كشف، تقرير، ملخص، نسخة الشيف) داخل التطبيق أولًا، وتحتها «مشاركة» و«حفظ في المستندات» */
 var IMGP = null;
-function imgShow(c, name, title, text) { IMGP = { url: c.toDataURL('image/png'), name: name, title: title, text: text || '' }; openSh({ t: 'imgp' }, {}); }
-function imgPreview(make, name, title, text) {
+function imgShow(c, name, title, text, pdf) { IMGP = { url: c.toDataURL('image/png'), name: name, title: title, text: text || '', cv: pdf ? c : null }; openSh({ t: 'imgp' }, {}); }
+function imgPreview(make, name, title, text, pdf) {
   say('جارٍ تجهيز الصورة…');
-  var go = function () { try { imgShow(make(), name, title, text); } catch (e) { say('تعذّر تجهيز الصورة'); } };
+  var go = function () { try { imgShow(make(), name, title, text, pdf); } catch (e) { say('تعذّر تجهيز الصورة'); } };
   if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
 }
 function imgSheet(sh) {
   if (sh.t !== 'imgp' || !IMGP) return null;
   var g = IMGP;
   return { title: g.title, sub: 'هكذا ستصل الصورة', fields: [fPhotoView(g.url)],
+    acts: g.cv ? [X({ title: 'ملف PDF للطباعة', icon: 'i-doc', go: function () { var pn = g.name.replace(/\.png$/, '.pdf'); deliverFile(pn, u8b64(pdfFromCanvas(g.cv)), 'application/pdf', g.title, g.text).catch(function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); }); } })] : [],
     ft: { label: 'مشاركة', ok: true, go: function () { deliverFile(g.name, g.url.split(',')[1], 'image/png', g.title, g.text).catch(function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); }); } },
     ft2: { label: 'حفظ في المستندات', go: function () { saveFile(g.name, g.url.split(',')[1], 'image/png', g.title).then(function (r) { say(savedMsg(r, 'الصورة')); }, function () { say('تعذّر حفظ الصورة'); }); } } };
 }
@@ -2861,7 +2862,7 @@ function stLate(i, ym, a) {
   return a.bs.filter(function (b) { return (b.fixTs || 0) > sent; }).length;
 }
 function stmtSheet(sh) {
-  var i = inst(sh.id), ym = stCurM(i), stActs = [X({ title: 'دفعة', icon: 'i-wallet', go: function () { A.stM = ym; openSh({ t: 'iniPay', id: i.id }, { fund: '', amt: '', note: '', rate: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { A.stM = ym; openSh({ t: 'iniChg', id: i.id }, { amt: '', note: '' }); } }), X({ title: 'طبخة جديدة', icon: 'i-pot', go: function () { startIniBatch(i.id); } })], a = stAcct(i, ym), sent = (S.settings.stmtSent || {})[stKey(i, ym)], late = stLate(i, ym, a);
+  var i = inst(sh.id), ym = stCurM(i); if (!fv('sv')) A.form.sv = 'full'; var stActs = [X({ title: 'دفعة', icon: 'i-wallet', go: function () { A.stM = ym; openSh({ t: 'iniPay', id: i.id }, { fund: '', amt: '', note: '', rate: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { A.stM = ym; openSh({ t: 'iniChg', id: i.id }, { amt: '', note: '' }); } }), X({ title: 'طبخة جديدة', icon: 'i-pot', go: function () { startIniBatch(i.id); } })], a = stAcct(i, ym), sent = (S.settings.stmtSent || {})[stKey(i, ym)], late = stLate(i, ym, a);
   var ms = stMonths(i), rows = [];
   if (a.prev) rows.push(X({ title: 'الرصيد السابق', sub: 'قبل ' + (ym === 'all' ? '' : monthLabel(ym)), tag: money(a.prev), tagTone: a.prev > 0 ? 'warn' : 'ok' }));
   a.bs.forEach(function (b) {
@@ -2875,9 +2876,9 @@ function stmtSheet(sh) {
   var nt = late ? { text: 'عُدّل ' + pl(late, 'طبخة واحدة', 'طبختان', 'طبخات') + ' بعد إرسال الكشف (' + dlabel(new Date(sent).toISOString().slice(0, 10)) + '): أرسل نسخة جديدة.', tone: 'warn' }
     : sent ? { text: 'أُرسل هذا الكشف في ' + dlabel(new Date(sent).toISOString().slice(0, 10)) + '.', tone: 'info' }
     : { text: 'قبل الإرسال: اضغط أي طبخة لتعديل أصنافها وكمياتها وأسعارها، ثم شارك الكشف.', tone: 'info' };
-  return { acts: stActs, title: 'كشف حساب ' + i.name, sub: ym === 'all' ? 'كل الأشهر' : monthLabel(ym), fields: [fChips('m', 'الشهر', ms.map(function (m) { return [m, monthLabel(m)]; }).concat([['all', 'الكل']]))],
+  return { acts: stActs, title: 'كشف حساب ' + i.name, sub: ym === 'all' ? 'كل الأشهر' : monthLabel(ym), fields: [fChips('m', 'الشهر', ms.map(function (m) { return [m, monthLabel(m)]; }).concat([['all', 'الكل']])), fSeg('sv', 'شكل الكشف عند المشاركة', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر']])],
     rows: rows, note: nt,
-    ft: { label: 'مشاركة الكشف (صورة)', ok: true, go: function () { shareStmt(i, ym); } },
+    ft: { label: 'مشاركة الكشف', ok: true, go: function () { shareStmt(i, ym, fv('sv')); } },
     ft2: { label: sent && !late ? 'إلغاء علامة الإرسال' : 'تعليم الكشف كمُرسَل', go: function () {
       S.settings.stmtSent = S.settings.stmtSent || {}; var k = stKey(i, ym);
       if (sent && !late) delete S.settings.stmtSent[k]; else S.settings.stmtSent[k] = Date.now();
@@ -2904,7 +2905,7 @@ function stmtCanvas(i, ym) {
   x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد', W / 2, H - 22);
   return c;
 }
-function shareStmt(i, ym) { imgPreview(function () { return stmtCanvas(i, ym); }, 'كشف-' + i.name + '-' + ym + '.png', 'كشف حساب ' + i.name); }
+function shareStmt(i, ym, mode) { var full = mode !== 'sum'; imgPreview(function () { return full ? stmtDetailCanvas(i, ym) : stmtCanvas(i, ym); }, 'كشف-' + i.name + '-' + ym + (full ? '-مفصل' : '') + '.png', 'كشف حساب ' + i.name, '', full); }
 
 /* ---------- نوافذ التعديل ---------- */
 function fixSheet(sh) {
@@ -2936,6 +2937,72 @@ function fixSheet(sh) {
     }
   }
   return null;
+}
+
+/* ===== 02u2-stmtdet.js ===== */
+/* ---------- كشف حساب الجهة المفصّل بالمواد ----------
+   لكل يوم: الطبخات وعدد قدورها، ثم المواد التي دخلت كل طبخة (الكمية، سعر الوحدة، التكلفة)، وإجمالي الطبخة وإجمالي اليوم،
+   كله في كشف واحد. الطبخة بسعر مقطوع للقدر تُعرض موادها بكمياتها وتحتها «عدد القدور × السعر». الطبخة العينية بلا أسعار.
+   الشاشة والصورة وملف PDF من الرسم نفسه، ومجموع الكشف يطابق «المستحق» في الكشف المختصر. */
+function stDayGroups(a) {
+  var g = [], by = {};
+  a.bs.forEach(function (b) { if (!by[b.date]) { by[b.date] = { date: b.date, bs: [] }; g.push(by[b.date]); } by[b.date].bs.push(b); });
+  return g;
+}
+function stBatchBlock(b) {
+  var free = b.kind === 'external' && E.isFree(led(b.order[0])), lump = b.pm === 'lump' && !free, rows = [];
+  spiceLast(b.lines || []).forEach(function (ln) {
+    var li = item(ln.item) || { name: '؟', unit: '' }, c = ln.cost != null ? ln.cost : r2((ln.qty || 0) * (ln.price || 0)), eff = ln.qty > 0 ? r2(c / ln.qty) : 0;
+    rows.push({ n: li.name, q: qtyU(ln.qty, li.unit), p: free || lump ? '' : c > 0 ? money(eff) + ' / ' + li.unit : 'عيني', c: free || lump ? '' : c > 0 ? money(c) : '—' });
+  });
+  var extra = [];
+  if (!free && !lump) (b.xl || []).forEach(function (x) { extra.push({ n: x.name || x.note || 'رسوم إضافية', c: money(x.amt || 0) }); });
+  var foot = lump ? pl(b.pots || 0, 'قدر واحد', '2 قدر', 'قدور') + ' × ' + money(b.lump || 0) : '';
+  return { name: batchName(b), pots: pl(b.pots || 0, 'قدر واحد', '2 قدر', 'قدور'), total: batchCostTxt(b), rows: rows, extra: extra, foot: foot, free: free, lump: lump, mat: r2((b.lines || []).reduce(function (t, ln) { return t + (ln.cost || 0); }, 0)) };
+}
+function stmtDetailCanvas(i, ym) {
+  var a = stAcct(i, ym), W = 840, PAD = 36, F = "'IBM Plex Sans Arabic', sans-serif", groups = stDayGroups(a), RH = 44, L = [];
+  /* L: قائمة أسطر مرسومة: {k:نوع, ...} */
+  if (a.prev) L.push({ k: 'row', a: 'الرصيد السابق', d: '', c: money(a.prev), h: 56 });
+  groups.forEach(function (g) {
+    var dayTot = r2(g.bs.reduce(function (t, b) { return t + (b.cost || 0); }, 0)), pots = g.bs.reduce(function (t, b) { return t + (b.pots || 0); }, 0);
+    L.push({ k: 'day', a: dlong(g.date), d: pl(pots, 'قدر واحد', '2 قدر', 'قدور'), c: money(dayTot), h: 58 });
+    g.bs.forEach(function (b) {
+      var B = stBatchBlock(b);
+      L.push({ k: 'bat', a: B.name + (b.fixTs ? ' · عُدّلت' : ''), d: B.pots, c: B.total, h: 50 });
+      if (B.rows.length) L.push({ k: 'th', lump: B.lump, free: B.free, h: 32 });
+      B.rows.forEach(function (r) { L.push({ k: 'ln', r: r, lump: B.lump, free: B.free, h: RH }); });
+      B.extra.forEach(function (x) { L.push({ k: 'ex', a: x.n, c: x.c, h: RH }); });
+      if (B.foot) L.push({ k: 'ft', a: 'سعر القدر', d: B.foot, c: B.total, h: RH });
+      L.push({ k: 'gap', h: 10 });
+    });
+  });
+  if (!groups.length) L.push({ k: 'row', a: 'لا طبخات في هذه الفترة', d: '', c: money(0), h: 56 });
+  a.chg.forEach(function (c) { L.push({ k: 'row', a: c.note || 'إضافة', d: c.date ? dlabel(c.date) : '', c: money(c.amt), h: 56 }); });
+  a.pay.forEach(function (c) { L.push({ k: 'row', a: 'دفعة' + (c.note ? ': ' + c.note : ''), d: c.date ? dlabel(c.date) : '', c: '− ' + money(c.amt), ok: 1, h: 56 }); });
+  var sum = [['الرصيد السابق', a.prev], ['الطبخات', a.cost], ['إضافات', a.ch], ['دفعات', -a.pd]].filter(function (s) { return s[1]; });
+  var hdr = 130, H = hdr + 24 + L.reduce(function (t, r) { return t + r.h; }, 0) + 30 + sum.length * 46 + 110;
+  var c = document.createElement('canvas'); c.width = W; c.height = H;
+  var x = c.getContext('2d'); x.direction = 'rtl'; x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H); x.fillStyle = '#14563A'; x.fillRect(0, 0, W, hdr);
+  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 40px ' + F; x.fillText('كشف حساب ' + i.name, W - PAD, 62); x.font = '500 25px ' + F; x.fillText((ym === 'all' ? 'كل الأشهر' : monthLabel(ym)) + ' · مفصّل بالمواد', W - PAD, 104);
+  var ell = function (t, mw) { t = String(t); while (t.length > 1 && x.measureText(t).width > mw) t = t.slice(0, -1); return x.measureText(t).width > mw ? t : t; };
+  var fit = function (t, mw) { t = String(t); if (x.measureText(t).width <= mw) return t; while (t.length > 1 && x.measureText(t + '…').width > mw) t = t.slice(0, -1); return t + '…'; };
+  var y = hdr + 24;
+  L.forEach(function (r) {
+    var cy = y + r.h / 2 + 9;
+    if (r.k === 'day') { x.fillStyle = '#E6F0EA'; x.fillRect(0, y, W, r.h); x.fillStyle = '#14563A'; x.textAlign = 'right'; x.font = '700 28px ' + F; x.fillText(r.a, W - PAD, cy); x.textAlign = 'center'; x.font = '500 22px ' + F; x.fillText(r.d, W * 0.5, cy); x.textAlign = 'left'; x.font = '700 28px ' + F; x.fillText(r.c, PAD, cy); }
+    else if (r.k === 'bat') { x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText(fit(r.a, 430), W - PAD, cy); x.textAlign = 'center'; x.fillStyle = '#5B6660'; x.font = '500 22px ' + F; x.fillText(r.d, W * 0.52, cy); x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '700 27px ' + F; x.fillText(r.c, PAD, cy); }
+    else if (r.k === 'th') { x.fillStyle = '#8A948E'; x.font = '500 19px ' + F; x.textAlign = 'right'; x.fillText('الصنف', W - PAD - 16, y + 24); x.textAlign = 'center'; x.fillText('الكمية', 470, y + 24); if (!r.lump && !r.free) { x.fillText('سعر الوحدة', 290, y + 24); x.textAlign = 'left'; x.fillText('التكلفة', PAD, y + 24); } x.fillStyle = '#E3E8E4'; x.fillRect(PAD, y + r.h - 3, W - 2 * PAD, 1); }
+    else if (r.k === 'ln') { x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '500 24px ' + F; x.fillText(fit(r.r.n, 280), W - PAD - 16, cy - 2); x.textAlign = 'center'; x.fillStyle = '#5B6660'; x.font = '500 22px ' + F; x.fillText(r.r.q, 470, cy - 2); if (r.r.p) { x.font = '500 20px ' + F; x.fillText(r.r.p, 290, cy - 2); } if (r.r.c) { x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '500 24px ' + F; x.fillText(r.r.c, PAD, cy - 2); } }
+    else if (r.k === 'ex' || r.k === 'ft') { x.fillStyle = '#5B6660'; x.textAlign = 'right'; x.font = '500 23px ' + F; x.fillText(fit(r.a, 360), W - PAD - 16, cy - 2); if (r.d) { x.textAlign = 'center'; x.fillText(r.d, 400, cy - 2); } x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '700 24px ' + F; x.fillText(r.c, PAD, cy - 2); }
+    else if (r.k === 'row') { x.fillStyle = '#F4F6F2'; x.fillRect(0, y, W, r.h); x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '700 26px ' + F; x.fillText(fit(r.a, 430), W - PAD, cy); x.textAlign = 'center'; x.fillStyle = '#5B6660'; x.font = '500 21px ' + F; x.fillText(r.d, W * 0.52, cy); x.textAlign = 'left'; x.fillStyle = r.ok ? '#14563A' : '#1B2421'; x.font = '700 26px ' + F; x.fillText(r.c, PAD, cy); }
+    y += r.h;
+  });
+  y += 14; sum.forEach(function (s) { x.fillStyle = '#5B6660'; x.textAlign = 'right'; x.font = '500 25px ' + F; x.fillText(s[0], W - PAD, y + 32); x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '700 25px ' + F; x.fillText((s[1] < 0 ? '− ' : '') + money(Math.abs(s[1])), PAD, y + 32); y += 46; });
+  y += 14; x.fillStyle = '#14563A'; x.fillRect(PAD, y, W - 2 * PAD, 64);
+  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 30px ' + F; x.fillText('المستحق', W - PAD - 20, y + 42); x.textAlign = 'left'; x.fillText(money(a.due), PAD + 20, y + 42);
+  x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد', W / 2, H - 22);
+  return c;
 }
 
 /* ===== 02w-fin.js ===== */
@@ -3542,6 +3609,71 @@ function smsSheet(sh) {
   return null;
 }
 
+/* ===== 02z2-wsms.js ===== */
+/* ---------- رسائل جماعية للعمال (SMS) ----------
+   يختار المالك كل العمال أو بعضهم، يكتب الرسالة (مثلًا: «بكرة الدوام الساعة 7»)، وبضغطة واحدة تصل للجميع.
+   {الاسم} في النص يُستبدل باسم كل عامل. الإرسال من التطبيق مباشرة عبر إضافة أندرويد (نفس إضافة المخيمات)،
+   وبدونها تُفتح رسالة واحدة جاهزة بكل الأرقام في تطبيق الرسائل. آخر الرسائل تُحفظ للإعادة. الرقم يُحفظ في سجل العامل (w.phone). */
+function wsmsRecent() { var c = (S.settings.wSmsRecent = S.settings.wSmsRecent || []); return c; }
+function wsmsText(tpl, w) { return String(tpl || '').replace(/\{الاسم\}/g, w.name || '').replace(/[ \t]{2,}/g, ' ').trim(); }
+function wsmsSel() { return (fv('sel') || '').split(',').filter(Boolean); }
+function wsmsKeep(tpl) { var r = wsmsRecent().filter(function (x) { return x !== tpl; }); r.unshift(tpl); S.settings.wSmsRecent = r.slice(0, 8); }
+function wsmsSendAll(list, tpl) {
+  var ok = 0, bad = 0, i = 0, nat = smsNative();
+  if (!list.length) return;
+  wsmsKeep(tpl); audit('رسالة جماعية إلى ' + pl(list.length, 'عامل واحد', '2 عامل', 'عمال') + ': ' + tpl.slice(0, 60)); save();
+  if (!nat) { shut(); window.location.href = 'sms:' + list.map(function (w) { return smsNum(w.phone); }).join(',') + '?body=' + encodeURIComponent(wsmsText(tpl, { name: '' })); say('فُتحت الرسالة جاهزة في تطبيق الرسائل'); return; }
+  shut(); say('جارٍ إرسال ' + pl(list.length, 'رسالة واحدة', '2 رسالة', 'رسائل') + '…');
+  var step = function () {
+    if (i >= list.length) { say('أُرسلت ' + ok + (bad ? ' · تعذّرت ' + bad : '')); render(); return; }
+    var w = list[i++];
+    Capacitor.Plugins.KitchenSms.send({ to: smsNum(w.phone), body: wsmsText(tpl, w) }).then(function () { ok++; }).catch(function () { bad++; }).then(function () { setTimeout(step, 1200); });
+  }; step();
+}
+var WSMS = { sel: null };
+/* المستلمون: الافتراضي كل من له رقم، ويُعاد الافتراض عند كل فتح جديد لنافذة الرسالة */
+function wsmsPicked() { var ws = activeW().filter(function (w) { return smsNum(w.phone); }); return WSMS.sel == null ? ws : ws.filter(function (w) { return WSMS.sel.indexOf(w.id) >= 0; }); }
+function wsmsSheet(sh) {
+  if (sh.t === 'wSms') {
+    var ws = activeW(), tpl = fv('msg'), nat = smsNative(), withNum = ws.filter(function (w) { return smsNum(w.phone); }), noNum = ws.length - withNum.length, picked = wsmsPicked();
+    var who = !withNum.length ? 'لا أحد له رقم' : picked.length === withNum.length ? 'كل العمال' : picked.length ? picked.slice(0, 3).map(function (w) { return w.name; }).join('، ') + (picked.length > 3 ? '…' : '') : 'لم تختر أحدًا';
+    return { title: 'رسالة للعمال', sub: 'تصل بضغطة واحدة للمختارين',
+      acts: [X({ title: 'رسائل سابقة', icon: 'i-clock', go: function () { openSh({ t: 'wSmsHist' }, {}); } })],
+      fields: [fArea('msg', 'نص الرسالة', 'مثال: بكرة الدوام الساعة 7 صباحًا', 'يمكنك كتابة {الاسم} ليُستبدل باسم كل عامل')],
+      rows: [X({ icon: 'i-users', icTone: picked.length ? 'ok' : 'warn', title: 'المستلمون', sub: who, tag: pl(picked.length, 'عامل واحد', '2 عامل', 'عمال'), tagTone: picked.length ? 'ok' : 'warn', chev: true, go: function () { openSh({ t: 'wSmsPick' }, {}); } })],
+      note: nat ? (noNum ? { text: pl(noNum, 'عامل واحد بلا رقم', '2 عامل بلا رقم', 'عمال بلا رقم') + ': أضف أرقامهم من «المستلمون».', tone: 'info' } : null)
+        : { text: 'الإرسال التلقائي يحتاج النسخة الجديدة من التطبيق (APK). حتى ذلك الحين تُفتح رسالة واحدة جاهزة بأرقام المختارين في تطبيق الرسائل.', tone: 'warn' },
+      ft: { label: picked.length ? 'إرسال إلى ' + pl(picked.length, 'عامل واحد', '2 عامل', 'عمال') : 'اختر المستلمين', ok: picked.length > 0 && String(tpl || '').trim().length > 1, go: function () { wsmsSendAll(picked, String(tpl).trim()); } } };
+  }
+  if (sh.t === 'wSmsPick') {
+    var pw = activeW(), wn = pw.filter(function (w) { return smsNum(w.phone); }), cur = wsmsPicked(), allOn = wn.length > 0 && cur.length === wn.length;
+    var setSel = function (a) { WSMS.sel = a; render(); };
+    return { title: 'المستلمون', sub: pl(cur.length, 'عامل واحد مختار', '2 عامل مختار', 'عمال مختارون'),
+      acts: [X({ title: allOn ? 'إلغاء التحديد' : 'تحديد الكل', icon: 'i-check', go: function () { setSel(allOn ? [] : wn.map(function (w) { return w.id; })); } })],
+      rows: pw.map(function (w) { var n = smsNum(w.phone), on = cur.some(function (c) { return c.id === w.id; });
+        return X({ icon: 'i-users', icTone: n ? 'info' : 'warn', title: w.name, sub: n ? w.phone : 'بلا رقم · اضغط لإضافته', tag: n ? '' : 'بلا رقم', tagTone: 'warn', sel: !!n && on,
+          go: function () { if (!n) { openSh({ t: 'wPhone', id: w.id }, { phone: '' }); return; } var base = WSMS.sel == null ? wn.map(function (x) { return x.id; }) : WSMS.sel.slice(); setSel(on ? base.filter(function (i) { return i !== w.id; }) : base.concat([w.id])); },
+          lp: function () { openSh({ t: 'wPhone', id: w.id }, { phone: w.phone || '' }); } }); }),
+      empty: 'أضف عمالًا أولًا',
+      note: pw.length - wn.length ? { text: 'الضغطة المطوّلة على اسم تعدّل رقمه.', tone: 'info' } : null,
+      ft: { label: 'تم', ok: true, go: function () { onBack(); } } };
+  }
+  if (sh.t === 'wPhone') {
+    var w = wk(sh.id); if (!w) return { title: 'رقم العامل', rows: [], empty: 'لا عامل' };
+    var ok = !fv('phone').trim() || fv('phone').replace(/[^0-9٠-٩]/g, '').length >= 7;
+    return { title: w.name, sub: 'رقم الجوال لاستلام الرسائل',
+      fields: [fText('phone', 'رقم الجوال', '05XXXXXXXX', 'tel')],
+      ft: { label: 'حفظ الرقم', ok: ok, go: function () { var v = fv('phone').trim(); w.phone = v; audit('رقم جوال «' + w.name + '»: ' + (v ? 'حُفظ' : 'حُذف')); save(); onBack(); say('حُفظ الرقم'); } } };
+  }
+  if (sh.t === 'wSmsHist') {
+    var r = wsmsRecent();
+    return { title: 'رسائل سابقة', sub: 'اضغط رسالة لإعادتها إلى نص الإرسال',
+      rows: r.map(function (t) { return X({ icon: 'i-send', icTone: 'mute', title: t, chev: true, go: function () { onBack(); fset('msg', t); } }); }),
+      empty: 'لا رسائل سابقة بعد' };
+  }
+  return null;
+}
+
 /* ===== 03-pages.js ===== */
 /* ---------- الصفحات: كل صفحة تُرجع كتلًا من مكونات التصميم ---------- */
 function batchRow(b) {
@@ -3904,6 +4036,7 @@ function pgWorkers() {
   bl.push(B('acts', { items: [
     X({ title: 'عامل جديد', icon: 'i-userPlus', on: true, go: function () { openSh({ t: 'addWorker' }, { name: '', wage: '' }); } }),
     X({ title: 'حضور الباقين', icon: 'i-check', go: function () { allPresent(); } }),
+    X({ title: 'رسالة للعمال', icon: 'i-send', go: function () { WSMS.sel = null; openSh({ t: 'wSms' }, { msg: '' }); } }),
     X({ title: 'دفع الأسبوع', icon: 'i-wallet', go: function () { openSh({ t: 'settle' }, { sel: W.filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); } })] }));
   if (m === 'wk') { bl.push(weekBlock(W)); return bl; }
   var wl = (S.workers || []).filter(function (w) { return !w.arch || A.showArch; }), wm = A.sort.workers;
@@ -4466,7 +4599,7 @@ function shDesc() {
     }
     case 'addWorker': {
       nm = fv('name').trim(); dup = dupOf(S.workers || [], nm);
-      R = { title: 'عامل جديد', sub: 'يظهر فورًا في الحضور والحسابات', fields: [fText('name', 'اسم العامل', 'الاسم'), fText('wage', 'اليومية بالشيكل', '50', 'decimal')],
+      R = { title: 'عامل جديد', sub: 'يظهر فورًا في الحضور والحسابات', fields: [fText('name', 'اسم العامل', 'الاسم'), fText('wage', 'اليومية بالشيكل', '50', 'decimal'), fText('phone', 'رقم الجوال (اختياري)', '05XXXXXXXX', 'tel')],
         dup: dupMsg(dup, 'عامل'), ft: { label: 'حفظ العامل', ok: nm.length > 1 && num('wage') > 0 && !dup, go: function () { doAddWorker(sh.then); } } };
       if (dup && dup.arch) R.add = { label: 'استعادة «' + dup.name + '» وإكمال سجله', go: function () { openSh({ t: 'unarch', k: 'worker', id: dup.id }, { wage: String(dup.daily || '') }); } };
       break;
@@ -4739,7 +4872,7 @@ function shDesc() {
       break;
     }
     case 'search': R = searchSheet(); break;
-    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || gwSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
+    default: R = moneySheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || gwSheet(sh) || wsmsSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
   }
   return R;
 }
@@ -4836,7 +4969,7 @@ function doIssue(it, l) {
 }
 function doAddWorker(then) {
   var name = fv('name').trim(), wage = num('wage'), id = newId('w', S.workers);
-  S.workers.push({ id: id, name: name, daily: wage, stints: [{ from: today(), to: '', why: '' }] });
+  S.workers.push({ id: id, name: name, daily: wage, phone: fv('phone').trim(), stints: [{ from: today(), to: '', why: '' }] });
   save();
   if (then) setState({ sh: { t: 'entry', wid: id }, q: '', form: { type: 'دفعة نقدية', amt: '', note: '', sev: 'warn' } }); else { shut(); }
   say('أُضيف العامل «' + name + '»');
