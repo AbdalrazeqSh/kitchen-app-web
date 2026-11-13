@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.26';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.27';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -148,6 +148,58 @@ function writeBackup(j) {
 function backupDays() { var last = S.settings.lastBackup || 0; return last ? Math.floor((Date.now() - last) / 864e5) : 99; }
 function hasData() { return S.moves.some(function (m) { return m.kind !== 'hist'; }) || (S.att || []).length > 0; }
 
+/* ===== 00m-menu.js ===== */
+/* ترحيل قائمة WCK الموحّدة (نوفمبر 2026، 22 وصفة). يُطبَّق مرة واحدة لكل جهاز.
+   - الوصفات تُعدَّل في مكانها وتحتفظ بمعرّفاتها (الطبخات المنفَّذة تحمل نسخة أسطرها فلا تتغير).
+   - الخطط التي لم تُنفَّذ تحسب كمياتها من الوصفة عند التنفيذ فتأخذ القيم الجديدة.
+   - القيم القديمة تبقى في سجل الوصفة (log). */
+var MENU_MEAT_RULE = 'إضافة اللحم: 30 علبة للقدر الواحد، مرة واحدة أسبوعيًا، مع الإبلاغ عند الطهي باللحم. توحَّد طريقة الطهي لكل القدور ولا يُخصَّص بعضها باللحم وبعضها بدونه. تُضاف علب اللحم قبل انتهاء الطهي بـ 15 إلى 20 دقيقة (ربع أو ثلث ساعة).';
+function migrateMenu() {
+  if (S.settings.menu1126) return;
+  var ln = function (r, id) { return r.lines.filter(function (l) { return l.item === id; })[0]; };
+  var P = function (rid, o) {
+    var r = E.by(S.recipes, rid); if (!r) return; var ch = [];
+    Object.keys(o.set || {}).forEach(function (id) { var l = ln(r, id); if (l && l.per !== o.set[id]) { ch.push(item(id).name + ' ' + l.per + '←' + o.set[id]); l.per = o.set[id]; } });
+    Object.keys(o.notes || {}).forEach(function (id) { var l = ln(r, id); if (l) l.note = o.notes[id]; });
+    (o.del || []).forEach(function (id) { if (ln(r, id)) { ch.push('حُذف ' + item(id).name); r.lines = r.lines.filter(function (l) { return l.item !== id; }); } });
+    (o.add || []).forEach(function (l) { if (!ln(r, l.item)) { ch.push('أُضيف ' + item(l.item).name + ' ' + l.per); r.lines.push(l); } });
+    if (o.noalt) r.lines.forEach(function (l) { if (l.alt) { delete l.alt; ch.push('أُلغي البديل'); } });
+    ['name', 'en', 'code', 'water', 'wnote', 'meat', 'exp', 'note'].forEach(function (k) { if (o[k] !== undefined && r[k] !== o[k]) { if (k === 'name' || k === 'water') ch.push(k === 'name' ? 'الاسم: ' + o[k] : 'الماء ' + r.water + '←' + o[k]); r[k] = o[k]; } });
+    if (ch.length || o.code) { r.log = r.log || []; r.log.unshift({ date: today(), what: 'قائمة نوفمبر الموحّدة: ' + (ch.join('، ') || 'ترقيم') }); r.log = r.log.slice(0, 30); }
+  };
+  var s = function (it, per, note) { var l = { item: it, per: per, cat: 's' }; if (note) l.note = note; return l; };
+  var b = function (it, per, note, swap) { var l = { item: it, per: per, cat: 'b' }; if (note) l.note = note; if (swap) l.swap = true; return l; };
+  P('r01', { set: { coriander: 0.03, cumin: 0.025, spice: 0.1 } });
+  P('r02', { add: [s('coriander', 0.04), s('cumin', 0.025)] });
+  P('r06', { set: { galangal: 0.015 } });
+  P('r07', { name: 'بازيلاء بالجزر والبطاطا', en: 'Peas with Carrots & Potato Stew', set: { bpepper: 0.03, ghee: 0.2, tomato: 1.667 }, noalt: true,
+    notes: { ghee: 'يمكن استخدام زيت طهي أو سمن', potato_c: '14 علبة صغيرة، وإن لم تتوفر فعلبتان كبيرتان', tomato: 'معجون 5 كجم: انتبه لنوع الصلصة فقد تتغير الكمية حسب النوع' }, water: 38, wnote: 'من 38 إلى 40 لترًا' });
+  P('r08', { set: { bpepper: 0.03, ghee: 0.2 } });
+  P('r09', { set: { bpepper: 0.03, oil: 0.2 }, water: 50 });
+  P('r10', { set: { bpepper: 0.03, lentil: 12, oil: 0.2, salt: 0.35, stock: 0.25 }, water: 40, wnote: 'من 40 إلى 42 لترًا' });
+  P('r11', { set: { bpepper: 0.03 } }); P('r12', { set: { bpepper: 0.03 } }); P('r17', { set: { bpepper: 0.03 } });
+  P('r13', { set: { bpepper: 0.03, ghee: 0.2, tomato: 1.667 } });
+  /* اليخنة: كانت «المفتول الكذّاب (مكونات اليخنة)» r18 ← R-19 */
+  P('r18', { code: 'R-19', name: 'اليخنة', en: 'Maftoul for Stew', del: ['allspice', 'ghee'], set: { bpepper: 0.02, cardamom: 0.02, salt: 0.25, spice: 0.07, stock: 0.2, turmeric: 0.03 }, add: [s('coriander', 0.03)], note: 'عند التوزيع: كل قدرين برغل مفلفل يقابلهم قدر يخنة واحد' });
+  /* المفتول المفلفل: كان «المفتول الكذّاب (برغل مفلفل)» r19 ← R-18 */
+  P('r19', { code: 'R-18', name: 'المفتول المفلفل', en: 'Burghul – Maftoul', exp: false, meat: false, set: { burghul: 15, ghee: 1, oil: 1, salt: 0.25, stock: 0.15 },
+    notes: { oil: 'للتحميص', ghee: 'نصف كيلو للتحميص ونصف كيلو للتفتيح', salt: 'حسب المجتمع المحيط' },
+    add: [s('spice', 0.04), s('cardamom', 0.02), s('bpepper', 0.02), s('cumin', 0.03), s('coriander', 0.03), s('turmeric', 0.03)], water: 22, wnote: 'تختلف الكمية حسب نوعية البرغل وامتصاصه (22 لترًا للعينة الحالية)', note: 'عند التوزيع: كل قدرين برغل مفلفل يقابلهم قدر يخنة واحد' });
+  P('r20', { code: 'R-21' }); P('r21', { code: 'R-22' });
+  /* وصفة جديدة R-20 (الموصى بها) */
+  if (!E.by(S.recipes, 'r22')) {
+    S.recipes.push({ id: 'r22', code: 'R-20', name: 'المفتول باليخني', en: 'Maftoul with Stew', meat: true, exp: true, water: 22, wnote: 'تختلف الكمية حسب نوعية البرغل وامتصاصه (22 لترًا للعينة الحالية)',
+      lines: [b('burghul', 15, 'يضاف بعد غليان الماء'), b('onion', 3), b('oil', 1, 'للتحميص'), b('ghee', 1, 'نصف كيلو للتحميص ونصف كيلو للتفتيح'),
+        b('sweetp', 2, 'علبتان × 3 كجم', true), b('pstrip', 1, 'علبة واحدة × 3 كجم', true), b('tomw', 1, 'علبة واحدة × 3 كجم', true), b('carrot', 2, 'علبتان × 3 كجم', true),
+        b('tomato', 0.167, 'نصف كيلو'), b('chick', 2, 'الحب: يوزن قبل النقع ويُسلق قبل الطهي'),
+        s('opowder', 0.05), s('dillseed', 0.15, 'تجهّز لخلطة الدقة'), s('gchili', 0.2, 'تجهّز لخلطة الدقة'), s('cpods', 0.03, 'تجهّز لخلطة الدقة'), s('salt', 0.25, 'حسب المجتمع المحيط'),
+        s('stock', 0.15), s('spice', 0.07), s('cardamom', 0.02), s('bpepper', 0.02), s('cumin', 0.03), s('coriander', 0.03), s('turmeric', 0.03)].filter(function (l) { return item(l.item); }),
+      note: 'الوصفة الموصى بها. خطواتها: (1) التجهيز المسبق: تُضاف البهارات والماجي، ويُسلق الحمص الحب المنقوع قبل البدء، وتُجهَّز الخضار، وتُجهَّز خلطة الدقة (البصل المفروم مع الجرادة والفلفل الأخضر والشطة وتُدعك). (2) تحميص البرغل: لتر زيت مع نصف كيلو سمن حتى يسخنا، ثم يُضاف البرغل ويُقلَّب 3 إلى 4 دقائق حتى يتغلف. (3) الترشيب: تُضاف الخضار والحمص والبندورة وصلصة الطماطم مع خلطة الدقة، وتُسكب المياه المغلية (22 لترًا) ويُضبط الملح تدريجيًا (250 إلى 300 غرام). (4) الامتصاص: يُحرَّك جيدًا حتى يمتص البرغل الماء، ثم تُخفَّض النار ويُغطى القدر بإحكام لمدة أقصاها 30 دقيقة. (5) التفتيح والتقديم: يُضاف نصف كيلو سمن للتفتيح ويُقلَّب برفق من الأسفل إلى الأعلى.',
+      kinds: ['private', 'external'], log: [{ date: today(), what: 'أُضيفت من قائمة نوفمبر الموحّدة (R-20)' }], src: 'قائمة WCK الموحّدة · نوفمبر 2026' });
+  }
+  S.settings.menu1126 = true; save();
+}
+
 /* ===== 00s-safe.js ===== */
 /* ---------- حماية البيانات: تحقق، ترحيلات مرقّمة، لقطات تلقائية، سجل أخطاء ---------- */
 var SCHEMA = 3;
@@ -169,7 +221,7 @@ function fixShape(n) { n.settings = n.settings || {}; ARR_DEF.forEach(function (
 /* الترحيلات مرقّمة وتعمل عند كل تحميل وعند كل استعادة؛ كل ترحيل يحمل علامته فلا يُكرَّر */
 function runMigrations() {
   fixShape(S);
-  migrate(); migrate2(); migrate3(); migrate4(); migrate5(); migrate6(); E.wInit(S);
+  migrate(); migrate2(); migrate3(); migrate4(); migrate5(); migrate6(); migrateMenu(); E.wInit(S);
   if ((S.v || 0) < SCHEMA) { S.v = SCHEMA; save(); }
 }
 
@@ -4174,7 +4226,7 @@ function pgBatch() {
     if (gone.length) bl.push(B('rows', { title: 'أُزيلت من هذه الطبخة', items: gone.map(function (l) {
       return X({ title: item(l.item).name, sub: 'حسب الوصفة ' + qtyU(l.fixed ? l.per : r3(l.per * d.pots), item(l.item).unit), tag: 'إعادة', tagTone: 'info', chev: true, go: function () { var dl = Object.assign({}, A.draft.del); delete dl[l.item]; setDraft({ del: dl }); } });
     }) }));
-    if (r.meat) bl.push(B('note', { tone: 'warn', icon: 'i-alert', text: 'إضافة اللحم المعلّب تُحدَّد أسبوعيًا من فريق المطابخ، ولا تُضاف إلا بموافقة مسبقة. أضفها من «مكوّن» إن وُجدت.' }));
+    if (r.meat) bl.push(B('note', { tone: 'warn', icon: 'i-alert', text: MENU_MEAT_RULE }));
     var ord = E.planOrder(S, d.kind, d.inst), p0 = ord[0], p1 = ord[1], mktOk = p0 === 'kitchen' && p1 === 'ext', shl = lines.filter(function (l) { return l.short > 0; });
     if (shl.length && p1) {
       /* النقص يبقى سالبًا في المخزن الأول، ولا يُكمَّل من غيره إلا باختيارك: سالب ← من المخزن الثاني ← (من السوق مباشرة للطبخ الخاص) */
