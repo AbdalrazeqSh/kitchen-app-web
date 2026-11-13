@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.24';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.25';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2969,7 +2969,7 @@ function stmtDetailCanvas(i, ym) {
     L.push({ k: 'day', a: dlong(g.date), d: pl(pots, 'قدر واحد', '2 قدر', 'قدور'), c: money(dayTot), h: 58 });
     g.bs.forEach(function (b) {
       var B = stBatchBlock(b);
-      L.push({ k: 'bat', a: B.name + (b.fixTs ? ' · عُدّلت' : ''), d: B.pots, c: B.total, h: 50 });
+      L.push({ k: 'bat', a: B.name, d: B.pots, c: B.total, h: 50 });
       if (B.rows.length) L.push({ k: 'th', lump: B.lump, free: B.free, h: 32 });
       B.rows.forEach(function (r) { L.push({ k: 'ln', r: r, lump: B.lump, free: B.free, h: RH }); });
       B.extra.forEach(function (x) { L.push({ k: 'ex', a: x.n, c: x.c, h: RH }); });
