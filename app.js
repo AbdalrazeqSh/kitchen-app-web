@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.31';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.32';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4235,7 +4235,8 @@ function pgBatch() {
     bl.push(B('note', { tone: 'info', icon: 'i-pencil', text: 'الوصفة نقطة بداية فقط. عدّل الكمية بـ + و−، أو اضغط على الرقم لكتابتها أو لإزالة الصنف. كل تعديل لهذه الطبخة وحدها، والوصفة تبقى كما هي.' }));
     var mkRow = function (l) {
       return X({ step: true, edit: function () { openSh({ t: 'bline', id: l.id }, { qty: String(l.actual), by: 'all' }); }, title: l.name + (l.fixed ? ' (ثابت)' : '') + (l.extra ? ' (إضافي)' : '') + (l.swap ? ' · قابل للاستبدال' : ''), val: fmt(l.actual), unit: l.unit,
-        sub: [l.dev || '', d.pots > 1 && l.actual > 0 && !l.fixed ? 'للقدر ' + perTxt(l.actual, d.pots, l.unit) : '', packFull(item(l.id), l.actual) ? 'الإجمالي ' + packFull(item(l.id), l.actual) : '', Object.keys(l.src).length > 1 ? srcTxt(l) : (l.extra ? 'مضاف لهذا اليوم' : l.note ? l.note : ''), 'يبقى ' + fmt(l.after) + (l.after > 0 && packFull(item(l.id), l.after) ? ' = ' + packFull(item(l.id), l.after) : '')].filter(Boolean).join(' · '),
+        sub: [l.dev || '', d.pots > 1 && l.actual > 0 && !l.fixed ? 'للقدر ' + perTxt(l.actual, d.pots, l.unit) : '', packFull(item(l.id), l.actual) ? 'الإجمالي ' + packFull(item(l.id), l.actual) : '', Object.keys(l.src).length > 1 ? srcTxt(l) : (l.extra ? 'مضاف لهذا اليوم' : l.note ? l.note : '')].filter(Boolean).join(' · '),
+        sub2: 'يبقى ' + fmt(l.after) + (l.after > 0 && packFull(item(l.id), l.after) ? ' = ' + packFull(item(l.id), l.after) : ''),
         hintTxt: !l.extra && l.planned != null ? 'حسب الوصفة ' + fmt(l.planned) + ' ' + l.unit : '', hintGo: !l.extra && l.planned != null ? function () { var o2 = Object.assign({}, A.draft.over); delete o2[l.id]; setDraft({ over: o2 }); } : null,
         warn: l.after < 0 ? 'ينقص ' + fmt(-l.after) + ' ' + l.unit + ' عن رصيد ' + l.lastName : '',
         minus: function () { nudge(l.id, -1); }, plus: function () { nudge(l.id, 1); } });
