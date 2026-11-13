@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.25';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.26';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -816,7 +816,7 @@ function chefCompose(specs, o) {
     if (merge) {
       var by = {}, ord = [];
       specs.forEach(function (x) { x.rows.forEach(function (w) { if (!by[w.id]) { by[w.id] = { id: w.id, q: 0 }; ord.push(by[w.id]); } by[w.id].q = r3(by[w.id].q + w.q); by[w.id].rmv = w.rmv; }); });
-      blocks.push({ t: 'mats', title: specs.length > 2 ? 'المكوّنات مدموجة لكل الطبخات' : 'المكوّنات مدموجة للطبختين', noRem: false, noPer: true, rows: spiceLast(ord, function (z) { return z.id; }).map(function (z) { return chefRow(item(z.id), z.q, 0, false, z.rmv); }) });
+      blocks.push({ t: 'mats', title: 'المكوّنات مدموجة لكل الطبخات', noRem: false, noPer: true, rows: spiceLast(ord, function (z) { return z.id; }).map(function (z) { return chefRow(item(z.id), z.q, 0, false, z.rmv); }) });
     } else specs.forEach(function (x) { blocks.push({ t: 'mats', title: multi ? x.name + ' · ' + potsT(x.pots) : '', noRem: !!x.noRem, rows: x.rows }); });
   }
   if (o.dist !== false) {
@@ -2518,8 +2518,8 @@ function stockRows(lid, asOf) { // أصناف مخزن واحد، الأحرج �
 
 function plannedOf(b) { var r = rec(b.recipe), o = {}; if (r) r.lines.forEach(function (l) { o[l.item] = l.fixed ? l.per : r3(l.per * (b.pots || 0)); }); return o; }
 /* القدور بالصنف: «12 قدر عدس + 5 قدور فاصولياء» (بلا عدّ للطبخات) */
-function potsWord(n) { return n === 1 ? 'قدر' : n === 2 ? 'قدرين' : n >= 3 && n <= 10 ? 'قدور' : 'قدر'; }
-function potsTxt(n, name) { return n === 2 ? 'قدرين ' + name : fmt(n) + ' ' + potsWord(n) + ' ' + name; }
+function potsWord(n) { return n === 1 ? 'قدر' : n >= 3 && n <= 10 ? 'قدور' : 'قدر'; }
+function potsTxt(n, name) { return fmt(n) + ' ' + potsWord(n) + ' ' + name; }
 function potsByDish(tb) { var o = {}, a = []; tb.forEach(function (b) { var key = batchName(b) + '|' + b.kind; if (!o[key]) { o[key] = { name: batchName(b), kind: b.kind, pots: 0 }; a.push(o[key]); } o[key].pots = r2(o[key].pots + (b.pots || 0)); }); return a; }
 function repDoc(k, forceExp) {
   var exp = forceExp === true || !!A.rexp, SH = function (kk) { return roShow(k, kk, exp); }, TT = function (t, kk) { return t + (roMe(k, kk, exp) ? ' · لي فقط' : ''); }, C = pc, R = prow;
