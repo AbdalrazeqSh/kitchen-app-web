@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.33';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.34';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4250,12 +4250,12 @@ function pgBatch() {
       var on2 = !!(d.opts || {})[l.item]; return X({ title: item(l.item).name + ' (اختياري)', sub: l.note || '', tag: on2 ? 'مضاف' : 'غير مضاف', tagTone: on2 ? 'ok' : 'mute', chev: true,
         go: function () { var o2 = Object.assign({}, A.draft.opts); if (o2[l.item]) delete o2[l.item]; else o2[l.item] = true; setDraft({ opts: o2 }); } });
     }) }));
-    bl.push(B('rows', { title: 'الأصناف الأساسية', act: 'مكوّن', actGo: function () { openSh({ t: 'extra', item: null }); }, items: gB.map(mkRow), empty: 'لا أصناف أساسية' }));
-    if (gS.length) bl.push(B('rows', { title: 'البهارات (تعديلها حتى 10%)', items: gS.map(mkRow) }));
-    if (gF.length) bl.push(B('rows', { title: 'الوقود', items: gF.map(mkRow) }));
-    if (gX.length) bl.push(B('rows', { title: 'إضافات لهذا اليوم', items: gX.map(mkRow) }));
+    bl.push(B('rows', { all: true, title: 'الأصناف الأساسية', act: 'مكوّن', actGo: function () { openSh({ t: 'extra', item: null }); }, items: gB.map(mkRow), empty: 'لا أصناف أساسية' }));
+    if (gS.length) bl.push(B('rows', { all: true, title: 'البهارات (تعديلها حتى 10%)', items: gS.map(mkRow) }));
+    if (gF.length) bl.push(B('rows', { all: true, title: 'الوقود', items: gF.map(mkRow) }));
+    if (gX.length) bl.push(B('rows', { all: true, title: 'إضافات لهذا اليوم', items: gX.map(mkRow) }));
     var gone = r.lines.filter(function (l) { return d.del[l.item]; });
-    if (gone.length) bl.push(B('rows', { title: 'أُزيلت من هذه الطبخة', items: gone.map(function (l) {
+    if (gone.length) bl.push(B('rows', { all: true, title: 'أُزيلت من هذه الطبخة', items: gone.map(function (l) {
       return X({ title: item(l.item).name, sub: 'حسب الوصفة ' + qtyU(l.fixed ? l.per : r3(l.per * d.pots), item(l.item).unit), tag: 'إعادة', tagTone: 'info', chev: true, go: function () { var dl = Object.assign({}, A.draft.del); delete dl[l.item]; setDraft({ del: dl }); } });
     }) }));
     if (r.meat) bl.push(B('note', { tone: 'warn', icon: 'i-alert', text: MENU_MEAT_RULE }));
@@ -4304,7 +4304,7 @@ function pgBatch() {
     text: (short ? 'بعد الحفظ ينقص ' + pl(short, 'صنف', 'صنفان', 'أصناف') + ' عن الرصيد وسيظهر بالسالب. ' : '') + (d.kind === 'private' ? 'تُخصم المواد من المخزن أولًا ثم من الخارجي' : 'تُخصم المواد من ' + l0.name + (order.length > 1 ? ' ثم من المخزن' : '')) + (ins ? ' ويُسجَّل الطبخ للمؤسسة: ' + ins.name : '') + '.' }));
   var devs = lines.filter(function (l) { return l.dev; });
   if (devs.length) bl.push(B('note', { tone: 'info', icon: 'i-pencil', text: 'وصفة المؤسسة إرشاد يُتّبع قدر الإمكان، والاختلاف مقبول: ' + devs.map(function (l) { return l.name; }).join('، ') + '. يُذكر في تقرير المراقب فقط إن كان خيار «فروق عن المنيو» ظاهرًا.' }));
-  bl.push(B('rows', { title: 'ملخص الكميات', items: lines.map(function (l) { return X({ title: l.name, end: fmt(l.actual), endSub: l.unit, sub: Object.keys(l.src).length > 1 ? srcTxt(l) : (LSHORT[Object.keys(l.src)[0]] || '') }); }) }));
+  bl.push(B('rows', { all: true, title: 'ملخص الكميات', items: lines.map(function (l) { return X({ title: l.name, end: fmt(l.actual), endSub: l.unit, sub: Object.keys(l.src).length > 1 ? srcTxt(l) : (LSHORT[Object.keys(l.src)[0]] || '') }); }) }));
   return bl;
 }
 
