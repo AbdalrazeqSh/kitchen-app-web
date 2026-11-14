@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.54';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.55';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3848,7 +3848,7 @@ function personQa(p) {
   qa(p.name, (preset(p.preset) || {}).name || '', [['تعديل الصلاحيات', 'i-pencil', function () { openSh({ t: 'person', id: p.id }, { preset: p.preset, rep: p.rep ? 'yes' : 'no', wk: p.worker || '' }); }]]);
 }
 function recipeRow(r, k) {
-      return X({ icon: 'i-book', icTone: 'mute', title: r.name, sub: (r.code ? r.code + ' · ' : '') + nIng(r.lines.length) + ' لكل قدر', tag: r.exp ? 'تجريبية' : r.draft ? 'مبدئية' : 'معتمدة', tagTone: r.exp || r.draft ? 'warn' : 'ok', chev: true,
+      return X({ icon: 'i-book', icTone: 'mute', title: r.name, sub: (r.code ? r.code + ' · ' : '') + nIng(r.lines.length) + ' لكل قدر', tag: r.exp ? 'تجريبية' : r.draft ? 'مبدئية' : '', tagTone: r.exp || r.draft ? 'warn' : 'ok', chev: true,
         go: function () { open('recipe', { rid: r.id }); },
         lp: function () { qa(r.name, (r.code ? r.code + ' · ' : '') + nIng(r.lines.length) + ' لكل قدر', [['طبخة جديدة من هذه الوصفة', 'i-pot', function () { shut(); if (isClosed()) { openSh({ t: 'locked', what: 'batch' }); return; } var d0 = newDraft(k, false); d0.rec = r.id; open('batch', { draft: d0 }); }], ['تخطيط طبخة قادمة', 'i-calendar', function () { openSh({ t: 'planAdd', rec: r.id }, { day: '1', pots: '3', kind: r.kinds.indexOf('private') >= 0 ? 'private' : 'external' }); }], ['فتح الوصفة', 'i-book', function () { shut(); open('recipe', { rid: r.id }); }]]); } });
 }
@@ -4070,7 +4070,7 @@ function pgStock() {
   if (!led(l0)) { A.led = 'kitchen'; l0 = 'kitchen'; }
   bl.push(B('chips', { items: ledgers(A.showArch).map(function (l) {
     return X({ label: l.name, on: l.id === l0, go: function () { setState({ led: l.id }); } });
-  }).concat([X({ label: '+ مخزن', tone: 'ok', go: function () { openSh({ t: 'addLedger' }, { name: '', inkind: 'own' }); } })]) }));
+  }).concat([X({ label: '+', tone: 'ok', go: function () { openSh({ t: 'addLedger' }, { name: '', inkind: 'own' }); } })]) }));
   var rows = itemsIn(l0).map(function (it) { var q = E.balance(S, l0, it.id); return { it: it, q: q, st: stStatus(q, it.id) }; });
   var sm = A.sort.stock;
   rows.sort(function (a, b) {
