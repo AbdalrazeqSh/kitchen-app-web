@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.60';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.61';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2996,7 +2996,12 @@ function stmtSheet(sh) {
     rows.push(X({ icon: 'i-pot', icTone: (b.fixTs || 0) > (sent || 0) && sent ? 'bad' : 'warn', title: batchName(b), sub: dlabel(b.date) + ' · ' + pl(b.pots || 0, 'قدر واحد', 'قدران', 'قدور') + (b.fixTs ? ' · عُدّلت' : ''),
       tag: batchCostTxt(b), tagTone: sent && (b.fixTs || 0) > sent ? 'bad' : 'mute', chev: true, go: function () { openSh({ t: 'bview', id: b.id }); }, lp: function () { batchQa(b); } }));
   });
-  if (!a.bs.length) rows.push(X({ title: 'لا طبخات في هذا الشهر', tag: money(0), tagTone: 'mute' }));
+  /* الطبخات المخططة لهذه الجهة: على الشاشة فقط (لي فقط)، بلا مبلغ ولا تدخل المستحق ولا الكشف المُصدَّر */
+  var pls = plans().filter(function (p) { return p.inst === i.id && (ym === 'all' || (p.date || '').slice(0, 7) === ym); });
+  pls.forEach(function (p) {
+    rows.push(X({ icon: 'i-calendar', icTone: 'info', title: planName(p), sub: dlabel(p.date) + ' · ' + pl(p.pots || 0, 'قدر واحد', 'قدران', 'قدور'), tag: 'مخططة', tagTone: 'mute', chev: true, go: function () { openSh({ t: 'planView', id: p.id }); } }));
+  });
+  if (!a.bs.length && !pls.length) rows.push(X({ title: 'لا طبخات في هذا الشهر', tag: money(0), tagTone: 'mute' }));
   a.chg.forEach(function (c) { rows.push(X({ title: c.note || 'إضافة', sub: c.date ? dlabel(c.date) : '', tag: money(c.amt), tagTone: 'mute' })); });
   a.pay.forEach(function (c) { rows.push(X({ title: 'دفعة' + (c.note ? ': ' + c.note : ''), sub: c.date ? dlabel(c.date) : '', tag: '− ' + money(c.amt), tagTone: 'ok' })); });
   rows.push(X({ total: true, title: 'المستحق', tag: money(a.due), tagTone: a.due > 0 ? 'warn' : 'ok' }));
@@ -4071,6 +4076,11 @@ function planShort(p, upto) { // عدد أصناف الخطة التي ينقص 
   var sim = planPrior(upto), order = E.planOrder(S, p.kind || 'private', p.inst);
   return E.scaleRecipe(rec(p.recipeId), p.pots, p).filter(function (l) { return order.reduce(function (a, k) { return a + poolBal(sim, k, l.item); }, 0) - (sim.short[l.item] || 0) < l.qty - 0.0001; }).length;
 }
+/* الطبخات المخططة لمؤسسة أو جهة: تظهر في سطرها بالقائمة (وفي صف الخطة نفسه اسمها) حتى لا تبدو «بلا طبخات» */
+function planTxt(id) {
+  var n = plans().filter(function (p) { return p.inst === id; }).length;
+  return n ? pl(n, 'طبخة مخططة واحدة', 'طبختان مخططتان', 'طبخات مخططة') : '';
+}
 function pgKitchen() {
   var k = A.kk === 'init' ? 'external' : A.kk, bl = [];
   bl.push(B('seg', { items: [['private', 'طبخ'], ['external', 'طبخ خارجي']].map(function (a) {
@@ -4080,7 +4090,7 @@ function pgKitchen() {
   bl.push(B('rows', { title: 'الطبخات القادمة' + (plans().length ? ' (' + plans().length + ')' : ''), act: 'تخطيط', actGo: function () { openSh({ t: 'planAdd', rec: null }, { day: '1', pots: '3' }); },
     items: plans().map(function (p) {
       var r = rec(p.recipeId), short = planShort(p);
-      return X({ icon: 'i-calendar', icTone: short ? 'warn' : 'info', title: r.name, sub: dlabel(p.date).replace(/^(اليوم|أمس)$/, '$1') + ' · ' + KN[p.kind || 'private'] + ' · ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'),
+      return X({ icon: 'i-calendar', icTone: short ? 'warn' : 'info', title: r.name, sub: dlabel(p.date).replace(/^(اليوم|أمس)$/, '$1') + ' · ' + (p.inst && inst(p.inst) ? inst(p.inst).name : KN[p.kind || 'private']) + ' · ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'),
         tag: short ? 'ينقص ' + pl(short, 'صنف', 'صنفان', 'أصناف') : 'المواد تكفي', tagTone: short ? 'warn' : 'ok', chev: true, go: function () { openSh({ t: 'planView', id: p.id }); },
         lp: function () { qa(r.name, dlabel(p.date), [['عرض ما يلزم', 'i-calendar', function () { openSh({ t: 'planView', id: p.id }); }], ['نسخة للشيف', 'i-image', function () { shut(); shareChefPlan(p); }], ['تغيير التاريخ', 'i-calendar', function () { openSh({ t: 'planDate', id: p.id }, { day: '', dtxt: '' }); }], ['ابدأ هذه الطبخة', 'i-pot', function () { shut(); startFromPlan(p); }]].concat(p.date <= today() ? [['بدء سريع بكميات الوصفة', 'i-check', function () { quickStartPlan(p); }]] : [])); } });
     }), empty: 'لا طبخات مخططة. خطّط لتعرف ما ينقص قبل أن تطبخ.' }));
@@ -4091,12 +4101,12 @@ function pgKitchen() {
     bl.push(B('rows', { title: 'المؤسسات', act: 'مؤسسة', actGo: function () { openSh({ t: 'addInst' }, { name: '', src: 'own' }); },
       items: instsOf(false).map(function (i) {
         var l = led(i.led);
-        return X({ icon: 'i-truck', icTone: 'info', title: i.name, sub: 'تُسحب المواد من: ' + l.name, tag: l.inkind ? 'مواد عينية' : l.ext ? 'من الخارجي' : 'من المطبخ', tagTone: 'mute', chev: true, go: function () { openSh({ t: 'stmt', id: i.id }, { m: '' }); },
+        return X({ icon: 'i-truck', icTone: 'info', title: i.name, sub: 'تُسحب المواد من: ' + l.name + (planTxt(i.id) ? ' · ' + planTxt(i.id) : ''), tag: l.inkind ? 'مواد عينية' : l.ext ? 'من الخارجي' : 'من المطبخ', tagTone: 'mute', chev: true, go: function () { openSh({ t: 'stmt', id: i.id }, { m: '' }); },
           lp: function () { instQa(i, false); } });
       }) }));
     bl.push(B('rows', { title: 'المبادرات', act: 'جهة', actGo: function () { openSh({ t: 'addInit' }, { name: '', occ: '' }); }, items: instsOf(true).map(function (i) {
       var n = S.batches.filter(function (b) { return b.inst === i.id && !b.void; }).length, tg = iniTag(i);
-      return X({ icon: 'i-heart', icTone: 'warn', title: i.name, sub: (i.occ ? i.occ + ' · ' : '') + (n ? pl(n, 'طبخة واحدة', 'طبختان', 'طبخات') : 'بلا طبخات بعد'), tag: tg.t, tagTone: tg.tone, chev: true, go: function () { openSh({ t: 'stmt', id: i.id }, { m: '' }); },
+      return X({ icon: 'i-heart', icTone: 'warn', title: i.name, sub: (i.occ ? i.occ + ' · ' : '') + [n ? pl(n, 'طبخة واحدة', 'طبختان', 'طبخات') : '', planTxt(i.id)].filter(Boolean).join(' · ') || 'بلا طبخات بعد', tag: tg.t, tagTone: tg.tone, chev: true, go: function () { openSh({ t: 'stmt', id: i.id }, { m: '' }); },
         lp: function () { instQa(i, true); } });
     }), empty: 'أفراد وجهات متفرقة (عرس، عزاء…). تُضاف عند أول طبخة لها.' }));
   }
@@ -5000,7 +5010,7 @@ function shDesc() {
         return X({ title: it2.name, sub: '',
           c0: pv.pots > 1 && !l.fixed ? perTxt(l.qty, pv.pots, it2.unit) : '—', c1: qtyU(l.qty, it2.unit), c1s: pkN, c2s: pkR, c2: (rem < -0.0001 ? '−' : '') + qtyU(Math.abs(rem), it2.unit), c2Tone: rem < -0.0001 ? 'bad' : '' });
       });
-      R = { acts: pacts, cols: ['الصنف', 'للقدر', 'الإجمالي', 'المتبقي'], title: prv.name, sub: dlabel(pv.date) + ' · ' + KN[pv.kind || 'private'] + ' · ' + pl(pv.pots, 'قدر واحد', 'قدران', 'قدور'), rows: prows,
+      R = { acts: pacts, cols: ['الصنف', 'للقدر', 'الإجمالي', 'المتبقي'], title: prv.name, sub: dlabel(pv.date) + ' · ' + (pv.inst && inst(pv.inst) ? KN[pv.kind || 'private'] + ' · ' + inst(pv.inst).name : KN[pv.kind || 'private']) + ' · ' + pl(pv.pots, 'قدر واحد', 'قدران', 'قدور'), rows: prows,
         note: { text: 'المتبقي هو ما يبقى في المخزن بعد هذه الطبخة (والمخططة قبلها)، وبالأحمر إن كان ناقصًا.', tone: 'info' },
         ft: { label: 'ابدأ هذه الطبخة', ok: true, go: function () { startFromPlan(pv); } }, ft2: { label: 'إلغاء من الخطة', go: function () { pv.off = true; shut(); mutated('أُلغيت من الخطة'); } } };
       break;
