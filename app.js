@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.55';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.56';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4799,17 +4799,20 @@ function shDesc() {
         bacts.push(X({ title: 'الأصناف والأسعار', icon: 'i-pencil', go: function () { fixOpen(b); } }));
         bacts.push(X({ title: 'نسخة للشيف', icon: 'i-send', go: function () { shareChefBatch(b); } }));
       }
+      var nLines = R.rows.length; /* أصناف الطبخة أولًا، ثم المحذوف والحقول المخصصة، ثم بنود التكلفة والإجمالي في الآخر */
       if (b.kind === 'external' && !b.void && (!costFree || b.pm === 'lump' || (b.xl || []).length)) {
         if (b.pm === 'lump') R.rows.push(X({ title: 'التسعير بسعر القدر', sub: b.pots + ' × ' + money(b.lump), tag: money(b.cost || 0), tagTone: 'info' }));
         else if ((b.xl || []).length) { R.rows.push(X({ subt: true, title: 'تكلفة المواد', tag: costFree ? 'عيني' : money(b.matCost != null ? b.matCost : b.cost || 0), tagTone: 'mute' })); (b.xl || []).forEach(function (x) { R.rows.push(X({ title: x.k, sub: x.note, tag: money(x.amt), tagTone: 'info' })); }); }
         if (b.pm === 'lump' || (b.xl || []).length) R.rows.push(X({ total: true, title: 'تكلفة الطبخة', tag: money(b.cost || 0), tagTone: 'ok' })); /* صف الإجمالي يتميز دائمًا (قاعدة total) */
       }
-      (S.fields || []).forEach(function (f) { var v = (b.cf || {})[f.id]; if (v !== undefined && v !== '') R.rows.push(X({ title: f.name, sub: 'حقل مخصص', tag: String(v), tagTone: 'mute' })); });
-      (b.gone || []).forEach(function (gid) { if (item(gid)) R.rows.push(X({ title: item(gid).name, sub: 'أُزيل من هذه الطبخة', tag: 'أُزيل', tagTone: 'mute' })); });
+      var tail = [];
+      (S.fields || []).forEach(function (f) { var v = (b.cf || {})[f.id]; if (v !== undefined && v !== '') tail.push(X({ title: f.name, sub: 'حقل مخصص', tag: String(v), tagTone: 'mute' })); });
+      (b.gone || []).forEach(function (gid) { if (item(gid)) tail.push(X({ title: item(gid).name, sub: 'أُزيل من هذه الطبخة', tag: 'أُزيل', tagTone: 'mute' })); });
+      R.rows.splice.apply(R.rows, [nLines, 0].concat(tail));
       if (unc) R.rows.unshift(X({ icon: 'i-alert', icTone: 'warn', title: 'تنتظر تأكيد الكميات', sub: 'بدأتها بالوصفة كما هي: أكّد أنها طُبخت بهذه الكميات أو عدّلها', tag: 'تنتظر تأكيد', tagTone: 'warn' }));
-      if (unc) R.rows.push(X({ icon: 'i-minus', icTone: 'bad', title: 'إلغاء الطبخة', sub: 'تُعاد موادها إلى المخزن', chev: true, go: function () { openSh({ t: 'voidB', id: b.id }); } }));
+      if (unc) bacts.push(X({ title: 'إلغاء الطبخة', icon: 'i-minus', go: function () { openSh({ t: 'voidB', id: b.id }); } }));
       var dfb = canEdit && !b.void ? batchDiffs(b) : [];
-      if (dfb.length && !(rec(b.recipe) || {}).arch) R.rows.push(X({ icon: 'i-book', icTone: 'info', title: 'تحديث الوصفة بهذه الكميات', sub: pl(dfb.length, 'فرق واحد', 'فرقان', 'فروق') + ' عن الوصفة · اختياري، ولا يحدث وحده', tag: 'تحديث', tagTone: 'info', chev: true, go: function () { openSh({ t: 'recFromBatch', id: b.id }); } }));
+      if (dfb.length && !(rec(b.recipe) || {}).arch) bacts.push(X({ title: 'تحديث الوصفة', icon: 'i-book', go: function () { openSh({ t: 'recFromBatch', id: b.id }); } }));
       break;
     }
     case 'recFromBatch': {
