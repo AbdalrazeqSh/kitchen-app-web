@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.51';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.52';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1714,11 +1714,18 @@ function fKind(f) { var w = f.w ? wk(f.w) : null; return f.w || f.curs.length ==
 function lastRate() { var l = movesDesc((S.fm || []).filter(function (m) { return m.rate > 0 && !m.void; }))[0]; return l ? l.rate : 0; }
 function openMove(fid, dir) { openSh({ t: 'fMove' }, { fund: fid || defFund(), dir: dir || 'out', dlock: dir ? '1' : '', mode: '', amt: '', rate: '', note: '', cat: '', dtxt: today() }); }
 /* صف حركة موحَّد في كل مكان؛ withFund يُظهر من أي رصيد */
+/* نوع الحركة (راتب، سلفة، مكافأة...) غمامة ملوّنة قبل البيان، فلا يُقرأ كأنه جزء من اسم الشخص: «سلفة» + «حمود المجايدة» */
+var MOVE_KIND = { 'راتب': 'info', 'سلفة': 'warn', 'مكافأة': 'ok', 'دفعة نقدية': 'mute', 'دفعة': 'mute', 'تسوية': 'mute', 'خصم': 'bad', 'مخالفة': 'bad', 'شراء للمطبخ': 'info' };
+function moveParts(m) {
+  var n = m.note || '', mm = /^(راتب|سلفة|مكافأة|دفعة نقدية|دفعة|تسوية|خصم|مخالفة|شراء للمطبخ)\s+(.+)$/.exec(n);
+  return mm ? { kind: mm[1], tone: MOVE_KIND[mm[1]], title: mm[2] } : { kind: '', tone: 'mute', title: n || (m.dir === 'in' ? 'وارد' : 'ناقص') };
+}
 function moveRowX(m, withFund, mini) {
+  var mp = moveParts(m);
   var conv = m.cur === 'usd' && m.ils > 0, f0 = fund(m.h);
-  return X({ mini: !!mini, ph: !!m.ph, icon: mini ? '' : m.x ? 'i-send' : m.dir === 'in' ? 'i-plus' : 'i-minus', icTone: m.x ? 'info' : m.dir === 'in' ? 'ok' : 'bad', title: m.note || (m.dir === 'in' ? 'وارد' : 'ناقص'),
+  return X({ mini: !!mini, ph: !!m.ph, icon: mini ? '' : m.x ? 'i-send' : m.dir === 'in' ? 'i-plus' : 'i-minus', icTone: m.x ? 'info' : m.dir === 'in' ? 'ok' : 'bad', title: mp.title,
     sub: joinSub(withFund && f0 ? fName(f0) : '', dlabel(m.date), mini && conv ? usdTxt(m.amt) : ''),
-    end: sg(m.dir, conv ? money(m.ils) : fTxt(m.cur, m.amt)), endSub: mini ? '' : conv ? usdTxt(m.amt) : '', tag: m.x ? 'تحويل' : '', tagTone: 'info', endTone: m.dir === 'in' ? 'ok' : 'bad', chev: true, go: function () { openSh({ t: 'fView', id: m.id }); }, lp: function () { moveQa(m); } });
+    end: sg(m.dir, conv ? money(m.ils) : fTxt(m.cur, m.amt)), endSub: mini ? '' : conv ? usdTxt(m.amt) : '', tag: m.x ? 'تحويل' : mp.kind, tagTone: m.x ? 'info' : mp.tone, endTone: m.dir === 'in' ? 'ok' : 'bad', chev: true, go: function () { openSh({ t: 'fView', id: m.id }); }, lp: function () { moveQa(m); } });
 }
 function recentMoves(n, fid) { return movesDesc(fmOn(fid)).slice(0, n); }
 /* أرصدة الصندوق بالعملتين بحجم واحد */
@@ -1854,8 +1861,8 @@ function restoreMove(id) {
   mutated(rev ? 'أُعيدت الدفعة وخُصمت من حساب العامل' : 'أُعيدت الحركة إلى الرصيد', function () { all.forEach(function (x) { x.void = true; }); if (rev) rev.void = false; save(); render(); });
 }
 function voidedRow(m) {
-  var conv = m.cur === 'usd' && m.ils > 0;
-  return X({ dim: true, icon: m.x ? 'i-send' : m.dir === 'in' ? 'i-plus' : 'i-minus', icTone: 'mute', title: m.note || (m.dir === 'in' ? 'وارد' : 'ناقص'), sub: dlabel(m.date) + ' · ملغاة', end: sg(m.dir, conv ? money(m.ils) : fTxt(m.cur, m.amt)), chev: true, go: function () { openSh({ t: 'fView', id: m.id }); }, undo: function () { restoreMove(m.id); } });
+  var mp = moveParts(m), conv = m.cur === 'usd' && m.ils > 0;
+  return X({ dim: true, icon: m.x ? 'i-send' : m.dir === 'in' ? 'i-plus' : 'i-minus', icTone: 'mute', title: mp.title, tag: mp.kind, tagTone: mp.tone, sub: dlabel(m.date) + ' · ملغاة', end: sg(m.dir, conv ? money(m.ils) : fTxt(m.cur, m.amt)), chev: true, go: function () { openSh({ t: 'fView', id: m.id }); }, undo: function () { restoreMove(m.id); } });
 }
 /* تغيير مصدر الصرف لحركة ناقص: من رصيد الشيكل إلى الدولار بسعر صرف (أو العكس). الأصل يُلغى ويبقى سجله، وتُضاف حركة بديلة بالتاريخ نفسه وبالارتباط نفسه بحساب العامل */
 function reSrcOk(m) { var f = m && fund(m.h); return !!f && !m.void && !m.x && m.dir === 'out' && f.curs.length > 1; }
