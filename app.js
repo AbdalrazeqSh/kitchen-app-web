@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.34';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.35';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -614,7 +614,7 @@ function nudge(id, dir) {
   setDraft({ over: over });
 }
 function srcTxt(l) { return Object.keys(l.src).map(function (k) { return (LSHORT[k] || k) + ' ' + fmt(l.src[k]); }).join(' + '); }
-function batchCostTxt(b) { var f = E.isFree(led(b.order[0])); return b.kind === 'external' && f ? 'عيني' : money(b.cost || 0); }
+function batchCostTxt(b) { var f = E.isFree(led(b.order[0])); return b.kind === 'external' && f && !(b.cost > 0) ? 'عيني' : money(b.cost || 0); }
 function planName(p) { return p.dish || (rec(p.recipeId) || {}).name || 'طبخة'; }
 function batchName(b) { return b.dish || (rec(b.recipe) || {}).name || 'طبخة'; }
 function batchesOf(k) { return S.batches.filter(function (b) { var i = inst(b.inst); var n = !!(i && i.init); return k === 'all' ? true : k === 'init' ? n : (b.kind === k && !n); }); }
@@ -808,13 +808,13 @@ function priceInfo(d, lines) {
   var order = E.planOrder(S, d.kind, d.inst), free0 = E.isFree(led(order[0])), mat = lines.reduce(function (a, l) {
     var q = d.kind === 'private' ? Object.keys(l.src).filter(paidSrc).reduce(function (x, k) { return x + l.src[k]; }, 0) : free0 ? 0 : l.actual;
     return a + q * l.price;
-  }, 0), xl = d.xl || [], xt = r2(xl.reduce(function (a, x) { return a + x.amt; }, 0)), lumpOn = d.pm === 'lump', lumpV = Number(d.lump) || 0, isPaid = d.kind === 'external' && !free0, total = mat;
+  }, 0), xl = d.xl || [], xt = r2(xl.reduce(function (a, x) { return a + x.amt; }, 0)), lumpOn = d.pm === 'lump', lumpV = Number(d.lump) || 0, isPaid = d.kind === 'external', total = mat;
   if (isPaid) total = lumpOn ? r2(d.pots * lumpV) : r2(mat + xt);
   return { free0: free0, mat: mat, xl: xl, xt: xt, lumpOn: lumpOn, lumpV: lumpV, isPaid: isPaid, total: total, kv: lines.reduce(function (a, l) { return a + (l.src.kitchen || 0) * l.price; }, 0) };
 }
 function applyPricing(b, d) {
   b.matCost = b.cost; var free = E.isFree(led(b.order[0]));
-  if (b.kind === 'external' && !free) {
+  if (b.kind === 'external') {
     b.pm = d.pm === 'lump' ? 'lump' : 'items'; b.lump = Number(d.lump) || 0; b.xl = cp(d.xl || []);
     b.cost = b.pm === 'lump' ? r2((b.pots || 0) * b.lump) : r2(b.matCost + b.xl.reduce(function (a, x) { return a + x.amt; }, 0));
   } else { delete b.pm; delete b.lump; delete b.xl; }
@@ -2913,7 +2913,7 @@ function fixSave() {
   try {
     E.editBatch(S, b.id, { dish: f.dish || (rec(b.recipe) || {}).name || b.dish, pots: f.pots, lines: ls.map(function (l) { return { item: l.item, qty: l.qty, price: l.price, keep: l.keep, mkt: l.mkt, planned: l.planned, dev: l.dev, extra: l.extra }; }) });
   } catch (e) { say(String(e.message || e)); return; }
-  if (b.kind === 'external' && !fixFree(b)) { var del = {}; (b.gone || []).forEach(function (g) { del[g] = true; }); applyPricing(b, { pm: b.pm, lump: b.lump, xl: b.xl, cf: b.cf, del: del }); }
+  if (b.kind === 'external') { var del = {}; (b.gone || []).forEach(function (g) { del[g] = true; }); applyPricing(b, { pm: b.pm, lump: b.lump, xl: b.xl, cf: b.cf, del: del }); }
   b.fixTs = Date.now();
   audit('تعديل أصناف/أسعار «' + batchName(b) + '» (' + dlabel(b.date) + '): ' + money(was) + ' ← ' + money(b.cost || 0));
   A.fix = null; setState({ sh: { t: 'bview', id: b.id }, form: {}, q: '' }); mutated('حُفظ تعديل «' + batchName(b) + '»');
@@ -3032,13 +3032,13 @@ function stDayGroups(a) {
   return g;
 }
 function stBatchBlock(b) {
-  var free = b.kind === 'external' && E.isFree(led(b.order[0])), lump = b.pm === 'lump' && !free, rows = [];
+  var free = b.kind === 'external' && E.isFree(led(b.order[0])), lump = b.pm === 'lump', rows = [];
   spiceLast(b.lines || []).forEach(function (ln) {
     var li = item(ln.item) || { name: '؟', unit: '' }, c = ln.cost != null ? ln.cost : r2((ln.qty || 0) * (ln.price || 0)), eff = ln.qty > 0 ? r2(c / ln.qty) : 0;
     rows.push({ n: li.name, q: qtyU(ln.qty, li.unit), p: free || lump ? '' : c > 0 ? money(eff) + ' / ' + li.unit : 'عيني', c: free || lump ? '' : c > 0 ? money(c) : '—' });
   });
   var extra = [];
-  if (!free && !lump) (b.xl || []).forEach(function (x) { extra.push({ n: x.name || x.note || 'رسوم إضافية', c: money(x.amt || 0) }); });
+  if (!lump) (b.xl || []).forEach(function (x) { extra.push({ n: x.name || x.note || 'رسوم إضافية', c: money(x.amt || 0) }); });
   var foot = lump ? pl(b.pots || 0, 'قدر واحد', '2 قدر', 'قدور') + ' × ' + money(b.lump || 0) : '';
   return { name: batchName(b), pots: pl(b.pots || 0, 'قدر واحد', '2 قدر', 'قدور'), total: batchCostTxt(b), rows: rows, extra: extra, foot: foot, free: free, lump: lump, mat: r2((b.lines || []).reduce(function (t, ln) { return t + (ln.cost || 0); }, 0)) };
 }
@@ -3783,7 +3783,7 @@ function stockQa(it, l0, q) {
 }
 function instQa(i, init) {
   var l = led(i.led);
-  qa(i.name, init ? (i.occ || 'مبادرة') : 'تُسحب المواد من: ' + l.name, [['كشف الحساب', 'i-wallet', function () { openSh({ t: 'stmt', id: i.id }, { m: '' }); }], [init ? 'طبخة جديدة لهذه الجهة' : 'طبخة خارجية جديدة لهذه المؤسسة', 'i-pot', function () { shut(); if (isClosed()) { openSh({ t: 'locked', what: 'batch' }); return; } var d0 = newDraft('external', !!init); d0.inst = i.id; open('batch', { draft: d0 }); }]]);
+  qa(i.name, init ? (i.occ || 'مبادرة') : 'تُسحب المواد من: ' + l.name, [['كشف الحساب', 'i-wallet', function () { openSh({ t: 'stmt', id: i.id }, { m: '' }); }], ['إضافة مبلغ على الحساب', 'i-plus', function () { openSh({ t: 'iniChg', id: i.id }, { amt: '', note: '' }); }], ['تسجيل دفعة', 'i-wallet', function () { openSh({ t: 'iniPay', id: i.id }, { fund: '', amt: '', note: '', rate: '' }); }], [init ? 'طبخة جديدة لهذه الجهة' : 'طبخة خارجية جديدة لهذه المؤسسة', 'i-pot', function () { shut(); if (isClosed()) { openSh({ t: 'locked', what: 'batch' }); return; } var d0 = newDraft('external', !!init); d0.inst = i.id; open('batch', { draft: d0 }); }]]);
 }
 function moveQa(m) {
   var a = [['عرض الحركة', 'i-book', function () { openSh({ t: 'fView', id: m.id }); }]];
@@ -4276,7 +4276,7 @@ function pgBatch() {
   }
   var pi = priceInfo(d, lines), free0 = pi.free0, por = Number(d.portions) || 0, total = pi.total, kv = pi.kv, mat = pi.mat, xl = pi.xl, xt = pi.xt, lumpOn = pi.lumpOn, lumpV = pi.lumpV, isPaid = pi.isPaid;
   bl.push(B('kpi', { items: [
-    X({ label: free0 && d.kind === 'external' ? 'قيمة المواد' : d.kind === 'external' ? 'تكلفة الطبخة' : 'التكلفة عليك', value: free0 && d.kind === 'external' ? 'عيني' : money(total), sub: d.kind === 'private' ? 'مغطّى من الخارجي' : isPaid && lumpOn ? 'سعر القدر × العدد' : isPaid && xt > 0 ? 'مواد + بنود إضافية' : d.init ? 'على حساب الجهة' : 'تُحاسَب بها المؤسسة' }),
+    X({ label: free0 && d.kind === 'external' && !(total > 0) ? 'قيمة المواد' : d.kind === 'external' ? 'تكلفة الطبخة' : 'التكلفة عليك', value: free0 && d.kind === 'external' && !(total > 0) ? 'عيني' : money(total), sub: d.kind === 'private' ? 'مغطّى من الخارجي' : isPaid && lumpOn ? 'سعر القدر × العدد' : isPaid && xt > 0 ? 'مواد + بنود إضافية' : d.init ? 'على حساب الجهة' : 'تُحاسَب بها المؤسسة' }),
     X({ label: 'تكلفة القدر', value: money(total / d.pots), sub: pl(d.pots, 'قدر واحد', 'قدران', 'قدور') }),
     d.kind === 'private' ? X({ label: 'من المخزن', value: money(kv), sub: 'تابع لـ WCK' })
       : X({ label: 'الوجبة', value: por > 0 ? money(total / por) : '—', sub: por > 0 ? 'لكل وجبة' : 'العدد غير مُدخل' })
@@ -4289,7 +4289,7 @@ function pgBatch() {
       bl.push(B('input', { label: 'سعر القدر الواحد (₪)', value: d.lump, ph: 'مثال: 90', mode: 'decimal', onInput: function (v) { setDraft({ lump: v }); } }));
       bl.push(B('note', { tone: 'info', icon: 'i-check', text: lumpV > 0 ? pl(d.pots, 'قدر واحد', 'قدران', 'قدور') + ' × ' + money(lumpV) + ' = ' + money(total) + '. المواد تُخصم من المخزن كالمعتاد (قيمتها ' + money(mat) + ') لكن الحساب بسعر القدر.' : 'اكتب سعر القدر الواحد المتفق عليه. المواد تُخصم من المخزن كالمعتاد.' }));
     } else {
-      var xrows = [X({ title: 'تكلفة المواد', sub: 'بسعر اليوم', end: money(mat) })].concat(xl.map(function (x, i) {
+      var xrows = [X({ title: 'تكلفة المواد', sub: free0 ? 'عيني من المؤسسة' : 'بسعر اليوم', end: free0 ? 'عيني' : money(mat) })].concat(xl.map(function (x, i) {
         return X({ title: x.k, sub: x.note, end: money(x.amt), chev: true, go: function () { openSh({ t: 'xline', idx: i }, { k: x.k, kNew: '', amt: String(x.amt), note: x.note || '' }); } });
       }));
       bl.push(B('rows', { title: 'بنود التكلفة', act: 'بند', actGo: function () { openSh({ t: 'xline' }, { k: xkinds()[0], kNew: '', amt: '', note: '' }); }, items: xrows }));
@@ -4752,9 +4752,9 @@ function shDesc() {
         bacts.push(X({ title: 'الأصناف والأسعار', icon: 'i-pencil', go: function () { fixOpen(b); } }));
         bacts.push(X({ title: 'نسخة للشيف', icon: 'i-send', go: function () { shareChefBatch(b); } }));
       }
-      if (b.kind === 'external' && !costFree && !b.void) {
+      if (b.kind === 'external' && !b.void && (!costFree || b.pm === 'lump' || (b.xl || []).length)) {
         if (b.pm === 'lump') R.rows.push(X({ title: 'التسعير بسعر القدر', sub: b.pots + ' × ' + money(b.lump), tag: money(b.cost || 0), tagTone: 'info' }));
-        else if ((b.xl || []).length) { R.rows.push(X({ title: 'تكلفة المواد', tag: money(b.matCost != null ? b.matCost : b.cost || 0), tagTone: 'mute' })); (b.xl || []).forEach(function (x) { R.rows.push(X({ title: x.k, sub: x.note, tag: money(x.amt), tagTone: 'mute' })); }); }
+        else if ((b.xl || []).length) { R.rows.push(X({ title: 'تكلفة المواد', tag: costFree ? 'عيني' : money(b.matCost != null ? b.matCost : b.cost || 0), tagTone: 'mute' })); (b.xl || []).forEach(function (x) { R.rows.push(X({ title: x.k, sub: x.note, tag: money(x.amt), tagTone: 'mute' })); }); }
       }
       (S.fields || []).forEach(function (f) { var v = (b.cf || {})[f.id]; if (v !== undefined && v !== '') R.rows.push(X({ title: f.name, sub: 'حقل مخصص', tag: String(v), tagTone: 'mute' })); });
       (b.gone || []).forEach(function (gid) { if (item(gid)) R.rows.push(X({ title: item(gid).name, sub: 'أُزيل من هذه الطبخة', tag: 'أُزيل', tagTone: 'mute' })); });
