@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.53';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.54';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1706,6 +1706,8 @@ function fMain(f) { return f.curs[0]; }
 /* العملة الافتراضية في نوافذ الإدخال: الشيكل إن وُجد في الرصيد */
 function fDefCur(f) { return f && f.curs.indexOf('ils') >= 0 ? 'ils' : f.curs[0]; }
 /* اسم الرصيد للعرض: إن طابق اسمَ عامل يُضاف «(رصيد)» حتى لا يُلتبس بالعامل */
+/* لون هوية كل رصيد على اسمه فقط (بلا تغيير قياسات): بنك فلسطين أحمر عنابي، بايننس ذهبي */
+function fColor(f) { var n = f ? f.name || '' : ''; return /بنك/.test(n) ? '#B3202A' : /باين/.test(n) ? '#A87B00' : ''; }
 function fName(f) { return (S.workers || []).some(function (w) { return !w.arch && w.name === f.name; }) ? f.name + ' (رصيد)' : f.name; }
 /* الرصيد كاملًا بكل عملاته (الدولار والشيكل معًا) حيث يُختار رصيد أو يُعرض */
 function fBalAll(f) { return f.curs.map(function (c) { return fTxt(c, fBal(f.id, c)); }).join(' · '); }
@@ -1724,7 +1726,7 @@ function moveRowX(m, withFund, mini) {
   var mp = moveParts(m);
   var conv = m.cur === 'usd' && m.ils > 0, f0 = fund(m.h);
   return X({ mini: !!mini, ph: !!m.ph, icon: mini ? '' : m.x ? 'i-send' : m.dir === 'in' ? 'i-plus' : 'i-minus', icTone: m.x ? 'info' : m.dir === 'in' ? 'ok' : 'bad', title: mp.title,
-    sub: joinSub(withFund && f0 ? fName(f0) : '', dlabel(m.date), mini && conv ? usdTxt(m.amt) : ''),
+    subPre: withFund && f0 ? fName(f0) : '', subPreFg: fColor(f0), sub: joinSub(dlabel(m.date), mini && conv ? usdTxt(m.amt) : ''),
     end: sg(m.dir, conv ? money(m.ils) : fTxt(m.cur, m.amt)), endSub: mini ? '' : conv ? usdTxt(m.amt) : '', tag: m.x ? 'تحويل' : mp.kind, tagTone: m.x ? 'info' : mp.tone, endTone: m.dir === 'in' ? 'ok' : 'bad', chev: true, go: function () { openSh({ t: 'fView', id: m.id }); }, lp: function () { moveQa(m); } });
 }
 function recentMoves(n, fid) { return movesDesc(fmOn(fid)).slice(0, n); }
