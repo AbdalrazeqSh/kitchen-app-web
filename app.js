@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.45';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.46';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -21,7 +21,8 @@ function qu(n, u) { return gSmall(n, u) ? (u === 'كيلو' ? 'غرام' : 'مل
 function qtyU(n, u) { return qv(n, u) + ' ' + qu(n, u); }
 /* إشارة المبلغ في صفوف الحركات: + وارد، − ناقص (الدلالة ليست باللون وحده) */
 function sg(dir, t) { return '\u200E' + (dir === 'in' ? '+' : '\u2212') + '\u200E' + t; }
-function money(n) { var v = Math.abs(n) >= 1000 ? Math.round(n) : r2(n), p = (v % 1 ? v.toFixed(2) : String(v)).split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return (n < 0 ? '‎' : '') + p.join('.') + ' ₪'; }
+var MONEY_EXACT = false; /* في كشوف الحساب الخارجية: بلا تقريب حتى لا يختلف المجموع عن مجموع الأسطر الظاهرة */
+function money(n) { var v = Math.abs(n) >= 1000 && !MONEY_EXACT ? Math.round(n) : r2(n), p = (v % 1 ? v.toFixed(2) : String(v)).split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return (n < 0 ? '‎' : '') + p.join('.') + ' ₪'; }
 /* العدد والمعدود: 1 مفرد، 2 وما فوق 10 مفرد بالرقم (2 قدر، 24 قدر)، 3–10 جمع، 11 فأكثر والكسر مفرد (24 قدر، 2.5 قدر) (2.5 قدر) */
 function pl(n, one, two, many) {
   if (n === 1) return one;
@@ -3110,6 +3111,11 @@ function stmtDetailCanvas(i, ym) {
   return c;
 }
 
+/* كشف الحساب الخارجي بلا تقريب للمبالغ (1,624.50 لا 1,625): مجموع الأسطر الظاهرة = المجموع المعروض */
+var _stmtC = stmtCanvas, _stmtD = stmtDetailCanvas;
+stmtCanvas = function (i, ym) { MONEY_EXACT = true; try { return _stmtC(i, ym); } finally { MONEY_EXACT = false; } };
+stmtDetailCanvas = function (i, ym) { MONEY_EXACT = true; try { return _stmtD(i, ym); } finally { MONEY_EXACT = false; } };
+
 /* ===== 02w-fin.js ===== */
 /* ---------- المالية: تصنيف الحركات، الملخص الشهري، تعديل الحركة، جرد الصندوق، المستحقات ---------- */
 var CATS_OUT = [['pay', 'رواتب وعمال'], ['buy', 'مشتريات مواد'], ['move', 'نقل وكارة'], ['rent', 'إيجار وصيانة'], ['misc', 'متفرقات']];
@@ -5302,7 +5308,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
