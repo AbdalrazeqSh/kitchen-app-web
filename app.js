@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.41';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.42';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -728,7 +728,7 @@ function assetSheet(sh) {
       break;
     }
     case 'asset': {
-      var ast = asset(sh.id), ar = [X({ title: 'الإجمالي', sub: aAgeTxt(ast), tag: fmt(aTot(ast)) + ' قطعة', tagTone: aStale(ast) ? 'info' : 'ok' }), X({ title: 'سليم وجاهز', tag: fmt(ast.qty || 0), tagTone: 'ok' }),
+      var ast = asset(sh.id), ar = [X({ total: true, title: 'الإجمالي', sub: aAgeTxt(ast), tag: fmt(aTot(ast)) + ' قطعة', tagTone: aStale(ast) ? 'info' : 'ok' }), X({ title: 'سليم وجاهز', tag: fmt(ast.qty || 0), tagTone: 'ok' }),
         X({ title: 'معطّل', sub: ast.bad > 0 ? 'يحتاج إصلاحًا أو استبدالًا' : '', tag: fmt(ast.bad || 0), tagTone: ast.bad > 0 ? 'warn' : 'mute' }), X({ title: 'معار لجهة', tag: fmt(ast.out || 0), tagTone: 'mute' }), X({ title: 'الفئة', tag: ast.cat, tagTone: 'mute' }), X({ title: 'مكانه', tag: ast.loc, tagTone: 'mute' })];
       if (ast.note) ar.push(X({ title: 'ملاحظة', sub: ast.note }));
       ar.push(X({ icon: 'i-pencil', icTone: 'mute', title: 'تعديل البيانات', sub: 'الاسم والفئة والمكان والملاحظة', chev: true, go: function () { openSh({ t: 'assetEdit', id: ast.id }, { name: ast.name, cat: ast.cat, catNew: '', loc: ast.loc, locNew: '', note: ast.note || '' }); } }));
@@ -2032,7 +2032,7 @@ function initSheet(sh) {
       var rows = [X({ title: 'التكلفة', sub: na.bs.length ? pl(na.bs.length, 'طبخة واحدة', 'طبختان', 'طبخات') : 'بلا طبخات', tag: money(na.cost), tagTone: 'mute' })];
       (ni.chg || []).forEach(function (c) { rows.push(X({ title: c.note || 'إضافة', tag: money(c.amt), tagTone: 'mute' })); });
       (ni.pay || []).forEach(function (c) { rows.push(phRow({ title: 'دفعة' + (c.note ? ': ' + c.note : ''), sub: c.date ? dlabel(c.date) : '', tag: '− ' + money(c.amt), tagTone: 'ok' }, c, 'دفعة من ' + ni.name)); });
-      rows.push(X({ title: 'المتبقي', tag: money(na.due), tagTone: na.due > 0 ? 'warn' : 'ok' }));
+      rows.push(X({ total: true, title: 'المتبقي', tag: money(na.due), tagTone: na.due > 0 ? 'warn' : 'ok' }));
       na.bs.forEach(function (b) { rows.push(X({ icon: 'i-pot', icTone: 'warn', title: batchName(b), sub: dlabel(b.date) + ' · ' + pl(b.pots || 0, 'قدر واحد', 'قدران', 'قدور'), tag: batchCostTxt(b), tagTone: 'mute', chev: true, go: function () { openSh({ t: 'bview', id: b.id }); }, lp: function () { batchQa(b); } })); });
       return { acts: [X({ title: 'كشف الحساب', icon: 'i-doc', go: function () { openSh({ t: 'stmt', id: ni.id }, { m: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { openSh({ t: 'iniChg', id: ni.id }, { amt: '', note: '' }); } })], title: ni.name, sub: ni.occ || 'مبادرة', rows: rows,
         ft: { label: 'تسجيل دفعة', ok: true, go: function () { openSh({ t: 'iniPay', id: ni.id }, { fund: '', amt: '', note: '', rate: '' }); } },
@@ -2974,7 +2974,7 @@ function stmtSheet(sh) {
   if (!a.bs.length) rows.push(X({ title: 'لا طبخات في هذا الشهر', tag: money(0), tagTone: 'mute' }));
   a.chg.forEach(function (c) { rows.push(X({ title: c.note || 'إضافة', sub: c.date ? dlabel(c.date) : '', tag: money(c.amt), tagTone: 'mute' })); });
   a.pay.forEach(function (c) { rows.push(X({ title: 'دفعة' + (c.note ? ': ' + c.note : ''), sub: c.date ? dlabel(c.date) : '', tag: '− ' + money(c.amt), tagTone: 'ok' })); });
-  rows.push(X({ title: 'المستحق', tag: money(a.due), tagTone: a.due > 0 ? 'warn' : 'ok' }));
+  rows.push(X({ total: true, title: 'المستحق', tag: money(a.due), tagTone: a.due > 0 ? 'warn' : 'ok' }));
   var nt = late ? { text: 'عُدّل ' + pl(late, 'طبخة واحدة', 'طبختان', 'طبخات') + ' بعد إرسال الكشف (' + dlabel(new Date(sent).toISOString().slice(0, 10)) + '): أرسل نسخة جديدة.', tone: 'warn' }
     : sent ? { text: 'أُرسل هذا الكشف في ' + dlabel(new Date(sent).toISOString().slice(0, 10)) + '.', tone: 'info' }
     : { text: 'قبل الإرسال: اضغط أي طبخة لتعديل أصنافها وكمياتها وأسعارها، ثم شارك الكشف.', tone: 'info' };
