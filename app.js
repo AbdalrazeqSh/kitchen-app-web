@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.59';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.60';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4287,6 +4287,11 @@ function pgDevice() {
 
 
 /* ---------- الطبخة الجديدة: ثلاث خطوات ---------- */
+/* المؤسسة/الجهة في خطوتي الكميات والتكلفة (وفي تعديل الخطة التي تبدأ من الخطوة 2): تظهر دائمًا وتُغيَّر بالضغط */
+function instPickBlock(d) {
+  var ins = inst(d.inst);
+  return B('pick', { label: d.init ? 'الجهة أو الفرد' : 'المؤسسة', value: ins ? ins.name : d.init ? 'اختر الجهة' : 'اختر المؤسسة', filled: !!ins, go: function () { openSh({ t: 'instp' }); } });
+}
 function pgBatch() {
   var d = A.draft, bl = [], r = d.rec ? rec(d.rec) : null, ins = inst(d.inst), order = E.planOrder(S, d.kind, d.inst), l0 = led(order[0]);
   if (d.step === 1) {
@@ -4318,6 +4323,7 @@ function pgBatch() {
   }
   var lines = dLines(), short = lines.filter(function (l) { return l.after < 0; }).length;
   if (d.step === 2) {
+    if (d.kind === 'external') bl.push(instPickBlock(d));
     bl.push(B('stepper', { label: 'عدد القدور', text: r.name + ': الكميات من الوصفة × عدد القدور، وما عدّلته يتناسب مع العدد', value: d.pots, edit: function () { openSh({ t: 'potsSet' }, { n: String(A.draft.pots) }); },
       minus: function () { setDraft(potsPatch(A.draft, Math.max(1, A.draft.pots - 1))); },
       plus: function () { setDraft(potsPatch(A.draft, A.draft.pots + 1)); } }));
@@ -4365,6 +4371,7 @@ function pgBatch() {
     return bl;
   }
   var pi = priceInfo(d, lines), free0 = pi.free0, por = Number(d.portions) || 0, total = pi.total, kv = pi.kv, mat = pi.mat, xl = pi.xl, xt = pi.xt, lumpOn = pi.lumpOn, lumpV = pi.lumpV, isPaid = pi.isPaid;
+  if (d.kind === 'external') bl.push(instPickBlock(d));
   bl.push(B('kpi', { items: [
     X({ label: free0 && d.kind === 'external' && !(total > 0) ? 'قيمة المواد' : d.kind === 'external' ? 'تكلفة الطبخة' : 'التكلفة عليك', value: free0 && d.kind === 'external' && !(total > 0) ? 'عيني' : money(total), sub: d.kind === 'private' ? 'مغطّى من الخارجي' : isPaid && lumpOn ? 'سعر القدر × العدد' : isPaid && xt > 0 ? 'مواد + بنود إضافية' : d.init ? 'على حساب الجهة' : 'تُحاسَب بها المؤسسة' }),
     X({ label: 'تكلفة القدر', value: money(total / d.pots), sub: pl(d.pots, 'قدر واحد', 'قدران', 'قدور') }),
