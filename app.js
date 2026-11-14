@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.39';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.40';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2622,7 +2622,7 @@ function repDoc(k, forceExp) {
   var di = dayInfo(), hol = di.holiday, P = { org: 'مطبخ عهد', date: dlong(today()), sub: '', title: '', tiles: [], secs: [], notes: [], lead: '', foot: 'تلقائي' }, CL = RCOL;
   if (hol) P.notes.push({ t: 'عطلة: ' + hol.reason });
   if (k === 'cook' || k === 'wck') {
-    var priv = k === 'wck', dc = dayCalc(priv ? 'private' : ''), tb = dc.tb, da = distAgg(tb), nm = dc.order.length, potsExt = priv ? r2(dayBatches('external').reduce(function (t, b) { return t + (b.pots || 0); }, 0)) : 0; /* نسخة المراقب ذاتية فقط، ويُذكر الطبخ الخارجي بسطر سفلي في الطبخات */
+    var priv = k === 'wck', dc = dayCalc(priv ? 'private' : ''), tb = dc.tb, da = distAgg(tb), nm = dc.order.length, xb = priv ? dayBatches('external') : [], potsExt = xb.length; /* نسخة المراقب ذاتية فقط، ويُذكر الطبخ الخارجي بسطر سفلي في الطبخات */
     P.title = 'الاستهلاك اليومي'; P.sub = priv ? 'المراقب' : '';
     var pd = potsByDish(tb);
     P.lead = tb.length ? 'طُبخ ' + pd.map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + (SH('dist') && da.rows.length ? '، توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') : '') + (SH('dist') && da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : 'لا طبخ اليوم.';
@@ -2630,7 +2630,7 @@ function repDoc(k, forceExp) {
     P.hasTiles = SH('tiles'); P.tiles = [{ label: 'قدور', value: fmt(dc.pots) }, { label: priv ? 'أصناف خارجية' : 'أصناف', value: priv ? String(dc.order.filter(function (id) { return dc.agg[id].ext > 0; }).length) : String(nm) }];
     var br = pd.map(function (x) { return R([C(x.name, { b: 1 }), C(KN[x.kind], { c: 1 }), C(fmt(x.pots), { c: 1, b: 1 })]); });
     if (tb.length) br.push(R([C('الإجمالي', { b: 1 }), C(''), C(fmt(dc.pots), { c: 1, b: 1 })], true));
-    if (potsExt > 0) br.push(R([C('طبخ خارجي اليوم', { b: 1, fg: CL.mute }), C('خارجي', { c: 1, fg: CL.mute }), C(fmt(potsExt), { c: 1, fg: CL.mute })]));
+    if (potsExt > 0) br.push(R([C('طبخ خارجي: ' + potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + '), { fg: CL.mute }), C(''), C('')]));
     if (SH('batches')) P.secs.push(secK('batches', psec(TT('الطبخات', 'batches'), '1fr 84px 54px', ['الطبخة', 'النوع', 'القدور'], br, 'لا طبخ اليوم')));
     /* التوزيع: مخيمان بجانب بعض لتقصير الورقة؛ وسطر الطبخة يُحذف إن كانت الطبخة واحدة لكل الجهات */
     var one = pd.length <= 1, dcells = da.rows.map(function (r, i) { return { name: r.name, val: fmt(r.pots), sub: one ? '' : r.dishes, hasSub: !one && !!r.dishes, fg: '#1B2421', st: i % 2 ? '' : 'border-inline-end:1px solid #EDEFEA;' }; });
