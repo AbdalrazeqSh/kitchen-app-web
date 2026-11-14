@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.40';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.41';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2601,10 +2601,15 @@ function pc(t, o) {
   o = o || {};
   return { t: t == null ? '' : String(t), u: o.u || '', sub: o.sub || '', hasSub: !!o.sub, st: (o.c ? 'text-align:center;' : 'text-align:start;') + (o.b ? 'font-weight:700;' : '') + (o.fg ? 'color:' + o.fg + ';' : '') };
 }
-function prow(cells, total) { return { cells: cells, bg: total ? '#EAF1EC' : '' }; }
+/* صف الإجمالي يتميز بخلفية أغمق وخط أخضر غليظ وخط علوي، وصف التنبيه (tone:'ext') بلون كهرماني: يسري على كل جداول التقارير */
+function prow(cells, total, tone) {
+  var fg = total ? '#14563A' : tone === 'ext' ? '#8A5A00' : '';
+  cells.forEach(function (c) { if (fg) c.st += 'color:' + fg + ';' + (total ? 'font-weight:700;' : ''); });
+  return { cells: cells, bg: total ? '#D5E8DC' : tone === 'ext' ? '#FFF3D6' : '', bt: total ? '2px solid #14563A' : '1px solid #EDEFEA' };
+}
 function secK(k, sec) { sec.k = k; return sec; }
 function psec(title, cols, head, rows, empty) {
-  var out = rows.map(function (r, i) { return { cells: r.cells, bg: r.bg || (i % 2 ? '#F8FAF7' : '#FFFFFF') }; });
+  var out = rows.map(function (r, i) { return { cells: r.cells, bg: r.bg || (i % 2 ? '#F8FAF7' : '#FFFFFF'), bt: r.bt || '1px solid #EDEFEA' }; });
   return { isTab: true, isGrid: false, title: title, cols: cols, head: head.map(function (h, i) { return { t: h, st: i === 0 ? 'text-align:start' : 'text-align:center' }; }), rows: out, hasEmpty: !out.length, empty: empty || '' };
 }
 function stockAsOf() { var d = A.rdate; return d && d !== 'w7' && d < today() ? d : null; }
@@ -2630,7 +2635,7 @@ function repDoc(k, forceExp) {
     P.hasTiles = SH('tiles'); P.tiles = [{ label: 'قدور', value: fmt(dc.pots) }, { label: priv ? 'أصناف خارجية' : 'أصناف', value: priv ? String(dc.order.filter(function (id) { return dc.agg[id].ext > 0; }).length) : String(nm) }];
     var br = pd.map(function (x) { return R([C(x.name, { b: 1 }), C(KN[x.kind], { c: 1 }), C(fmt(x.pots), { c: 1, b: 1 })]); });
     if (tb.length) br.push(R([C('الإجمالي', { b: 1 }), C(''), C(fmt(dc.pots), { c: 1, b: 1 })], true));
-    if (potsExt > 0) br.push(R([C('طبخ خارجي: ' + potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + '), { fg: CL.mute }), C(''), C('')]));
+    if (potsExt > 0) br.push(R([C('طبخ خارجي: ' + potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + '), {}), C(''), C('')], false, 'ext'));
     if (SH('batches')) P.secs.push(secK('batches', psec(TT('الطبخات', 'batches'), '1fr 84px 54px', ['الطبخة', 'النوع', 'القدور'], br, 'لا طبخ اليوم')));
     /* التوزيع: مخيمان بجانب بعض لتقصير الورقة؛ وسطر الطبخة يُحذف إن كانت الطبخة واحدة لكل الجهات */
     var one = pd.length <= 1, dcells = da.rows.map(function (r, i) { return { name: r.name, val: fmt(r.pots), sub: one ? '' : r.dishes, hasSub: !one && !!r.dishes, fg: '#1B2421', st: i % 2 ? '' : 'border-inline-end:1px solid #EDEFEA;' }; });
