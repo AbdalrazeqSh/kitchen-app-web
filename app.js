@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.47';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.48';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4321,7 +4321,7 @@ function pgBatch() {
     } else {
       var xrows = [X({ title: 'تكلفة المواد', sub: free0 ? 'عيني من المؤسسة' : 'بسعر اليوم', end: free0 ? 'عيني' : money(mat) })].concat(xl.map(function (x, i) {
         return X({ title: x.k, sub: x.note, end: money(x.amt), chev: true, go: function () { openSh({ t: 'xline', idx: i }, { k: x.k, kNew: '', amt: String(x.amt), note: x.note || '' }); } });
-      }));
+      })).concat(xl.length ? [X({ total: true, title: 'تكلفة الطبخة', end: money(total) })] : []);
       bl.push(B('rows', { title: 'بنود التكلفة', act: 'بند', actGo: function () { openSh({ t: 'xline' }, { k: xkinds()[0], kNew: '', amt: '', note: '' }); }, items: xrows }));
       if (!xl.length) bl.push(B('note', { tone: 'info', icon: 'i-pencil', text: 'أضف ما يلزم فوق المواد: العمال، النقل، وأي بند آخر. تدخل كلها في تكلفة الطبخة وحساب المؤسسة.' }));
     }
@@ -4770,7 +4770,7 @@ function shDesc() {
         acts: bacts, rows: spiceLast(b.lines).map(function (ln) {
           var li = item(ln.item);
           var pkb = packTxt(li, ln.qty), srcb = Object.keys(ln.src || {}).length > 1 ? srcTxt(ln) : (LSHORT[Object.keys(ln.src || {})[0]] || '');
-          var base = ln.extra ? 'مضاف لهذا اليوم' : ln.planned != null ? 'حسب الوصفة ' + qtyU(ln.planned, li.unit) : '';
+          var base = ln.extra && rec(b.recipe) ? 'مضاف لهذا اليوم' : ln.planned != null ? 'حسب الوصفة ' + qtyU(ln.planned, li.unit) : '';
           return X({ title: li.name, sub: [ln.dev ? 'يختلف عن الوصفة' : '', srcb, base].filter(Boolean).join(' · '), end: qtyU(ln.qty, li.unit), endSub: pkb, endTone: ln.planned != null && Math.abs(ln.planned - ln.qty) > 0.0001 ? 'warn' : '' });
         }),
         note: { text: b.void ? 'طبخة ملغاة: أُعيدت موادها إلى المخزن وبقي سجلها.' : (b.done === false ? 'الكميات الفعلية لم تُؤكَّد؛ المخصوم من المخزن هو حسب الوصفة. ' : b.done ? 'الكميات الفعلية مؤكدة. ' : '') + (costFree ? 'مواد عينية بلا تكلفة عليك.' : 'التكلفة ' + money(b.cost || 0) + ' بسعر يوم الطبخة.') + (b.edits ? ' عُدّلت ' + pl(b.edits, 'مرة', 'مرتين', 'مرات') + '.' : ''), tone: b.void ? 'warn' : unc ? 'warn' : 'ok' },
@@ -4784,7 +4784,8 @@ function shDesc() {
       }
       if (b.kind === 'external' && !b.void && (!costFree || b.pm === 'lump' || (b.xl || []).length)) {
         if (b.pm === 'lump') R.rows.push(X({ title: 'التسعير بسعر القدر', sub: b.pots + ' × ' + money(b.lump), tag: money(b.cost || 0), tagTone: 'info' }));
-        else if ((b.xl || []).length) { R.rows.push(X({ title: 'تكلفة المواد', tag: costFree ? 'عيني' : money(b.matCost != null ? b.matCost : b.cost || 0), tagTone: 'mute' })); (b.xl || []).forEach(function (x) { R.rows.push(X({ title: x.k, sub: x.note, tag: money(x.amt), tagTone: 'mute' })); }); }
+        else if ((b.xl || []).length) { R.rows.push(X({ title: 'تكلفة المواد', tag: costFree ? 'عيني' : money(b.matCost != null ? b.matCost : b.cost || 0), tagTone: 'mute' })); (b.xl || []).forEach(function (x) { R.rows.push(X({ title: x.k, sub: x.note, tag: money(x.amt), tagTone: 'info' })); }); }
+        if (b.pm === 'lump' || (b.xl || []).length) R.rows.push(X({ total: true, title: 'تكلفة الطبخة', tag: money(b.cost || 0), tagTone: 'ok' })); /* صف الإجمالي يتميز دائمًا (قاعدة total) */
       }
       (S.fields || []).forEach(function (f) { var v = (b.cf || {})[f.id]; if (v !== undefined && v !== '') R.rows.push(X({ title: f.name, sub: 'حقل مخصص', tag: String(v), tagTone: 'mute' })); });
       (b.gone || []).forEach(function (gid) { if (item(gid)) R.rows.push(X({ title: item(gid).name, sub: 'أُزيل من هذه الطبخة', tag: 'أُزيل', tagTone: 'mute' })); });
