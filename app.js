@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.61';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.62';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2652,15 +2652,15 @@ function repDoc(k, forceExp) {
   var di = dayInfo(), hol = di.holiday, P = { org: 'مطبخ عهد', date: dlong(today()), sub: '', title: '', tiles: [], secs: [], notes: [], lead: '', foot: 'تلقائي' }, CL = RCOL;
   if (hol) P.notes.push({ t: 'عطلة: ' + hol.reason });
   if (k === 'cook' || k === 'wck') {
-    var priv = k === 'wck', dc = dayCalc(priv ? 'private' : ''), tb = dc.tb, da = distAgg(tb), nm = dc.order.length, xb = priv ? dayBatches('external') : [], potsExt = xb.length; /* نسخة المراقب ذاتية فقط، ويُذكر الطبخ الخارجي بسطر سفلي في الطبخات */
+    var priv = k === 'wck', EXT = !priv || SH('extra') /* «خارجي» مخفي = لا أثر للخارجي في أي سطر أو عدد أو قسم */, dc = dayCalc(priv ? 'private' : ''), tb = dc.tb, da = distAgg(tb), nm = dc.order.length, xb = priv ? dayBatches('external') : [], potsExt = xb.length; /* نسخة المراقب ذاتية فقط، ويُذكر الطبخ الخارجي بسطر سفلي في الطبخات */
     P.title = 'الاستهلاك اليومي'; P.sub = priv ? 'المراقب' : '';
     var pd = potsByDish(tb);
     P.lead = tb.length ? 'طُبخ ' + pd.map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + (SH('dist') && da.rows.length ? '، توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') : '') + (SH('dist') && da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : 'لا طبخ اليوم.';
     if (priv && di.sent && di.sent.ver > 1) P.lead = 'نسخة معدَّلة رقم ' + di.sent.ver + ' — تعديل في: ' + di.sent.ch.join('، ') + '. ' + P.lead;
-    P.hasTiles = SH('tiles'); P.tiles = [{ label: 'قدور', value: fmt(dc.pots) }, { label: priv ? 'أصناف خارجية' : 'أصناف', value: priv ? String(dc.order.filter(function (id) { return dc.agg[id].ext > 0; }).length) : String(nm) }];
+    P.hasTiles = SH('tiles'); P.tiles = [{ label: 'قدور', value: fmt(dc.pots) }].concat(priv ? (EXT ? [{ label: 'أصناف خارجية', value: String(dc.order.filter(function (id) { return dc.agg[id].ext > 0; }).length) }] : []) : [{ label: 'أصناف', value: String(nm) }]);
     var br = pd.map(function (x) { return R([C(x.name, { b: 1 }), C(KN[x.kind], { c: 1 }), C(fmt(x.pots), { c: 1, b: 1 })]); });
     if (tb.length) br.push(R([C('الإجمالي', { b: 1 }), C(''), C(fmt(dc.pots), { c: 1, b: 1 })], true));
-    if (potsExt > 0) br.push(R([C('طبخ خارجي: ' + potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + '), {}), C(''), C('')], false, 'ext'));
+    if (potsExt > 0 && EXT) br.push(R([C('طبخ خارجي: ' + potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + '), {}), C(''), C('')], false, 'ext'));
     if (SH('batches')) P.secs.push(secK('batches', psec(TT('الطبخات', 'batches'), '1fr 84px 54px', ['الطبخة', 'النوع', 'القدور'], br, 'لا طبخ اليوم')));
     /* التوزيع: مخيمان بجانب بعض لتقصير الورقة؛ وسطر الطبخة يُحذف إن كانت الطبخة واحدة لكل الجهات */
     var one = pd.length <= 1, dcells = da.rows.map(function (r, i) { return { name: r.name, val: fmt(r.pots), sub: one ? '' : r.dishes, hasSub: !one && !!r.dishes, fg: '#1B2421', st: i % 2 ? '' : 'border-inline-end:1px solid #EDEFEA;' }; });
@@ -2669,10 +2669,10 @@ function repDoc(k, forceExp) {
     var isSp = function (id) { return (item(id) || {}).grp === 'spice'; }, ordM = dc.order.filter(function (id) { return !isSp(id); }).concat(dc.order.filter(isSp)); /* الأساسية ثم البهارات في جدول واحد بلا فاصل */
     var mr = ordM.map(function (id) {
       var it = item(id), a = dc.agg[id], tot = r3(a.cook + a.other), parts = [];
-      if (priv) { var kb = E.balance(S, 'kitchen', id), ng = kb < 0 ? r3(Math.min(a.kit, -kb)) : 0; parts.push('من مخزن المطبخ ' + qtyU(a.kit, it.unit)); if (ng > 0) parts.push('منه نقص مسجّل ' + qtyU(ng, it.unit)); if (a.ext > 0) parts.push('خارجي ' + qtyU(a.ext, it.unit)); }
+      if (priv) { var kb = E.balance(S, 'kitchen', id), ng = kb < 0 ? r3(Math.min(a.kit, -kb)) : 0; if (EXT) { parts.push('من مخزن المطبخ ' + qtyU(a.kit, it.unit)); if (ng > 0) parts.push('منه نقص مسجّل ' + qtyU(ng, it.unit)); if (a.ext > 0) parts.push('خارجي ' + qtyU(a.ext, it.unit)); } else if (ng > 0) parts.push('نقص مسجّل في المطبخ ' + qtyU(ng, it.unit)); }
       else { if (a.cook) parts.push('طبخ ' + qtyU(a.cook, it.unit)); if (a.other) parts.push('صرف ' + qtyU(a.other, it.unit) + (a.why.length ? ': ' + a.why.join('، ') : '')); }
       var left = Math.max(0, E.balance(S, 'kitchen', id)) /* المتبقي = رصيد المخزن الأساسي في كل التقارير */, lst = stStatus(left, id);
-      var cs = [C(it.name, { b: 1, sub: parts.length > 1 || a.other || (priv && (a.ext > 0 || parts.length > 1)) ? parts.join(' · ') : '' }), C(qv(tot, it.unit), { c: 1, b: 1, u: qu(tot, it.unit) })];
+      var cs = [C(it.name, { b: 1, sub: parts.length > 1 || a.other || (priv && (a.ext > 0 || parts.length > 1)) || (priv && !EXT && parts.length) ? parts.join(' · ') : '' }), C(qv(tot, it.unit), { c: 1, b: 1, u: qu(tot, it.unit) })];
       if (SH('left')) cs.push(C(qv(left, it.unit), { c: 1, u: qu(left, it.unit), fg: SH('alert') ? (lst.rank <= 1 ? CL.bad : lst.rank === 2 ? CL.warn : CL.mute) : CL.mute, b: SH('alert') && lst.rank < 3 }));
       return R(cs);
     });
