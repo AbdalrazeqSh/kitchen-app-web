@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.43';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.44';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -5249,7 +5249,7 @@ function shell() {
   var unrec = E.wDay(S, today()).none;
   var tabs = [['today', 'اليوم', 'i-home', 0], ['kitchen', 'الطبخ', 'i-pot', 0], ['stock', 'المخزن', 'i-box', badge], ['workers', 'العمال', 'i-users', unrec], ['more', 'المزيد', 'i-menu', 0]].map(function (t) {
     var on = tab === t[0] && pg === 'main';
-    return { label: t[1], icon: t[2], cur: on ? 'page' : 'false', fg: on ? '#14563A' : '#4F5A54', fw: on ? 700 : 500, pill: on ? '#DFF1E7' : 'transparent',
+    return { label: t[1], icon: t[2], cur: on ? 'page' : 'false', fg: on ? '#14563A' : '#4F5A54', fw: on ? 700 : 500, pill: on ? '#14563A' : 'transparent', ic: on ? '#FFFFFF' : '#4F5A54',
       hasBadge: t[3] > 0, badge: String(t[3]), go: function () { setState({ tab: t[0], page: 'main', sh: null, form: {}, q: '' }); } };
   });
   var pill = s.offline ? T.warn : T.ok;
