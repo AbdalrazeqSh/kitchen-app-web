@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.50';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.51';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1329,7 +1329,7 @@ function distEditFields(sh, mk, clr, day, keyOf) {
   }
   ids.forEach(function (id) {
     var g = E.by(S.bens, id);
-    mk(g).forEach(function (f, i) { if (i === 0) { f.hasRm = true; f.rm = function () { clr(id); fset('dl', ids.filter(function (x) { return x !== id; }).join(',')); }; } fl.push(f); });
+    mk(g).forEach(function (f, i) { f.did = id; if (ids.length > 1) f.hasDrag = true; if (i === 0) { f.hasRm = true; f.rm = function () { clr(id); fset('dl', ids.filter(function (x) { return x !== id; }).join(',')); }; } fl.push(f); });
   });
   var chips = bens().filter(function (g) { return ids.indexOf(g.id) < 0; }).map(function (g) { return X({ label: g.name, on: false, go: function () { fset('dl', ids.concat(g.id).join(',')); } }); });
   chips.push(X({ label: '+ مخيم جديد', on: false, go: function () { openSh({ t: 'addBen', back: { sh: sh, form: Object.assign({}, A.form) } }, { name: '' }); } }));
@@ -1511,6 +1511,14 @@ function daySheet(sh) {
   }
   return R;
 }
+
+/* ترتيب المخيمات بالسحب: يُحفظ في القائمة الرئيسية فيشمل كل شاشات التوزيع والتقارير */
+window.__reorder = function (ids) {
+  var pos = [], gs = ids.map(function (id) { return E.by(S.bens, id); }).filter(Boolean);
+  gs.forEach(function (g) { pos.push(S.bens.indexOf(g)); }); pos.sort(function (a, b) { return a - b; });
+  gs.forEach(function (g, i) { S.bens[pos[i]] = g; });
+  fset('dl', ids.join(',')); mutated('رُتّبت المخيمات');
+};
 
 /* ===== 02i-photo.js ===== */
 /* ---------- صور التوثيق: التقاط/اختيار، ضغط، حفظ على الجهاز، عرض، نسخ احتياطي ---------- */
@@ -5281,7 +5289,7 @@ function shell() {
     shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
-    shFields: (f.fields || []).map(function (x) { return Object.assign({ hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
+    shFields: (f.fields || []).map(function (x) { return Object.assign({ did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
     shHasNote: !!nt, shNote: nt ? nt.text : '', shNoteBg: ntn[0], shNoteFg: ntn[1],
     shHasFooter: !!sft, shFtLabel: sft ? sft.label : '', shFtDisabled: sft ? !sft.ok : false, shFtBg: sft && sft.ok ? '#14563A' : '#D9DDD8', shFtFg: sft && sft.ok ? '#FFFFFF' : '#4A544F',
     shFtGo: sft ? (sft.ok ? sft.go : function () { say(req); }) : noop,

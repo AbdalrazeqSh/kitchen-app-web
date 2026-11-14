@@ -169,6 +169,36 @@ function mount(el, props) {
     var go = function () { try { if (document.activeElement === t) t.select(); } catch (er) {} };
     go(); setTimeout(go, 0); setTimeout(go, 60);
   });
+
+  /* سحب لإعادة الترتيب: مقبض [data-dg] داخل صف .ff[data-did]؛ الصفوف المتجاورة بالمعرّف نفسه تتحرك معًا، وعند الإفلات يُستدعى window.__reorder(ids) */
+  root.addEventListener('pointerdown', function (e) {
+    var h = e.target && e.target.closest && e.target.closest('[data-dg]'); if (!h) return;
+    var row = h.closest('.ff'), did = row && row.getAttribute('data-did'), par = row && row.parentNode; if (!did) return;
+    var all = Array.prototype.filter.call(par.children, function (c) { return c.hasAttribute && c.hasAttribute('data-did'); }), ids = [];
+    all.forEach(function (c) { var d = c.getAttribute('data-did'); if (ids.indexOf(d) < 0) ids.push(d); });
+    var grp = function (d) { return all.filter(function (c) { return c.getAttribute('data-did') === d; }); }, mine = grp(did), startY = e.clientY, moved = false, orig = ids.join(',');
+    e.preventDefault(); try { h.setPointerCapture(e.pointerId); } catch (er) {}
+    mine.forEach(function (c) { c.style.position = 'relative'; c.style.zIndex = '5'; c.style.background = '#F3F7F4'; c.style.boxShadow = '0 6px 18px rgba(0,0,0,.18)'; c.style.borderRadius = '12px'; });
+    var natTop = function () { mine.forEach(function (c) { c.style.transform = ''; }); return mine[0].getBoundingClientRect().top; };
+    var mv = function (ev) {
+      var dy = ev.clientY - startY; mine.forEach(function (c) { c.style.transform = 'translateY(' + dy + 'px)'; });
+      var r0 = mine[0].getBoundingClientRect(), r1 = mine[mine.length - 1].getBoundingClientRect(), cy = (r0.top + r1.bottom) / 2;
+      for (var k = 0; k < ids.length; k++) {
+        var d = ids[k]; if (d === did) continue; var g = grp(d), t = g[0].getBoundingClientRect().top, b = g[g.length - 1].getBoundingClientRect().bottom;
+        if (cy > t && cy < b) {
+          var mi = ids.indexOf(did), before = natTop(), ref = k < mi ? g[0] : g[g.length - 1].nextSibling;
+          mine.forEach(function (c) { par.insertBefore(c, ref); }); ids.splice(mi, 1); ids.splice(ids.indexOf(d) + (k < mi ? 0 : 1), 0, did);
+          startY += natTop() - before; moved = true; mine.forEach(function (c) { c.style.transform = 'translateY(' + (ev.clientY - startY) + 'px)'; }); break;
+        }
+      }
+    };
+    var up = function () {
+      h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
+      mine.forEach(function (c) { c.style.transform = ''; c.style.position = ''; c.style.zIndex = ''; c.style.background = ''; c.style.boxShadow = ''; c.style.borderRadius = ''; });
+      if (ids.join(',') !== orig && window.__reorder) window.__reorder(ids);
+    };
+    h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+  });
   root.addEventListener('mousedown', function (e) { if (e.target && e.target.closest && e.target.closest('[data-ci]')) e.preventDefault(); });
   root.addEventListener('click', function (e) {
     var ci = e.target && e.target.closest && e.target.closest('[data-ci]');
