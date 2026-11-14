@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.52';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.53';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1715,10 +1715,10 @@ function lastRate() { var l = movesDesc((S.fm || []).filter(function (m) { retur
 function openMove(fid, dir) { openSh({ t: 'fMove' }, { fund: fid || defFund(), dir: dir || 'out', dlock: dir ? '1' : '', mode: '', amt: '', rate: '', note: '', cat: '', dtxt: today() }); }
 /* صف حركة موحَّد في كل مكان؛ withFund يُظهر من أي رصيد */
 /* نوع الحركة (راتب، سلفة، مكافأة...) غمامة ملوّنة قبل البيان، فلا يُقرأ كأنه جزء من اسم الشخص: «سلفة» + «حمود المجايدة» */
-var MOVE_KIND = { 'راتب': 'info', 'سلفة': 'warn', 'مكافأة': 'ok', 'دفعة نقدية': 'mute', 'دفعة': 'mute', 'تسوية': 'mute', 'خصم': 'bad', 'مخالفة': 'bad', 'شراء للمطبخ': 'info' };
+/* في كشف الحساب والقوائم المالية كل الأنواع بلون غمامة واحد (رمادي): التلوين حسب المعنى مكانه أقسام العمال فقط */
 function moveParts(m) {
   var n = m.note || '', mm = /^(راتب|سلفة|مكافأة|دفعة نقدية|دفعة|تسوية|خصم|مخالفة|شراء للمطبخ)\s+(.+)$/.exec(n);
-  return mm ? { kind: mm[1], tone: MOVE_KIND[mm[1]], title: mm[2] } : { kind: '', tone: 'mute', title: n || (m.dir === 'in' ? 'وارد' : 'ناقص') };
+  return mm ? { kind: mm[1], tone: 'mute', title: mm[2] } : { kind: '', tone: 'mute', title: n || (m.dir === 'in' ? 'وارد' : 'ناقص') };
 }
 function moveRowX(m, withFund, mini) {
   var mp = moveParts(m);
