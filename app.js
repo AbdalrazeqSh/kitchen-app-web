@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.44';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.45';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -32,7 +32,8 @@ function pl(n, one, two, many) {
 function norm(s) { return String(s || '').replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ').trim().toLowerCase(); }
 function item(id) { return E.by(S.items, id); }
 function led(id) { return E.by(S.ledgers, id); }
-function rec(id) { return E.by(S.recipes, id); }
+var GHOST_REC = { id: '__free', code: '', name: 'طبخة بلا وصفة', en: '', kind: 'both', lines: [], steps: [], ghost: true }; /* طبخات الشيت المعتمدة بلا وصفة: نفس شاشة التعديل بأصناف إضافية فقط */
+function rec(id) { return E.by(S.recipes, id) || (id === GHOST_REC.id ? GHOST_REC : null); }
 function inst(id) { return E.by(S.insts, id); }
 function wk(id) { return E.by(S.workers || [], id); }
 function packTxt(it, q) {
@@ -4256,7 +4257,7 @@ function pgBatch() {
       plus: function () { setDraft(potsPatch(A.draft, A.draft.pots + 1)); } }));
     bl.push(B('note', { tone: 'info', icon: 'i-pencil', text: 'الوصفة نقطة بداية فقط. عدّل الكمية بـ + و−، أو اضغط على الرقم لكتابتها أو لإزالة الصنف. كل تعديل لهذه الطبخة وحدها، والوصفة تبقى كما هي.' }));
     var mkRow = function (l) {
-      return X({ step: true, edit: function () { openSh({ t: 'bline', id: l.id }, { qty: String(l.actual), by: 'all' }); }, title: l.name + (l.fixed ? ' (ثابت)' : '') + (l.extra ? ' (إضافي)' : '') + (l.swap ? ' · قابل للاستبدال' : ''), val: fmt(l.actual), unit: l.unit,
+      return X({ step: true, edit: function () { openSh({ t: 'bline', id: l.id }, { qty: String(l.actual), by: 'all' }); }, title: l.name + (l.fixed ? ' (ثابت)' : '') + (l.extra && !r.ghost ? ' (إضافي)' : '') + (l.swap ? ' · قابل للاستبدال' : ''), val: fmt(l.actual), unit: l.unit,
         badge: l.dev ? 'يختلف عن الوصفة' : '', sub: [d.pots > 1 && l.actual > 0 && !l.fixed ? 'للقدر ' + perTxt(l.actual, d.pots, l.unit) : '', packFull(item(l.id), l.actual) ? 'الإجمالي ' + packFull(item(l.id), l.actual) : '', Object.keys(l.src).length > 1 ? srcTxt(l) : (l.extra ? 'مضاف لهذا اليوم' : l.note ? l.note : '')].filter(Boolean).join(' · '),
         sub2: 'يبقى ' + fmt(l.after) + (l.after > 0 && packFull(item(l.id), l.after) ? ' = ' + packFull(item(l.id), l.after) : ''),
         hintTxt: !l.extra && l.planned != null ? 'حسب الوصفة ' + fmt(l.planned) + ' ' + l.unit : '', hintGo: !l.extra && l.planned != null ? function () { var o2 = Object.assign({}, A.draft.over); delete o2[l.id]; setDraft({ over: o2 }); } : null,
@@ -4272,6 +4273,7 @@ function pgBatch() {
       var on2 = !!(d.opts || {})[l.item]; return X({ title: item(l.item).name + ' (اختياري)', sub: l.note || '', tag: on2 ? 'مضاف' : 'غير مضاف', tagTone: on2 ? 'ok' : 'mute', chev: true,
         go: function () { var o2 = Object.assign({}, A.draft.opts); if (o2[l.item]) delete o2[l.item]; else o2[l.item] = true; setDraft({ opts: o2 }); } });
     }) }));
+    if (r.ghost) { gB = gB.concat(gX); gX = []; } /* طبخة بلا وصفة: كل أصنافها أساسية */
     bl.push(B('rows', { all: true, title: 'الأصناف الأساسية', act: 'مكوّن', actGo: function () { openSh({ t: 'extra', item: null }); }, items: gB.map(mkRow), empty: 'لا أصناف أساسية' }));
     if (gS.length) bl.push(B('rows', { all: true, title: 'البهارات (تعديلها حتى 10%)', items: gS.map(mkRow) }));
     if (gF.length) bl.push(B('rows', { all: true, title: 'الوقود', items: gF.map(mkRow) }));
@@ -4757,7 +4759,7 @@ function shDesc() {
       break;
     }
     case 'bview': {
-      var bacts = [], b = E.by(S.batches, sh.id), l0 = led(b.order[0]), freeB = E.isFree(l0), canEdit = !b.void && !!rec(b.recipe), unc = b.done === false && !b.void, costFree = b.kind === 'external' && freeB;
+      var bacts = [], b = E.by(S.batches, sh.id), l0 = led(b.order[0]), freeB = E.isFree(l0), canEdit = !b.void, unc = b.done === false && !b.void, costFree = b.kind === 'external' && freeB;
       R = { title: batchName(b), sub: KN[b.kind] + ' · ' + pl(b.pots || 0, 'قدر واحد', 'قدران', 'قدور') + ' · ' + (inst(b.inst) ? inst(b.inst).name + ' · ' : '') + dlabel(b.date),
         acts: bacts, rows: spiceLast(b.lines).map(function (ln) {
           var li = item(ln.item);
@@ -5115,7 +5117,7 @@ function shareStatement(w) { wstOpen(w); }
 
 /* ---------- الطبخة: حفظ وتعديل وإلغاء ---------- */
 function startEdit(b) {
-  var r = rec(b.recipe); if (!r) { say('وصفة هذه الطبخة غير متوفرة للتعديل'); return; }
+  var r = rec(b.recipe) || GHOST_REC; if (!r) { say('وصفة هذه الطبخة غير متوفرة للتعديل'); return; }
   var i = inst(b.inst), d = newDraft(b.kind, !!(i && i.init));
   d.step = 2; d.rec = r.id; d.inst = b.inst || null; d.pots = b.pots || 1; d.portions = b.portions || ''; d.editId = b.id; d.date = b.date; d.dish = b.dish && b.dish !== r.name ? b.dish : '';
   draftFromBatch(d, b, r);
