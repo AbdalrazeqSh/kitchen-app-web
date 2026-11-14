@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.56';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.57';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -614,7 +614,13 @@ function dLines() {
   var d = A.draft, out = [];
   if (!d || !d.rec) return out;
   var r = rec(d.rec), order = E.planOrder(S, d.kind, d.inst), net = d.editId ? E.batchNet(S, d.editId) : null, alt = d.alt || {}, opts = d.opts || {}, mk = d.mkt || {}, fl = d.fill || {};
-  var exm = function (id) { if (!net) return null; var o = {}; order.forEach(function (l) { o[l] = net[l + '|' + id] || 0; }); return o; };
+  var psim = d.planEdit ? planPrior(d.planEdit) : (!d.editId && !d.planId && d.date && d.date > today() ? planPrior(null) : null); /* تعديل خطة أو طبخة مجدولة جديدة: الخطط السابقة حجزت موادها */
+  var exm = function (id) {
+    var o = {}, pe = psim ? priorExtra(psim, order, id) : null;
+    if (!net && !pe) return null;
+    order.forEach(function (l) { o[l] = (net ? net[l + '|' + id] || 0 : 0) + (pe ? pe[l] || 0 : 0); });
+    return o;
+  };
   r.lines.forEach(function (l) {
     if (l.opt && !opts[l.item]) return; /* مكوّن اختياري: لا يدخل إلا إن أضفته */
     var id = l.item, per = l.per, note = l.note;
@@ -4025,8 +4031,26 @@ function planDistBlocks(ps) {
     return B('rows', { title: 'توزيع الطبخات المخططة' + (days.length > 1 ? ' · ' + dlabel(day) : ''), act: 'توزيع', actGo: go, items: rows });
   });
 }
-function planShort(p) { // عدد أصناف الخطة التي ينقص رصيدها لهذه الطبخة وحدها
-  return E.scaleRecipe(rec(p.recipeId), p.pots, p).filter(function (l) { return Math.max(E.balance(S, 'kitchen', l.item), 0) + Math.max(E.balance(S, 'ext', l.item), 0) < l.qty - 0.0001; }).length;
+/* ما سحبته الطبخات المخططة التي قبل هذه (بترتيبها الفعلي) من كل مخزن: يُحسب منه رصيد الطبخة التالية، فلا يُعدّ الملح المحجوز متاحًا مرتين. upto = معرّف الخطة (الأخيرة تُستثنى)، أو null = كل الخطط */
+function planPrior(upto) {
+  var sim = poolSim(), ps = plans(), i, order;
+  for (i = 0; i < ps.length; i++) {
+    if (upto && ps[i].id === upto) break;
+    order = E.planOrder(S, ps[i].kind || 'private', ps[i].inst);
+    E.scaleRecipe(rec(ps[i].recipeId), ps[i].pots, ps[i]).forEach(function (l) { poolTake(sim, order, l.item, l.qty); });
+  }
+  return sim;
+}
+/* تعديل الرصيد لسطر طبخة: خصم ما حجزته الخطط السابقة من كل مخزن، والنقص السابق من المخزن الأول */
+function priorExtra(sim, order, id) {
+  var o = {}, any = false;
+  order.forEach(function (l) { var d = r2(poolBal(sim, l, id) - Math.max(E.balance(S, l, id), 0)); if (d) { o[l] = d; any = true; } });
+  if (sim.short[id]) { o[order[0]] = r2((o[order[0]] || 0) - sim.short[id]); any = true; }
+  return any ? o : null;
+}
+function planShort(p, upto) { // عدد أصناف الخطة التي ينقص رصيدها لهذه الطبخة بعد ما حجزته الخطط السابقة
+  var sim = planPrior(upto), order = E.planOrder(S, p.kind || 'private', p.inst);
+  return E.scaleRecipe(rec(p.recipeId), p.pots, p).filter(function (l) { return order.reduce(function (a, k) { return a + poolBal(sim, k, l.item); }, 0) - (sim.short[l.item] || 0) < l.qty - 0.0001; }).length;
 }
 function pgKitchen() {
   var k = A.kk === 'init' ? 'external' : A.kk, bl = [];
@@ -4915,12 +4939,12 @@ function shDesc() {
           onPick: function (id) { var r = rec(id); openSh({ t: 'planAdd', rec: id }, { day: fv('day') || '1', pots: fv('pots') || '3', kind: r.kinds.indexOf('private') >= 0 ? 'private' : 'external' }); } });
         break;
       }
-      var pr = rec(sh.rec), pp = Math.max(0, parseInt(fv('pots'), 10) || 0), shortN = pp ? planShort({ recipeId: pr.id, pots: pp }) : 0;
+      var pr = rec(sh.rec), pp = Math.max(0, parseInt(fv('pots'), 10) || 0), shortN = pp ? planShort({ recipeId: pr.id, pots: pp, kind: fv('kind') || (pr.kinds.indexOf('private') >= 0 ? 'private' : 'external') }, null) : 0;
       var pdt = planDate(), pw = planWhen(), dch = pw[0];
       var pf = [dch, fText('pots', 'عدد القدور', '3', 'numeric')];
       if (pr.kinds.length === 2) pf.push(fChips('kind', 'النوع', [['private', 'طبخ'], ['external', 'طبخ خارجي']]));
       R = { title: pr.name, sub: (pdt ? dlabel(pdt) : 'اختر التاريخ') + ' · ' + (pp ? pl(pp, 'قدر واحد', 'قدران', 'قدور') : 'اكتب عدد القدور'), fields: pf,
-        note: pp ? { text: shortN ? 'يوجد ' + pl(shortN, 'صنف واحد ينقص', 'صنفان ينقصان', 'أصناف تنقص') + ' عن هذه الطبخة وحدها بحسب الرصيد الآن.' : 'المواد الحالية تكفي هذه الطبخة.', tone: shortN ? 'warn' : 'ok' } : null,
+        note: pp ? { text: shortN ? 'يوجد ' + pl(shortN, 'صنف واحد ينقص', 'صنفان ينقصان', 'أصناف تنقص') + ' عن هذه الطبخة بحسب الرصيد الآن بعد الطبخات المخططة قبلها.' : 'المواد الحالية تكفي هذه الطبخة.', tone: shortN ? 'warn' : 'ok' } : null,
         ft: { label: 'إضافة للخطة', ok: pp >= 1 && pp <= 500 && !!pdt, go: function () { doAddPlan(pr, pp); } } };
       break;
     }
@@ -5329,7 +5353,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
