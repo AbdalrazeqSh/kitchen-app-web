@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.46';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.47';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3062,7 +3062,7 @@ function stBatchBlock(b) {
     rows.push({ n: li.name, q: qtyU(ln.qty, li.unit), p: free || lump ? '' : c > 0 ? money(eff) + ' / ' + li.unit : 'عيني', c: free || lump ? '' : c > 0 ? money(c) : '—' });
   });
   var extra = [];
-  if (!lump) (b.xl || []).forEach(function (x) { extra.push({ n: x.name || x.note || 'رسوم إضافية', c: money(x.amt || 0) }); });
+  if (!lump) (b.xl || []).forEach(function (x) { extra.push({ n: x.k || x.name || x.note || 'رسوم إضافية', d: x.k && x.note ? x.note : '', c: money(x.amt || 0) }); });
   var foot = lump ? pl(b.pots || 0, 'قدر واحد', '2 قدر', 'قدور') + ' × ' + money(b.lump || 0) : '';
   return { name: batchName(b), pots: pl(b.pots || 0, 'قدر واحد', '2 قدر', 'قدور'), total: batchCostTxt(b), rows: rows, extra: extra, foot: foot, free: free, lump: lump, mat: r2((b.lines || []).reduce(function (t, ln) { return t + (ln.cost || 0); }, 0)) };
 }
@@ -3078,7 +3078,7 @@ function stmtDetailCanvas(i, ym) {
       L.push({ k: 'bat', a: B.name, d: B.pots, c: B.total, h: 50 });
       if (B.rows.length) L.push({ k: 'th', lump: B.lump, free: B.free, h: 32 });
       B.rows.forEach(function (r) { L.push({ k: 'ln', r: r, lump: B.lump, free: B.free, h: RH }); });
-      B.extra.forEach(function (x) { L.push({ k: 'ex', a: x.n, c: x.c, h: RH }); });
+      B.extra.forEach(function (x) { L.push({ k: 'ex', a: x.n, d: x.d, c: x.c, h: RH }); });
       if (B.foot) L.push({ k: 'ft', a: 'سعر القدر', d: B.foot, c: B.total, h: RH });
       L.push({ k: 'gap', h: 10 });
     });
@@ -3100,7 +3100,7 @@ function stmtDetailCanvas(i, ym) {
     else if (r.k === 'bat') { x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText(fit(r.a, 430), W - PAD, cy); x.textAlign = 'center'; x.fillStyle = '#5B6660'; x.font = '500 22px ' + F; x.fillText(r.d, W * 0.52, cy); x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '700 27px ' + F; x.fillText(r.c, PAD, cy); }
     else if (r.k === 'th') { x.fillStyle = '#8A948E'; x.font = '500 19px ' + F; x.textAlign = 'right'; x.fillText('الصنف', W - PAD - 16, y + 24); x.textAlign = 'center'; x.fillText('الكمية', 470, y + 24); if (!r.lump && !r.free) { x.fillText('سعر الوحدة', 290, y + 24); x.textAlign = 'left'; x.fillText('التكلفة', PAD, y + 24); } x.fillStyle = '#E3E8E4'; x.fillRect(PAD, y + r.h - 3, W - 2 * PAD, 1); }
     else if (r.k === 'ln') { x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '500 24px ' + F; x.fillText(fit(r.r.n, 280), W - PAD - 16, cy - 2); x.textAlign = 'center'; x.fillStyle = '#5B6660'; x.font = '500 22px ' + F; x.fillText(r.r.q, 470, cy - 2); if (r.r.p) { x.font = '500 20px ' + F; x.fillText(r.r.p, 290, cy - 2); } if (r.r.c) { x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '500 24px ' + F; x.fillText(r.r.c, PAD, cy - 2); } }
-    else if (r.k === 'ex' || r.k === 'ft') { x.fillStyle = '#5B6660'; x.textAlign = 'right'; x.font = '500 23px ' + F; x.fillText(fit(r.a, 360), W - PAD - 16, cy - 2); if (r.d) { x.textAlign = 'center'; x.fillText(r.d, 400, cy - 2); } x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '700 24px ' + F; x.fillText(r.c, PAD, cy - 2); }
+    else if (r.k === 'ex' || r.k === 'ft') { x.fillStyle = '#5B6660'; x.textAlign = 'right'; x.font = '500 23px ' + F; x.fillText(fit(r.a, r.d ? 200 : 360), W - PAD - 16, cy - 2); if (r.d) { x.textAlign = 'center'; x.fillText(r.d, 400, cy - 2); } x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '700 24px ' + F; x.fillText(r.c, PAD, cy - 2); }
     else if (r.k === 'row') { x.fillStyle = '#F4F6F2'; x.fillRect(0, y, W, r.h); x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '700 26px ' + F; x.fillText(fit(r.a, 430), W - PAD, cy); x.textAlign = 'center'; x.fillStyle = '#5B6660'; x.font = '500 21px ' + F; x.fillText(r.d, W * 0.52, cy); x.textAlign = 'left'; x.fillStyle = r.ok ? '#14563A' : '#1B2421'; x.font = '700 26px ' + F; x.fillText(r.c, PAD, cy); }
     y += r.h;
   });
