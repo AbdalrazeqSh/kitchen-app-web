@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.48';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.49';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2031,7 +2031,7 @@ function initSheet(sh) {
   switch (sh.t) {
     case 'init': {
       var ni = inst(sh.id), na = iniAcct(ni);
-      var rows = [X({ title: 'التكلفة', sub: na.bs.length ? pl(na.bs.length, 'طبخة واحدة', 'طبختان', 'طبخات') : 'بلا طبخات', tag: money(na.cost), tagTone: 'mute' })];
+      var rows = [X({ subt: true, title: 'التكلفة', sub: na.bs.length ? pl(na.bs.length, 'طبخة واحدة', 'طبختان', 'طبخات') : 'بلا طبخات', tag: money(na.cost), tagTone: 'mute' })];
       (ni.chg || []).forEach(function (c) { rows.push(X({ title: c.note || 'إضافة', tag: money(c.amt), tagTone: 'mute' })); });
       (ni.pay || []).forEach(function (c) { rows.push(phRow({ title: 'دفعة' + (c.note ? ': ' + c.note : ''), sub: c.date ? dlabel(c.date) : '', tag: '− ' + money(c.amt), tagTone: 'ok' }, c, 'دفعة من ' + ni.name)); });
       rows.push(X({ total: true, title: 'المتبقي', tag: money(na.due), tagTone: na.due > 0 ? 'warn' : 'ok' }));
@@ -4319,7 +4319,7 @@ function pgBatch() {
       bl.push(B('input', { label: 'سعر القدر الواحد (₪)', value: d.lump, ph: 'مثال: 90', mode: 'decimal', onInput: function (v) { setDraft({ lump: v }); } }));
       bl.push(B('note', { tone: 'info', icon: 'i-check', text: lumpV > 0 ? pl(d.pots, 'قدر واحد', 'قدران', 'قدور') + ' × ' + money(lumpV) + ' = ' + money(total) + '. المواد تُخصم من المخزن كالمعتاد (قيمتها ' + money(mat) + ') لكن الحساب بسعر القدر.' : 'اكتب سعر القدر الواحد المتفق عليه. المواد تُخصم من المخزن كالمعتاد.' }));
     } else {
-      var xrows = [X({ title: 'تكلفة المواد', sub: free0 ? 'عيني من المؤسسة' : 'بسعر اليوم', end: free0 ? 'عيني' : money(mat) })].concat(xl.map(function (x, i) {
+      var xrows = [X({ subt: true, title: 'تكلفة المواد', sub: free0 ? 'عيني من المؤسسة' : 'بسعر اليوم', end: free0 ? 'عيني' : money(mat) })].concat(xl.map(function (x, i) {
         return X({ title: x.k, sub: x.note, end: money(x.amt), chev: true, go: function () { openSh({ t: 'xline', idx: i }, { k: x.k, kNew: '', amt: String(x.amt), note: x.note || '' }); } });
       })).concat(xl.length ? [X({ total: true, title: 'تكلفة الطبخة', end: money(total) })] : []);
       bl.push(B('rows', { title: 'بنود التكلفة', act: 'بند', actGo: function () { openSh({ t: 'xline' }, { k: xkinds()[0], kNew: '', amt: '', note: '' }); }, items: xrows }));
@@ -4784,7 +4784,7 @@ function shDesc() {
       }
       if (b.kind === 'external' && !b.void && (!costFree || b.pm === 'lump' || (b.xl || []).length)) {
         if (b.pm === 'lump') R.rows.push(X({ title: 'التسعير بسعر القدر', sub: b.pots + ' × ' + money(b.lump), tag: money(b.cost || 0), tagTone: 'info' }));
-        else if ((b.xl || []).length) { R.rows.push(X({ title: 'تكلفة المواد', tag: costFree ? 'عيني' : money(b.matCost != null ? b.matCost : b.cost || 0), tagTone: 'mute' })); (b.xl || []).forEach(function (x) { R.rows.push(X({ title: x.k, sub: x.note, tag: money(x.amt), tagTone: 'info' })); }); }
+        else if ((b.xl || []).length) { R.rows.push(X({ subt: true, title: 'تكلفة المواد', tag: costFree ? 'عيني' : money(b.matCost != null ? b.matCost : b.cost || 0), tagTone: 'mute' })); (b.xl || []).forEach(function (x) { R.rows.push(X({ title: x.k, sub: x.note, tag: money(x.amt), tagTone: 'info' })); }); }
         if (b.pm === 'lump' || (b.xl || []).length) R.rows.push(X({ total: true, title: 'تكلفة الطبخة', tag: money(b.cost || 0), tagTone: 'ok' })); /* صف الإجمالي يتميز دائمًا (قاعدة total) */
       }
       (S.fields || []).forEach(function (f) { var v = (b.cf || {})[f.id]; if (v !== undefined && v !== '') R.rows.push(X({ title: f.name, sub: 'حقل مخصص', tag: String(v), tagTone: 'mute' })); });
