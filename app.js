@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.58';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.59';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3050,6 +3050,25 @@ function fixSheet(sh) {
         note: { text: 'لا يتغير شيء قبل «حفظ التعديلات». التعديل يضيف حركات فرق للمخزن ولا يمسّ السجل القديم' + (free ? '.' : '، والسعر هنا لهذه الطبخة فقط ولا يغيّر سعر الصنف.'), tone: 'info' },
         ft: { label: 'حفظ التعديلات', ok: f.lines.some(function (l) { return l.qty > 0; }), go: fixSave }, ft2: { label: 'إلغاء', go: function () { A.fix = null; openSh({ t: 'bview', id: b.id }); } } };
     }
+    /* أسعار مواد طبخة قيد التجهيز/مخططة: كل صنف بكميته وسعره ومبلغه مرتبة بالأعلى، وتعديل سعر الصنف قبل البدء */
+    case 'dprices': {
+      var dd = A.draft, dl = dd ? dLines().filter(function (l) { return l.actual > 0; }) : [], dpi = dd ? priceInfo(dd, dl) : null;
+      if (!dd) return null;
+      var amt = function (l) { return dd.kind === 'private' ? Object.keys(l.src).filter(paidSrc).reduce(function (x, k) { return x + l.src[k]; }, 0) * l.price : l.actual * l.price; };
+      var drows = dl.map(function (l) { return { l: l, a: r2(amt(l)) }; }).sort(function (x, y) { return y.a - x.a; }).map(function (o) {
+        var l = o.l, np = !(l.price > 0);
+        return X({ title: l.name, sub: qtyU(l.actual, l.unit) + ' × ' + (np ? 'بلا سعر' : money(l.price)), tag: np ? 'بلا سعر' : money(o.a), tagTone: np ? 'bad' : 'mute', chev: true, go: function () { openSh({ t: 'dpr', id: l.id }, { price: l.price > 0 ? String(l.price) : '' }); } });
+      });
+      drows.push(X({ total: true, title: 'الإجمالي', end: money(dpi.mat) }));
+      return { title: 'أسعار المواد', sub: (dd.dish || (rec(dd.rec) || {}).name || 'الطبخة') + ' · مرتبة بالمبلغ الأعلى', rows: drows,
+        note: { text: 'اضغط على صنف لتعديل سعره. السعر هو «آخر سعر للوحدة» للصنف نفسه، فيسري على كل الطبخات المخططة والجديدة ولا يغيّر الطبخات المسجّلة سابقًا.', tone: 'info' }, ft: { label: 'تم', ok: true, go: function () { shut(); } } };
+    }
+    case 'dpr': {
+      var pit = item(sh.id), pq = (dLines().filter(function (l) { return l.id === sh.id; })[0] || {}).actual || 0, pp2 = num('price');
+      return { title: pit.name, sub: 'السعر لكل ' + pit.unit, fields: [fText('price', 'السعر لكل ' + pit.unit + ' (شيكل)', '0', 'decimal', 'يغيّر سعر الصنف نفسه في كل المخازن')],
+        note: pq > 0 && fv('price') !== '' ? { text: qtyU(pq, pit.unit) + ' × ' + money(pp2) + ' = ' + money(r2(pq * pp2)), tone: 'info' } : undefined,
+        ft: { label: 'حفظ السعر', ok: fv('price') !== '' && pp2 >= 0, go: function () { var was = pit.price || 0; pit.price = pp2; audit('تعديل سعر «' + pit.name + '»: ' + money(was) + ' ← ' + money(pp2)); openSh({ t: 'dprices' }, {}); mutated('حُدّث سعر «' + pit.name + '»'); } } };
+    }
     case 'bfn': return { title: 'اسم الطبخة', sub: 'للطبخة هذه فقط، كـ«مجدرة بالذرة». الوصفة نفسها لا تتغير', fields: [fText('dn', 'الاسم', (rec(E.by(S.batches, f.id).recipe) || {}).name || '', 'text')],
       ft: { label: 'تطبيق', ok: !!(fv('dn') || '').trim(), go: function () { f.dish = fv('dn').trim(); openSh({ t: 'bfix', id: f.id }); } } };
     case 'bfp': return { title: 'عدد القدور', sub: 'اكتب العدد مباشرة', fields: [fText('n', 'عدد القدور', '0', 'decimal')],
@@ -4360,7 +4379,7 @@ function pgBatch() {
       bl.push(B('input', { label: 'سعر القدر الواحد (₪)', value: d.lump, ph: 'مثال: 90', mode: 'decimal', onInput: function (v) { setDraft({ lump: v }); } }));
       bl.push(B('note', { tone: 'info', icon: 'i-check', text: lumpV > 0 ? pl(d.pots, 'قدر واحد', 'قدران', 'قدور') + ' × ' + money(lumpV) + ' = ' + money(total) + '. المواد تُخصم من المخزن كالمعتاد (قيمتها ' + money(mat) + ') لكن الحساب بسعر القدر.' : 'اكتب سعر القدر الواحد المتفق عليه. المواد تُخصم من المخزن كالمعتاد.' }));
     } else {
-      var xrows = [X({ subt: true, title: 'تكلفة المواد', sub: free0 ? 'عيني من المؤسسة' : 'بسعر اليوم', end: free0 ? 'عيني' : money(mat) })].concat(xl.map(function (x, i) {
+      var xrows = [X({ subt: true, title: 'تكلفة المواد', sub: free0 ? 'عيني من المؤسسة' : 'بسعر اليوم', end: free0 ? 'عيني' : money(mat), chev: !free0, go: free0 ? null : function () { openSh({ t: 'dprices' }, {}); } })].concat(xl.map(function (x, i) {
         return X({ title: x.k, sub: x.note, end: money(x.amt), chev: true, go: function () { openSh({ t: 'xline', idx: i }, { k: x.k, kNew: '', amt: String(x.amt), note: x.note || '' }); } });
       })).concat(xl.length ? [X({ total: true, title: 'تكلفة الطبخة', end: money(total) })] : []);
       bl.push(B('rows', { title: 'بنود التكلفة', act: 'بند', actGo: function () { openSh({ t: 'xline' }, { k: xkinds()[0], kNew: '', amt: '', note: '' }); }, items: xrows }));
