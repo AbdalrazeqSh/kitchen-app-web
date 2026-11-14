@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.42';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.43';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -180,11 +180,11 @@ function migrateMenu() {
   P('r11', { set: { bpepper: 0.03 } }); P('r12', { set: { bpepper: 0.03 } }); P('r17', { set: { bpepper: 0.03 } });
   P('r13', { set: { bpepper: 0.03, ghee: 0.2, tomato: 1.667 } });
   /* اليخنة: كانت «المفتول الكذّاب (مكونات اليخنة)» r18 ← R-19 */
-  P('r18', { code: 'R-19', name: 'اليخنة', en: 'Maftoul for Stew', del: ['allspice', 'ghee'], set: { bpepper: 0.02, cardamom: 0.02, salt: 0.25, spice: 0.07, stock: 0.2, turmeric: 0.03 }, add: [s('coriander', 0.03)], note: 'عند التوزيع: كل قدرين برغل مفلفل يقابلهم قدر يخنة واحد' });
+  P('r18', { code: 'R-19', name: 'اليخنة', en: 'Maftoul for Stew', del: ['allspice', 'ghee'], set: { bpepper: 0.02, cardamom: 0.02, salt: 0.25, spice: 0.07, stock: 0.2, turmeric: 0.03 }, add: [s('coriander', 0.03)], note: 'عند التوزيع: كل 2 قدر برغل مفلفل يقابلهم قدر يخنة واحد' });
   /* المفتول المفلفل: كان «المفتول الكذّاب (برغل مفلفل)» r19 ← R-18 */
   P('r19', { code: 'R-18', name: 'المفتول المفلفل', en: 'Burghul – Maftoul', exp: false, meat: false, set: { burghul: 15, ghee: 1, oil: 1, salt: 0.25, stock: 0.15 },
     notes: { oil: 'للتحميص', ghee: 'نصف كيلو للتحميص ونصف كيلو للتفتيح', salt: 'حسب المجتمع المحيط' },
-    add: [s('spice', 0.04), s('cardamom', 0.02), s('bpepper', 0.02), s('cumin', 0.03), s('coriander', 0.03), s('turmeric', 0.03)], water: 22, wnote: 'تختلف الكمية حسب نوعية البرغل وامتصاصه (22 لترًا للعينة الحالية)', note: 'عند التوزيع: كل قدرين برغل مفلفل يقابلهم قدر يخنة واحد' });
+    add: [s('spice', 0.04), s('cardamom', 0.02), s('bpepper', 0.02), s('cumin', 0.03), s('coriander', 0.03), s('turmeric', 0.03)], water: 22, wnote: 'تختلف الكمية حسب نوعية البرغل وامتصاصه (22 لترًا للعينة الحالية)', note: 'عند التوزيع: كل 2 قدر برغل مفلفل يقابلهم قدر يخنة واحد' });
   P('r20', { code: 'R-21' }); P('r21', { code: 'R-22' });
   /* وصفة جديدة R-20 (الموصى بها) */
   if (!E.by(S.recipes, 'r22')) {
