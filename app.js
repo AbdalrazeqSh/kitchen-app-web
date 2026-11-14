@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.35';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.36';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4070,19 +4070,19 @@ function pgStock() {
   if (byCat0) { bl.push(B('rows', { title: 'الأصناف مرتّبة بالفئة', sort: sortInfo('stock'), items: rows.map(mkRow), empty: 'لا أصناف في هذا المخزن بعد' })); return bl; }
   var sg = A.sg || 'all', mainR = rows.filter(function (r) { return r.it.grp !== 'spice'; }), spR = rows.filter(function (r) { return r.it.grp === 'spice'; });
   var plR = rows.filter(function (r) { return planCover(r.it.id); });
-  if (sg === 'plan' && !plR.length) sg = 'all'; if (sg === 'after' && !plans().length) sg = 'all';
-  var segs = [['all', 'الكل', rows.length], ['main', 'الأساسية', mainR.length]].concat(spR.length ? [['spice', 'البهارات', spR.length]] : [], plR.length ? [['plan', 'المخطط له', plR.length]] : [], plans().length ? [['after', 'بعد الطبخ', stockAfter(l0).length]] : []);
-  if (spR.length || plR.length || plans().length) bl.push(B('seg', { items: segs.map(function (a) {
+  if (sg === 'after') sg = 'plan'; if (sg === 'plan' && !plans().length) sg = 'all';
+  var segs = [['all', 'الكل', rows.length], ['main', 'الأساسية', mainR.length]].concat(spR.length ? [['spice', 'البهارات', spR.length]] : [], plans().length ? [['plan', 'المخطط له', stockAfter(l0).filter(function (r) { return r.need > 0; }).length]] : []);
+  if (spR.length || plans().length) bl.push(B('seg', { items: segs.map(function (a) {
     return X({ label: a[1], count: segs.length > 3 ? undefined : a[2], on: sg === a[0], go: function () { setState({ sg: a[0] }); } });
   }) }));
-  if (sg === 'after') {
-    var sa = stockAfter(l0);
-    bl.push(B('rows', { title: 'المخزن بعد الطبخ المخطط (' + pl(plans().length, 'طبخة واحدة', 'طبختان', 'طبخات') + ')', act: 'نسخ', actGo: function () { copyText(stockAfterText(l0), 'نُسخت حالة المخزن بعد الطبخ'); }, items: sa.map(function (r) {
-      return X({ title: r.it.name, sub: joinSub('الآن ' + fmt(r.q), r.take > 0 ? 'يُسحب ' + fmt(r.take) : '', r.short > 0 ? 'ينقص ' + fmt(r.short) + ' من الخطة' : ''), end: fmt(r.rem) + ' ' + r.it.unit, endTone: r.rem < 0 ? 'bad' : '', endSub2: packTxt(r.it, Math.max(r.rem, 0)), chev: true, go: function () { openSh({ t: 'item', id: r.it.id }); }, lp: function () { stockQa(r.it, l0, r.q); } });
-    }), all: true, empty: 'لا أصناف' }));
+  if (sg === 'plan') {
+    var sa = stockAfter(l0).filter(function (r) { return r.need > 0; }), cov = {}; plR.forEach(function (r) { cov[r.it.id] = r; });
+    bl.push(B('rows', { title: 'المخطط له · ' + pl(plans().length, 'طبخة واحدة', 'طبختان', 'طبخات'), act: 'نسخ', actGo: function () { copyText(stockAfterText(l0), 'نُسخت حالة المخزن بعد الطبخ'); }, sort: sortInfo('stock'), all: true, items: sa.map(function (r) {
+      var c = cov[r.it.id];
+      return X({ title: r.it.name, sub: joinSub(c && c.st.plan ? planTxt(c.st.plan) : '', r.take > 0 ? 'يُسحب ' + fmt(r.take) : '', r.short > 0 ? 'ينقص ' + fmt(r.short) + ' من الخطة' : ''), endCap: 'الآن', end: fmt(r.q) + ' ' + r.it.unit, endSub2: packTxt(r.it, r.q), end2Cap: 'بعد الطبخ', end2: fmt(r.rem) + ' ' + r.it.unit, end2Tone: r.rem < 0 ? 'bad' : '', end2Sub: packTxt(r.it, Math.max(r.rem, 0)), chev: true, go: function () { openSh({ t: 'item', id: r.it.id }); }, lp: function () { stockQa(r.it, l0, r.q); } });
+    }), empty: 'لا أصناف' }));
     return bl;
   }
-  if (sg === 'plan') { bl.push(B('rows', { title: 'يدخل في الطبخات المخططة', sort: sortInfo('stock'), items: plR.map(mkRow), empty: '' })); return bl; }
   if (sg !== 'spice') bl.push(B('rows', { title: spR.length ? 'الأساسية' : 'الأصناف', sort: sortInfo('stock'), items: mainR.map(mkRow), empty: 'لا أصناف في هذا المخزن بعد' }));
   if (sg !== 'main' && spR.length) bl.push(B('rows', { title: 'البهارات', sort: sg === 'spice' ? sortInfo('stock') : null, items: spR.map(mkRow), empty: '' }));
   return bl;
