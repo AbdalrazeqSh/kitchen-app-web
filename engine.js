@@ -62,14 +62,15 @@
   }
 
   /* توزيع كمية على المخازن بالترتيب: كل مخزن يعطي ما عنده، والأخير يأخذ الباقي ولو سالب */
-  function splitQty(s, order, item, q, extra) {
-    var src = {}, rem = q;
+  function splitQty(s, order, item, q, extra, sinkFirst) { /* sinkFirst: الطبخة الخارجية يبقى نقصها على مخزنها الأساسي (الأول) لا على مخزن المطبخ الاحتياطي */
+    var src = {}, rem = q, sink = sinkFirst ? 0 : order.length - 1;
     order.forEach(function (l, i) {
-      var have = Math.max(balance(s, l, item) + ((extra && extra[l]) || 0), 0), last = i === order.length - 1;
-      var t = last ? rem : Math.min(have, rem);
+      var have = Math.max(balance(s, l, item) + ((extra && extra[l]) || 0), 0);
+      var t = (i === sink && !sinkFirst) ? rem : Math.min(have, rem);
       if (t !== 0) src[l] = r3(t);
       rem = r3(rem - t);
     });
+    if (rem !== 0) { var sl = order[sink]; src[sl] = r3((src[sl] || 0) + rem); }
     return src;
   }
 
@@ -80,7 +81,7 @@
     (o.lines || []).forEach(function (l) {
       if (!(l.qty > 0)) return;
       var it = by(s.items, l.item); if (!it) throw new Error('صنف غير معروف: ' + l.item);
-      var src = splitQty(s, l.fill === false ? order.slice(0, 1) : order, l.item, l.qty); /* fill===false: النقص يبقى سالبًا في المخزن الأول ولا يُكمَل من غيره */
+      var src = splitQty(s, l.fill === false ? order.slice(0, 1) : order, l.item, l.qty, null, (o.kind || 'private') === 'external'); /* fill===false: النقص يبقى سالبًا في المخزن الأول ولا يُكمَل من غيره */
       if (l.mkt && src.ext) { src.mkt = src.ext; delete src.ext; } /* اشتُري مباشرة من السوق: لا يُخصم من المخزن الخارجي لكنه يُحتسب في التكلفة */
       var price = l.price != null ? l.price : it.price || 0, lc = 0;
       Object.keys(src).forEach(function (led) {

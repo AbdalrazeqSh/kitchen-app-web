@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.66';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.67';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -595,7 +595,7 @@ function newDraft(kind, ini) {
 function startBatch(kind, ini) { if (isClosed()) { openSh({ t: 'locked', what: 'batch' }); return; } open('batch', { draft: newDraft(kind, ini) }); }
 /* سطر في معالج الطبخة. meta: cat, note, fixed, extra, swap, mkt (اشتُري مباشرة من السوق) */
 function mkLine(it, planned, actual, order, meta, extraMap) {
-  var fill = !!meta.fill, mk = !!meta.mkt && fill, src = E.splitQty(S, fill ? order : order.slice(0, 1), it.id, actual, extraMap);
+  var fill = !!meta.fill, mk = !!meta.mkt && fill, src = E.splitQty(S, fill ? order : order.slice(0, 1), it.id, actual, extraMap, !!meta.sink);
   if (mk && src.ext) { src.mkt = src.ext; delete src.ext; }
   var avail = Math.max(E.balance(S, order[0], it.id) + ((extraMap && extraMap[order[0]]) || 0), 0), short = r3(Math.max(0, actual - avail));
   var used = order.filter(function (k) { return src[k] != null; }), last = used.length ? used[used.length - 1] : order[0], dev = '';
@@ -627,9 +627,9 @@ function dLines() {
     if (l.alt && alt[l.item]) { id = l.alt.item; per = l.alt.per; note = l.alt.note; }
     if (d.del[id]) return;
     var planned = r3(l.fixed ? per : per * d.pots);
-    out.push(mkLine(item(id), planned, d.over[id] != null ? d.over[id] : planned, order, { cat: l.cat, note: note, fixed: l.fixed, swap: l.swap, mkt: !!mk[id], fill: !!fl[id] }, exm(id)));
+    out.push(mkLine(item(id), planned, d.over[id] != null ? d.over[id] : planned, order, { sink: d.kind === 'external', cat: l.cat, note: note, fixed: l.fixed, swap: l.swap, mkt: !!mk[id], fill: !!fl[id] }, exm(id)));
   });
-  d.extra.forEach(function (e) { out.push(mkLine(item(e.item), e.qty, d.over[e.item] != null ? d.over[e.item] : e.qty, order, { extra: true, mkt: !!mk[e.item], fill: !!fl[e.item] }, exm(e.item))); });
+  d.extra.forEach(function (e) { out.push(mkLine(item(e.item), e.qty, d.over[e.item] != null ? d.over[e.item] : e.qty, order, { sink: d.kind === 'external', extra: true, mkt: !!mk[e.item], fill: !!fl[e.item] }, exm(e.item))); });
   return spiceLast(out, function (x) { return x.id; });
 }
 function nudge(id, dir) {
@@ -4157,11 +4157,11 @@ function pgToday() {
 }
 /* ما يبقى من كل صنف بعد هذه الطبخة المخططة وبعد الطبخات المخططة التي قبلها */
 /* المتبقي بعد الخطط بالترتيب: كل خطة تسحب من مخازنها بترتيبها الفعلي (E.planOrder)، والمخزن الخارجي مستقل ورصيده السالب لا يُطرح، والنقص يظهر سالبًا */
-function poolSim() { return { bal: {}, short: {} }; }
+function poolSim() { return { bal: {}, short: {}, sl: {} }; } /* sl: النقص مقيَّدًا على مخزنه (الأول في ترتيب الطبخة) فلا يظهر سالبًا في مخزن آخر */
 function poolBal(sim, l, id) { var k = l + '|' + id; return sim.bal[k] == null ? Math.max(E.balance(S, l, id), 0) : sim.bal[k]; }
 function poolTake(sim, order, id, q) {
   var rem = q; order.forEach(function (l) { var have = poolBal(sim, l, id), t = Math.min(have, rem); sim.bal[l + '|' + id] = r2(have - t); rem = r2(rem - t); });
-  if (rem > 0) sim.short[id] = r2((sim.short[id] || 0) + rem);
+  if (rem > 0) { sim.short[id] = r2((sim.short[id] || 0) + rem); sim.sl[order[0] + '|' + id] = r2((sim.sl[order[0] + '|' + id] || 0) + rem); }
 }
 function poolLeft(sim, order, id) { return r2(order.reduce(function (a, l) { return a + poolBal(sim, l, id); }, 0) - (sim.short[id] || 0)); }
 function planAfter(p) {
@@ -4183,7 +4183,7 @@ function stockAfter(l0) {
   itemsIn(l0).forEach(function (it) { ids[it.id] = 1; });
   Object.keys(ids).forEach(function (id) {
     var it = item(id); if (!it) return;
-    var q = E.balance(S, l0, id), after = q > 0 ? poolBal(sim, l0, id) : q, sh = sim.short[id] || 0, rem = sh > 0 ? r2(after - sh) : after;
+    var q = E.balance(S, l0, id), after = q > 0 ? poolBal(sim, l0, id) : q, sh = sim.sl[l0 + '|' + id] || 0, rem = sh > 0 ? r2(after - sh) : after;
     if (q === 0 && !use[id]) return;
     rows.push({ it: it, q: q, take: q > 0 ? r2(q - poolBal(sim, l0, id)) : 0, need: use[id] || 0, rem: rem, short: sh });
   });
