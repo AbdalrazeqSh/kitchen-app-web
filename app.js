@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.69';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.70';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2015,7 +2015,8 @@ function gwFind(list, m, any) {
 function gwPreview() {
   if (!gwUrl() || GW_PVBUSY) return Promise.resolve(); GW_PVBUSY = true; GW_ERR = '';
   return gwPost({ list: { from: GW_FROM } }).then(function (j) {
-    var L = j.list || {}, sent = S.settings.shSent || {}, mv = [], pv = { match: [], send: [], only: [], at: Date.now() };
+    if (!j.list) throw new Error('كود البوابة قديم: الصق الكود الجديد في Apps Script وانشر إصدارًا جديدًا'); /* بلا قائمة الشيت لا يُفحص شيء ولا يُعدّ كل شيء ناقصًا */
+    var L = j.list, sent = S.settings.shSent || {}, mv = [], pv = { match: [], send: [], only: [], at: Date.now() };
     Object.keys(L).forEach(function (k) { (L[k] || []).forEach(function (r) { r.used = false; r.sec = k; }); });
     (S.fm || []).forEach(function (m) { var sec = gwSec(m); if (sec && m.date >= GW_FROM) mv.push({ m: m, sec: sec, st: +sent[m.id] || 0 }); });
     mv.filter(function (x) { return x.st > 0; }).forEach(function (x) { /* ما أرسله التطبيق سابقًا يستهلك صفّه كي لا يُعدّ «في الشيت فقط» */
