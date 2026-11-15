@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.65';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.66';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2161,7 +2161,7 @@ function dLineRow(d, l) {
     go: function () { openDLine(d, l); }, lp: function () { dLineQa(d, l); } });
 }
 function openDLine(d, l) {
-  if ((l.flag === 'kg' || l.flag === 'unit') && l.ocr && l.item && !(item(l.item).unit === 'كيلو')) { openSh({ t: 'ocrkg', did: d.id, lid: l.id }, { kg: '' }); return; } /* وزن الوحدة مجهول: نسأل عنه أولًا */
+  if ((l.flag === 'kg' || l.flag === 'unit') && l.ocr && l.item && !(item(l.item).unit === 'كيلو')) { openSh({ t: 'ocrkg', did: d.id, lid: l.id }, { okm: 'per', kg: '' }); return; } /* وزن الوحدة مجهول: نسأل عنه أولًا */
   openSh({ t: 'dline', did: d.id, lid: l.id }, { unitMode: 'base', qty: l.qty > 0 ? String(l.qty) : '', price: l.price > 0 ? String(l.price) : '' }); }
 function dLineQa(d, l) {
   var it = l.item ? item(l.item) : null;
@@ -2253,7 +2253,7 @@ function orderSheet(sh) {
           if (!l2) { l2 = { id: newId('l', d.lines), raw: item(id).name, item: id, qty: 0, price: 0, flag: 'qty' }; d.lines.push(l2); }
           else if (l2.ocr) { var oq = ocrQty(item(id), null, l2.ocr); l2.item = id; l2.qty = oq.qty; l2.flag = oq.flag; }
           else { l2.item = id; l2.flag = l2.qty > 0 ? '' : 'qty'; }
-          if (l2.ocr) { save(); if (l2.flag === 'kg') { shut(); openSh({ t: 'ocrkg', did: d.id, lid: l2.id }, { kg: '' }); return; } shut(); return; } /* سطر الصورة: يعود للمراجعة مباشرة (الكمية من الصورة، وتُعدَّل بالضغط على السطر) */
+          if (l2.ocr) { save(); if (l2.flag === 'kg') { shut(); openSh({ t: 'ocrkg', did: d.id, lid: l2.id }, { okm: 'per', kg: '' }); return; } shut(); return; } /* سطر الصورة: يعود للمراجعة مباشرة (الكمية من الصورة، وتُعدَّل بالضغط على السطر) */
           save(); openSh({ t: 'dline', did: d.id, lid: l2.id }, { unitMode: 'base', qty: l2.qty > 0 ? String(l2.qty) : '', price: l2.price > 0 ? String(l2.price) : '' });
         },
         onAdd: function (name) { openSh({ t: 'addItem', then: '' }, { name: name, unit: 'كيلو', price: '', packType: 'none', packN: '', cond: 'جاف' }); } });
@@ -2483,19 +2483,23 @@ function ocrPick() {
   f.click();
 }
 /* ما يُتعلَّم عند الاعتماد: كود الطلبية ← الصنف ووزن العبوة بوحدته (فيُربط الطلب القادم تلقائيًا) */
-/* بعد تحديد الوزن: كل أسطر الصورة لهذا الصنف في المسودة تُحوَّل، ويُحفظ الوزن في الصنف فيشمل كل الطلبيات القادمة */
+/* وحدة الصنف الأساسية (لتر، علبة...) هي المرجع: الأصل «كم وحدة في العبوة» مضروبًا بعدد عبوات الصورة؛ والكيلو بديل اختياري (وزن الوحدة) يُحفظ في الصنف */
+function ocrSetPer(d, it, code, per) {
+  (d.lines || []).forEach(function (l) { if (l.ocr && l.item === it.id && l.ocr.code === code && l.ocr.packs > 0) { l.qty = r3(l.ocr.packs * per); l.flag = ''; } });
+}
 function ocrSetKg(d, it, kg) {
   it.kgPer = r3(kg);
   (d.lines || []).forEach(function (l) { if (l.ocr && l.item === it.id) { var q = ocrQty(it, null, l.ocr); l.qty = q.qty; l.flag = q.flag; } });
 }
 function ocrKgSheet(sh) {
   var d = draftOf(sh.did), l = d && E.by(d.lines, sh.lid), it = l && l.item ? item(l.item) : null;
-  if (!it) return { title: 'وزن الوحدة' };
-  var kg = num('kg'), q = kg > 0 ? r3(l.ocr.w / kg) : 0;
-  return { title: 'كم كغ في ' + it.unit + ' واحدة؟', sub: it.name + ' · الصورة تكتب ' + fmt(l.ocr.w) + ' كغ، ومخزنك بوحدة «' + it.unit + '»',
-    fields: [fText('kg', 'وزن ' + it.unit + ' واحدة (كغ)', 'مثلًا 0.8', 'decimal', 'يُحفظ في الصنف فلا يُسأل عنه ثانيةً.')],
-    note: q > 0 ? { text: fmt(l.ocr.w) + ' كغ ÷ ' + fmt(kg) + ' = ' + fmt(q) + ' ' + it.unit, tone: 'info' } : null,
-    ft: { label: 'حفظ', ok: kg > 0, go: function () { ocrSetKg(d, it, kg); shut(); mutated('حُوّلت الكمية إلى ' + it.unit); } } };
+  if (!it) return { title: 'كمية الصنف' };
+  var o = l.ocr, per = fv('okm') !== 'kg', x = num('kg'), q = x > 0 ? (per ? r3(o.packs * x) : r3(o.w / x)) : 0;
+  return { title: 'كم ' + it.unit + ' في الصورة؟', sub: it.name + ' · الصورة تكتب ' + o.packs + ' عبوة (' + fmt(o.w) + ' كغ)',
+    fields: [fChips('okm', 'احسبها بـ', [['per', it.unit + ' في العبوة الواحدة'], ['kg', 'وزن ' + it.unit + ' الواحدة (كغ)']]),
+      fText('kg', per ? 'كم ' + it.unit + ' في العبوة الواحدة' : 'وزن ' + it.unit + ' الواحدة (كغ)', per ? 'مثلًا 20' : 'مثلًا 0.92', 'decimal', per ? 'يُحفظ مع كود العبوة عند الاعتماد فلا يُسأل عنه ثانيةً.' : 'يُحفظ في الصنف فلا يُسأل عنه ثانيةً.')],
+    note: q > 0 ? { text: (per ? o.packs + ' عبوة × ' + fmt(x) : fmt(o.w) + ' كغ ÷ ' + fmt(x)) + ' = ' + fmt(q) + ' ' + it.unit, tone: 'info' } : null,
+    ft: { label: 'حفظ', ok: x > 0, go: function () { if (per) ocrSetPer(d, it, o.code, x); else ocrSetKg(d, it, x); shut(); mutated('حُدّدت كمية ' + it.name); } } };
 }
 function ocrLearn(d) {
   (d.lines || []).forEach(function (l) {
