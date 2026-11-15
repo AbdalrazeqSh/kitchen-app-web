@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.68';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.69';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1961,7 +1961,8 @@ function moneySheet(sh) {
    الشيت مرجع يستقبل: لا قراءة منه ولا تعديل لصف قديم. الإلغاء والاسترجاع يُرسَلان صف عكس/استرجاع.
    رابط البوابة وكلمتها يخصان هذا الجهاز (مفاتيح sync* لا تُدمج مع الأجهزة الأخرى). تتبّع المُرسَل في S.settings.shSent: عدد العمليات المنفَّذة لكل حركة
    (1 = صف الحركة، 2 = صف إلغائها، 3 = استرجاعها، ...) فلا يتكرر إرسال، والبوابة نفسها ترفض التكرار بمعرّف «رقم#عدد». */
-var GW_FROM = '2026-11-11', GW_BUSY = false, GW_T = null, GW_ERR = '';
+var GW_FROM = '2026-11-01', GW_BUSY = false, GW_T = null, GW_ERR = '', GW_PV = null, GW_PVBUSY = false; /* حدود العمل: من 1/11/2026 فصاعدًا (قرار المالك 2026-11-15): ما قبله لا يُستورد ولا يُرسل */
+function gwOk() { return S.settings.gwOk === GW_FROM; } /* لا إرسال إلا بعد فحص واعتماد لهذا النطاق */
 function gwUrl() { return String(S.settings.syncGwUrl || '').trim(); }
 function gwSec(m) {
   var f = fund(m.h); if (!f) return '';
@@ -1987,7 +1988,7 @@ function gwPost(body) {
     .then(function (r) { return r.json(); }).then(function (j) { if (!j || !j.ok) throw new Error((j && j.err) || 'رفضت البوابة الطلب'); return j; });
 }
 function gwSend() {
-  if (!gwUrl() || GW_BUSY) return Promise.resolve();
+  if (!gwUrl() || GW_BUSY || !gwOk()) return Promise.resolve();
   var ops = gwOps(); if (!ops.length) return Promise.resolve();
   var batch = ops.slice(0, 40); GW_BUSY = true;
   return gwPost({ rows: batch }).then(function (j) {
@@ -1998,26 +1999,83 @@ function gwSend() {
   }).catch(function (e) { GW_BUSY = false; GW_ERR = String((e && e.message) || e || 'تعذّر الاتصال'); try { render(); } catch (x) {} });
 }
 function gwKick() {
-  if (!gwUrl() || !S.settings.syncGwAuto) return;
+  if (!gwUrl() || !S.settings.syncGwAuto || !gwOk()) return;
   clearTimeout(GW_T); GW_T = setTimeout(function () { gwSend(); }, 2500);
 }
 try { window.addEventListener('online', gwKick); setTimeout(function () { try { gwKick(); } catch (e) {} }, 7000); } catch (e) {}
+
+/* فحص قبل الإرسال (قراءة فقط): يقرأ صفوف الشيت من GW_FROM ويطابقها بحركات التطبيق (نفس القسم والتاريخ والمبلغ والاتجاه، كل صف مرة واحدة).
+   ما وُجد في الشيت لا يُرسَل ثانيةً (يُعلَّم مُرسَلًا)، وما ليس فيه يُرسَل، وما في الشيت فقط يُعرض ولا يمسّه التطبيق. */
+function gwEq(a, b) { return a !== null && a !== undefined && Math.abs(a - b) < 0.011; }
+function gwFind(list, m, any) {
+  var a = r2(m.amt), k = m.dir === 'in' ? 'i' : 'o';
+  for (var i = 0; i < list.length; i++) { var r = list[i]; if (r.used) continue; if ((any || r.d === m.date) && gwEq(r[k], a)) return r; }
+  return null;
+}
+function gwPreview() {
+  if (!gwUrl() || GW_PVBUSY) return Promise.resolve(); GW_PVBUSY = true; GW_ERR = '';
+  return gwPost({ list: { from: GW_FROM } }).then(function (j) {
+    var L = j.list || {}, sent = S.settings.shSent || {}, mv = [], pv = { match: [], send: [], only: [], at: Date.now() };
+    Object.keys(L).forEach(function (k) { (L[k] || []).forEach(function (r) { r.used = false; r.sec = k; }); });
+    (S.fm || []).forEach(function (m) { var sec = gwSec(m); if (sec && m.date >= GW_FROM) mv.push({ m: m, sec: sec, st: +sent[m.id] || 0 }); });
+    mv.filter(function (x) { return x.st > 0; }).forEach(function (x) { /* ما أرسله التطبيق سابقًا يستهلك صفّه كي لا يُعدّ «في الشيت فقط» */
+      var r = gwFind(L[x.sec] || [], x.m, false) || gwFind(L[x.sec] || [], x.m, true); if (r) r.used = true;
+      if (x.st >= 2) { var r2_ = gwFind(L[x.sec] || [], Object.assign({}, x.m, { dir: x.m.dir === 'in' ? 'out' : 'in' }), true); if (r2_) r2_.used = true; }
+    });
+    mv.filter(function (x) { return x.st === 0 && !x.m.void; }).forEach(function (x) {
+      var r = gwFind(L[x.sec] || [], x.m, false);
+      if (r) { r.used = true; pv.match.push({ m: x.m, sec: x.sec, row: r }); } else pv.send.push({ m: x.m, sec: x.sec });
+    });
+    Object.keys(L).forEach(function (k) { (L[k] || []).forEach(function (r) { if (!r.used) pv.only.push(r); }); });
+    GW_PV = pv; GW_PVBUSY = false; render();
+  }).catch(function (e) { GW_PVBUSY = false; GW_ERR = String((e && e.message) || e || 'تعذّر الاتصال'); try { render(); } catch (x) {} });
+}
+function gwApprove() {
+  if (!GW_PV) return;
+  var sent = S.settings.shSent = S.settings.shSent || {};
+  GW_PV.match.forEach(function (x) { if (!(+sent[x.m.id] > 0)) sent[x.m.id] = 1; }); /* موجودة في الشيت أصلًا: تُعلَّم مُرسَلة بلا كتابة */
+  S.settings.gwOk = GW_FROM; S.settings.syncGwAuto = 1; GW_PV = null; save();
+  return gwSend();
+}
+function gwOnOff() { S.settings.syncGwAuto = S.settings.syncGwAuto ? 0 : 1; save(); render(); }
+function gwAmt(m) { return fTxt(m.cur, r2(m.amt)); }
+var GW_OPEN = {};
+function gwCap(rows, key, items) { /* القائمة بأكثر من 6 تُختصر إلى 5 + «عرض N أخرى» (قاعدة التطبيق) */
+  var open = !!GW_OPEN[key], n = items.length - 5;
+  (items.length > 6 && !open ? items.slice(0, 5) : items).forEach(function (x) { rows.push(x); });
+  if (items.length > 6) rows.push(X({ icon: open ? 'i-minus' : 'i-chevD', icTone: 'mute', title: open ? 'طيّ القائمة' : 'عرض ' + n + ' أخرى', go: function () { GW_OPEN[key] = !open; render('morph'); } }));
+}
+function gwRowsX(pv) {
+  var rows = [X({ title: 'ستُرسل إلى الشيت', sub: 'حركات التطبيق غير الموجودة فيه', tag: String(pv.send.length), tagTone: pv.send.length ? 'warn' : 'ok' })];
+  gwCap(rows, 'send', pv.send.map(function (x) { return X({ title: String(x.m.note || (fund(x.m.h) || {}).name || ''), sub: dlabel(x.m.date) + ' · ' + ((fund(x.m.h) || {}).name || ''), end: (x.m.dir === 'in' ? '+' : '−') + gwAmt(x.m) }); }));
+  rows.push(X({ title: 'موجودة في الشيت أصلًا', sub: 'لن تُرسَل مرة ثانية', tag: String(pv.match.length), tagTone: 'ok' }));
+  rows.push(X({ title: 'في الشيت فقط', sub: 'لا يمسّها التطبيق: تأكد أنها ليست حركة تخص التطبيق', tag: String(pv.only.length), tagTone: pv.only.length ? 'warn' : 'ok' }));
+  gwCap(rows, 'only', pv.only.map(function (r) { return X({ title: r.n || '—', sub: dshow(r.d) + ' · ' + ({ bin: 'بايننس', bank: 'البنك', ils: 'الشيكل', ham: 'حميدا' }[r.sec] || r.sec), end: r.i ? '+' + r.i : '−' + r.o }); }));
+  return rows;
+}
 function gwSub() {
   if (!gwUrl()) return 'لم تُربط بعد: الحركات تُرسل تلقائيًا إلى الشيت';
+  if (!gwOk()) return 'لم يُفحص بعد: لا إرسال قبل فحص الشيت واعتماده';
   var n = gwOps().length;
-  return (GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : n ? pl(n, 'حركة واحدة', 'حركتان', 'حركات') + ' بانتظار الإرسال' : 'كل الحركات في الشيت') + (S.settings.syncGwAt ? ' · آخر إرسال ' + dlabel(new Date(S.settings.syncGwAt).toISOString().slice(0, 10)) : '');
+  return (S.settings.syncGwAuto ? '' : 'الإرسال التلقائي موقوف · ') + (GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : n ? n + ' بانتظار الإرسال' : 'كل الحركات في الشيت') + (S.settings.syncGwAt ? ' · آخر إرسال ' + dlabel(new Date(S.settings.syncGwAt).toISOString().slice(0, 10)) : '');
 }
-function gwTag() { return !gwUrl() ? { t: 'غير مربوط', tone: 'mute' } : GW_ERR ? { t: 'خطأ', tone: 'bad' } : gwOps().length ? { t: 'بانتظار', tone: 'warn' } : { t: 'متزامن', tone: 'ok' }; }
+function gwTag() { return !gwUrl() ? { t: 'غير مربوط', tone: 'mute' } : !gwOk() ? { t: 'يحتاج فحصًا', tone: 'warn' } : !S.settings.syncGwAuto ? { t: 'موقوف', tone: 'mute' } : GW_ERR ? { t: 'خطأ', tone: 'bad' } : gwOps().length ? { t: 'بانتظار', tone: 'warn' } : { t: 'متزامن', tone: 'ok' }; }
 function gwSave() { S.settings.syncGwUrl = (fv('gwurl') || '').trim(); S.settings.syncGwKey = (fv('gwkey') || '').trim(); save(); }
 function gwSheet(sh) {
   if (sh.t !== 'shGw') return null;
-  var n = gwOps().length, tg = gwTag(), url = (fv('gwurl') || '').trim();
+  var tg = gwTag(), url = (fv('gwurl') || '').trim(), pv = GW_PV;
   var rows = [X({ title: 'الحالة', sub: gwSub(), tag: tg.t, tagTone: tg.tone })];
   if (GW_ERR) rows.push(X({ title: 'آخر خطأ', sub: GW_ERR }));
-  return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط', fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fText('gwkey', 'كلمة سر البوابة', '')], rows: rows,
-    acts: [X({ title: 'اختبار الاتصال', icon: 'i-wifi', go: function () { gwSave(); say('جارٍ الاختبار…'); gwPost({ ping: 1 }).then(function () { GW_ERR = ''; say('البوابة تعمل وكلمة السر صحيحة'); render(); }).catch(function (e) { GW_ERR = String((e && e.message) || e); say('تعذّر الاتصال: ' + GW_ERR); render(); }); } })],
-    note: { text: 'يُرسَل كل رصيد جديد تلقائيًا (البنك، الشيكل، بايننس، حميدا) إلى أول صف فارغ في قسمه. التعديل والإلغاء يُضيفان صف فرق ولا يمسّان القديم. الإرسال يبدأ بعد أول ضغطة على «حفظ وإرسال».', tone: 'info' },
-    ft: { label: n && url ? 'حفظ وإرسال ' + pl(n, 'حركة واحدة', 'حركتين', 'حركات') : 'حفظ', ok: !!url, go: function () { gwSave(); S.settings.syncGwAuto = 1; GW_ERR = ''; shut(); say('جارٍ الإرسال إلى الشيت…'); gwSend().then(function () { say(GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : 'الشيت محدَّث'); }); } } };
+  if (GW_PVBUSY) rows.push(X({ title: 'جارٍ قراءة الشيت…', sub: 'قراءة فقط، لا يُكتب فيه شيء' }));
+  if (pv) rows = rows.concat(gwRowsX(pv));
+  var acts = [
+    X({ title: 'اختبار الاتصال', icon: 'i-wifi', go: function () { gwSave(); say('جارٍ الاختبار…'); gwPost({ ping: 1 }).then(function () { GW_ERR = ''; say('البوابة تعمل وكلمة السر صحيحة'); render(); }).catch(function (e) { GW_ERR = String((e && e.message) || e); say('تعذّر الاتصال: ' + GW_ERR); render(); }); } }),
+    X({ title: 'فحص قبل الإرسال', icon: 'i-search', go: function () { gwSave(); GW_PV = null; say('جارٍ قراءة الشيت…'); gwPreview(); } })
+  ];
+  if (gwOk()) acts.push(X({ title: S.settings.syncGwAuto ? 'إيقاف الإرسال' : 'تشغيل الإرسال', icon: 'i-wifi', go: gwOnOff }));
+  return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط · من ' + dshow(GW_FROM), fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fText('gwkey', 'كلمة سر البوابة', '')], rows: rows, acts: acts,
+    note: { text: 'حدود العمل من ' + dshow(GW_FROM) + ' فصاعدًا. قبل أول إرسال يقرأ التطبيق الشيت (قراءة فقط) ويطابق حركاته بصفوفه: ما وُجد فيه لا يُرسَل ثانيةً، وما ليس فيه يُرسَل بعد اعتمادك. التعديل والإلغاء يُضيفان صف فرق ولا يمسّان القديم.', tone: 'info' },
+    ft: pv ? { label: 'اعتماد وإرسال ' + pv.send.length, ok: !!url, go: function () { shut(); say('جارٍ الإرسال إلى الشيت…'); Promise.resolve(gwApprove()).then(function () { say(GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : 'الشيت محدَّث'); }); } } : { label: 'حفظ', ok: !!url, go: function () { gwSave(); shut(); } } };
 }
 
 /* ===== 02n-init.js ===== */
