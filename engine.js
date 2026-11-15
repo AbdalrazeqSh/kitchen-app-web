@@ -81,7 +81,7 @@
     (o.lines || []).forEach(function (l) {
       if (!(l.qty > 0)) return;
       var it = by(s.items, l.item); if (!it) throw new Error('صنف غير معروف: ' + l.item);
-      var src = splitQty(s, l.fill === false ? order.slice(0, 1) : order, l.item, l.qty, null, (o.kind || 'private') === 'external'); /* fill===false: النقص يبقى سالبًا في المخزن الأول ولا يُكمَل من غيره */
+      var src = splitQty(s, l.fill === true ? order : order.slice(0, 1), l.item, l.qty, null, (o.kind || 'private') === 'external'); /* لا يُكمَّل نقص مخزن من مخزن آخر إلا باختيار صريح (fill:true) */ /* fill===false: النقص يبقى سالبًا في المخزن الأول ولا يُكمَل من غيره */
       if (l.mkt && src.ext) { src.mkt = src.ext; delete src.ext; } /* اشتُري مباشرة من السوق: لا يُخصم من المخزن الخارجي لكنه يُحتسب في التكلفة */
       var price = l.price != null ? l.price : it.price || 0, lc = 0;
       Object.keys(src).forEach(function (led) {
@@ -119,7 +119,7 @@
     Object.keys(items).forEach(function (item) {
       var it = by(s.items, item); if (!it) throw new Error('صنف غير معروف: ' + item);
       var old = {}; b.order.forEach(function (l) { old[l] = net[l + '|' + item] || 0; });
-      var q = want[item] || 0, mk = meta[item] || {}, src = q > 0 ? splitQty(s, mk.fill === false ? b.order.slice(0, 1) : b.order, item, q, old) : {};
+      var q = want[item] || 0, mk = meta[item] || {}, src = q > 0 ? splitQty(s, mk.fill === true ? b.order : b.order.slice(0, 1), item, q, old, b.kind === 'external') : {};
       if (q > 0 && mk.keep) { var kt = Object.keys(mk.keep).reduce(function (a, k) { return a + mk.keep[k]; }, 0); if (kt > 0) { src = {}; Object.keys(mk.keep).forEach(function (k) { src[k] = r3(mk.keep[k] * q / kt); }); } }
       if (mk.mkt && src.ext) { src.mkt = src.ext; delete src.ext; }
       var price = (b.lines.filter(function (l) { return l.item === item; })[0] || {}).price;

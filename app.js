@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.67';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.68';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -885,6 +885,7 @@ function chefSpecBatch(b, saved) {
   var rid = b.recipe || b.rec, r = rec(rid), fx = {}; if (r) r.lines.forEach(function (l) { if (l.fixed) fx[l.item] = 1; });
   var rows = spiceLast(b.lines.filter(function (l) { return l.qty > 0; })).map(function (l) {
     var order = b.order || E.planOrder(S, b.kind || 'private', b.inst || b.instId), sim = poolSim();
+    if (!((b.fill && b.fill[l.item]) || (l.src && Object.keys(l.src).filter(function (k) { return k !== 'mkt'; }).length > 1))) order = order.slice(0, 1); /* المتبقي من مخزنه وحده ما لم تُسحب المادة من مخزنين باختيارك */
     if (saved === false) poolTake(sim, order, l.item, l.qty);
     return chefRow(item(l.item), l.qty, b.pots || 0, fx[l.item], poolLeft(sim, order, l.item));
   });
@@ -4157,6 +4158,8 @@ function pgToday() {
 }
 /* ما يبقى من كل صنف بعد هذه الطبخة المخططة وبعد الطبخات المخططة التي قبلها */
 /* المتبقي بعد الخطط بالترتيب: كل خطة تسحب من مخازنها بترتيبها الفعلي (E.planOrder)، والمخزن الخارجي مستقل ورصيده السالب لا يُطرح، والنقص يظهر سالبًا */
+/* ترتيب سحب صنف في خطة: مخزنها الأول وحده، ولا يمتد لمخزن آخر إلا إذا اخترتَ ذلك للصنف في الخطة (p.fill) */
+function planOrdFor(p, id, order) { return p.fill && p.fill[id] ? order : order.slice(0, 1); }
 function poolSim() { return { bal: {}, short: {}, sl: {} }; } /* sl: النقص مقيَّدًا على مخزنه (الأول في ترتيب الطبخة) فلا يظهر سالبًا في مخزن آخر */
 function poolBal(sim, l, id) { var k = l + '|' + id; return sim.bal[k] == null ? Math.max(E.balance(S, l, id), 0) : sim.bal[k]; }
 function poolTake(sim, order, id, q) {
@@ -4168,8 +4171,8 @@ function planAfter(p) {
   var left = {}, ps = plans(), sim = poolSim(), i, order;
   for (i = 0; i < ps.length; i++) {
     order = E.planOrder(S, ps[i].kind || 'private', ps[i].inst);
-    E.scaleRecipe(rec(ps[i].recipeId), ps[i].pots, ps[i]).forEach(function (l) { poolTake(sim, order, l.item, l.qty); });
-    if (ps[i].id === p.id) { E.scaleRecipe(rec(p.recipeId), p.pots, p).forEach(function (l) { left[l.item] = poolLeft(sim, order, l.item); }); break; }
+    E.scaleRecipe(rec(ps[i].recipeId), ps[i].pots, ps[i]).forEach(function (l) { poolTake(sim, planOrdFor(ps[i], l.item, order), l.item, l.qty); });
+    if (ps[i].id === p.id) { E.scaleRecipe(rec(p.recipeId), p.pots, p).forEach(function (l) { left[l.item] = poolLeft(sim, planOrdFor(p, l.item, order), l.item); }); break; }
   }
   return left;
 }
@@ -4178,7 +4181,7 @@ function stockAfter(l0) {
   var sim = poolSim(), use = {}, ids = {}, rows = [];
   plans().forEach(function (p) {
     var order = E.planOrder(S, p.kind || 'private', p.inst);
-    E.scaleRecipe(rec(p.recipeId), p.pots, p).forEach(function (l) { poolTake(sim, order, l.item, l.qty); use[l.item] = r2((use[l.item] || 0) + l.qty); ids[l.item] = 1; });
+    E.scaleRecipe(rec(p.recipeId), p.pots, p).forEach(function (l) { poolTake(sim, planOrdFor(p, l.item, order), l.item, l.qty); use[l.item] = r2((use[l.item] || 0) + l.qty); ids[l.item] = 1; });
   });
   itemsIn(l0).forEach(function (it) { ids[it.id] = 1; });
   Object.keys(ids).forEach(function (id) {
@@ -4232,7 +4235,7 @@ function planPrior(upto) {
   for (i = 0; i < ps.length; i++) {
     if (upto && ps[i].id === upto) break;
     order = E.planOrder(S, ps[i].kind || 'private', ps[i].inst);
-    E.scaleRecipe(rec(ps[i].recipeId), ps[i].pots, ps[i]).forEach(function (l) { poolTake(sim, order, l.item, l.qty); });
+    E.scaleRecipe(rec(ps[i].recipeId), ps[i].pots, ps[i]).forEach(function (l) { poolTake(sim, planOrdFor(ps[i], l.item, order), l.item, l.qty); });
   }
   return sim;
 }
@@ -4245,7 +4248,7 @@ function priorExtra(sim, order, id) {
 }
 function planShort(p, upto) { // عدد أصناف الخطة التي ينقص رصيدها لهذه الطبخة بعد ما حجزته الخطط السابقة
   var sim = planPrior(upto), order = E.planOrder(S, p.kind || 'private', p.inst);
-  return E.scaleRecipe(rec(p.recipeId), p.pots, p).filter(function (l) { return order.reduce(function (a, k) { return a + poolBal(sim, k, l.item); }, 0) - (sim.short[l.item] || 0) < l.qty - 0.0001; }).length;
+  return E.scaleRecipe(rec(p.recipeId), p.pots, p).filter(function (l) { return planOrdFor(p, l.item, order).reduce(function (a, k) { return a + poolBal(sim, k, l.item); }, 0) - (sim.short[l.item] || 0) < l.qty - 0.0001; }).length;
 }
 /* الطبخات المخططة لمؤسسة أو جهة: تظهر في سطرها بالقائمة (وفي صف الخطة نفسه اسمها) حتى لا تبدو «بلا طبخات» */
 function planTxt(id) {
