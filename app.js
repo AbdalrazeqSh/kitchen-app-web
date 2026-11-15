@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.64';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.65';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2151,7 +2151,7 @@ function parseOrder(text) {
   String(text || '').split(/\n+/).forEach(function (r) { if (!r.trim()) return; var l = mkDraftLine(r, 'l' + (++n)); if (l) out.push(l); });
   return out;
 }
-var DFLAG = { item: 'اختر الصنف', guess: 'تأكد من الصنف', unit: 'راجع الوحدة', qty: 'اكتب الكمية' };
+var DFLAG = { item: 'اختر الصنف', guess: 'تأكد من الصنف', unit: 'راجع الوحدة', kg: 'حدّد وزن الوحدة', qty: 'اكتب الكمية' };
 function dNeeds(d) { return d.lines.filter(function (l) { return l.flag || !l.item || !(l.qty > 0); }); }
 function dValue(d) { return d.lines.reduce(function (a, l) { return a + (l.price > 0 && l.qty > 0 ? l.qty * l.price : 0); }, 0); }
 function dLineRow(d, l) {
@@ -2160,7 +2160,9 @@ function dLineRow(d, l) {
     tag: bad ? (DFLAG[l.flag] || 'راجع') : 'جاهز', tagTone: bad ? 'warn' : 'ok', end: l.qty > 0 ? fmt(l.qty) : '', endSub: it ? it.unit : '', chev: true,
     go: function () { openDLine(d, l); }, lp: function () { dLineQa(d, l); } });
 }
-function openDLine(d, l) { openSh({ t: 'dline', did: d.id, lid: l.id }, { unitMode: 'base', qty: l.qty > 0 ? String(l.qty) : '', price: l.price > 0 ? String(l.price) : '' }); }
+function openDLine(d, l) {
+  if ((l.flag === 'kg' || l.flag === 'unit') && l.ocr && l.item && !(item(l.item).unit === 'كيلو')) { openSh({ t: 'ocrkg', did: d.id, lid: l.id }, { kg: '' }); return; } /* وزن الوحدة مجهول: نسأل عنه أولًا */
+  openSh({ t: 'dline', did: d.id, lid: l.id }, { unitMode: 'base', qty: l.qty > 0 ? String(l.qty) : '', price: l.price > 0 ? String(l.price) : '' }); }
 function dLineQa(d, l) {
   var it = l.item ? item(l.item) : null;
   qa(it ? it.name : l.raw, 'سطر في مسودة توريد', [['مراجعة وتعديل', 'i-pencil', function () { openDLine(d, l); }], ['اختيار صنف آخر', 'i-box', function () { openSh({ t: 'dpick', did: d.id, lid: l.id }); }], ['حذف السطر', 'i-minus', function () { dDelLine(d, l); }]]);
@@ -2226,6 +2228,7 @@ function orderSheet(sh) {
     }
     case 'ocrimg': R = ocrImgSheet(); break;
     case 'ocrprog': R = ocrProgSheet(); break;
+    case 'ocrkg': R = ocrKgSheet(sh); break;
     case 'dline': {
       d = draftOf(sh.did); l = d && E.by(d.lines, sh.lid); if (!l) { R = { title: 'سطر' }; break; }
       it = l.item ? item(l.item) : null;
@@ -2250,7 +2253,7 @@ function orderSheet(sh) {
           if (!l2) { l2 = { id: newId('l', d.lines), raw: item(id).name, item: id, qty: 0, price: 0, flag: 'qty' }; d.lines.push(l2); }
           else if (l2.ocr) { var oq = ocrQty(item(id), null, l2.ocr); l2.item = id; l2.qty = oq.qty; l2.flag = oq.flag; }
           else { l2.item = id; l2.flag = l2.qty > 0 ? '' : 'qty'; }
-          if (l2.ocr) { save(); shut(); return; } /* سطر الصورة: يعود للمراجعة مباشرة (الكمية من الصورة، وتُعدَّل بالضغط على السطر) */
+          if (l2.ocr) { save(); if (l2.flag === 'kg') { shut(); openSh({ t: 'ocrkg', did: d.id, lid: l2.id }, { kg: '' }); return; } shut(); return; } /* سطر الصورة: يعود للمراجعة مباشرة (الكمية من الصورة، وتُعدَّل بالضغط على السطر) */
           save(); openSh({ t: 'dline', did: d.id, lid: l2.id }, { unitMode: 'base', qty: l2.qty > 0 ? String(l2.qty) : '', price: l2.price > 0 ? String(l2.price) : '' });
         },
         onAdd: function (name) { openSh({ t: 'addItem', then: '' }, { name: name, unit: 'كيلو', price: '', packType: 'none', packN: '', cond: 'جاف' }); } });
@@ -2436,7 +2439,8 @@ function ocrRows(text) {
 function ocrQty(it, m, r) {
   if (m && m.per > 0) return { qty: r3(r.packs * m.per), flag: '' };
   if (norm(it.unit) === 'كيلو') return { qty: r.w, flag: '' };
-  return { qty: r.w, flag: 'unit' };
+  if (it.kgPer > 0) return { qty: r3(r.w / it.kgPer), flag: '' }; /* وزن الوحدة معروف: 672 كغ ÷ 0.8 = 840 علبة */
+  return { qty: 0, flag: 'kg' }; /* وزن الوحدة مجهول: لا نكتب الكيلوغرامات كأنها وحدات، نسأل مرة واحدة */
 }
 function ocrDraft(pr, ctx) {
   ctx = ctx || {};
@@ -2479,6 +2483,20 @@ function ocrPick() {
   f.click();
 }
 /* ما يُتعلَّم عند الاعتماد: كود الطلبية ← الصنف ووزن العبوة بوحدته (فيُربط الطلب القادم تلقائيًا) */
+/* بعد تحديد الوزن: كل أسطر الصورة لهذا الصنف في المسودة تُحوَّل، ويُحفظ الوزن في الصنف فيشمل كل الطلبيات القادمة */
+function ocrSetKg(d, it, kg) {
+  it.kgPer = r3(kg);
+  (d.lines || []).forEach(function (l) { if (l.ocr && l.item === it.id) { var q = ocrQty(it, null, l.ocr); l.qty = q.qty; l.flag = q.flag; } });
+}
+function ocrKgSheet(sh) {
+  var d = draftOf(sh.did), l = d && E.by(d.lines, sh.lid), it = l && l.item ? item(l.item) : null;
+  if (!it) return { title: 'وزن الوحدة' };
+  var kg = num('kg'), q = kg > 0 ? r3(l.ocr.w / kg) : 0;
+  return { title: 'كم كغ في ' + it.unit + ' واحدة؟', sub: it.name + ' · الصورة تكتب ' + fmt(l.ocr.w) + ' كغ، ومخزنك بوحدة «' + it.unit + '»',
+    fields: [fText('kg', 'وزن ' + it.unit + ' واحدة (كغ)', 'مثلًا 0.8', 'decimal', 'يُحفظ في الصنف فلا يُسأل عنه ثانيةً.')],
+    note: q > 0 ? { text: fmt(l.ocr.w) + ' كغ ÷ ' + fmt(kg) + ' = ' + fmt(q) + ' ' + it.unit, tone: 'info' } : null,
+    ft: { label: 'حفظ', ok: kg > 0, go: function () { ocrSetKg(d, it, kg); shut(); mutated('حُوّلت الكمية إلى ' + it.unit); } } };
+}
 function ocrLearn(d) {
   (d.lines || []).forEach(function (l) {
     if (!l.ocr || !l.item || !l.ocr.ok || !/^[A-Z]\d{4}$/.test(l.ocr.code)) return;
@@ -5539,7 +5557,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
