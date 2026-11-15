@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.63';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.64';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2225,6 +2225,7 @@ function orderSheet(sh) {
       break;
     }
     case 'ocrimg': R = ocrImgSheet(); break;
+    case 'ocrprog': R = ocrProgSheet(); break;
     case 'dline': {
       d = draftOf(sh.did); l = d && E.by(d.lines, sh.lid); if (!l) { R = { title: 'سطر' }; break; }
       it = l.item ? item(l.item) : null;
@@ -2364,17 +2365,50 @@ function ocrLib() {
     var s = document.createElement('script'); s.src = ocrBase() + 'tesseract.min.js'; s.onload = function () { ok(window.Tesseract); }; s.onerror = function () { no(new Error('net')); }; document.head.appendChild(s);
   });
 }
-function ocrWorker(onp) {
+/* مراحل القراءة تُعرض للمالك دائمًا، ومن لا يتحرك 60 ثانية يُبلَّغ باسم المرحلة العالقة بدل صمت */
+var OCR_STAGE = '', OCR_T = 0;
+/* نافذة تقدّم دائمة (دوّارة + شريط + عدّاد ثواني) بدل رسالة عابرة تختفي: يعرف المالك أن العمل ما زال جاريًا */
+var OCR_B = null, OCR_KILL = null, OCR_TICK = 0;
+function ocrStage(msg, pct) {
+  OCR_STAGE = msg; OCR_T = Date.now(); if (!OCR_B) OCR_B = { t0: Date.now() };
+  OCR_B.text = msg; OCR_B.pct = pct == null ? -1 : pct;
+  if (!A.sh || A.sh.t !== 'ocrprog') openSh({ t: 'ocrprog' }, {}); else UI.render('morph');
+  if (!OCR_TICK) OCR_TICK = setInterval(function () { if (!OCR_B) { clearInterval(OCR_TICK); OCR_TICK = 0; return; } if (A.sh && A.sh.t === 'ocrprog') UI.render('morph'); }, 1000);
+}
+function ocrEnd() { OCR_B = null; if (OCR_TICK) { clearInterval(OCR_TICK); OCR_TICK = 0; } if (A.sh && A.sh.t === 'ocrprog') shut(); }
+function ocrCancel() { if (OCR_KILL) OCR_KILL(new Error('cancel')); }
+function ocrProgSheet() {
+  var secs = OCR_B ? Math.round((Date.now() - OCR_B.t0) / 1000) : 0;
+  return { title: 'قراءة الطلبية', sub: 'ما زال العمل جاريًا: لا تغلق التطبيق', busy: { text: OCR_B ? OCR_B.text : '', pct: OCR_B ? OCR_B.pct : -1, hint: 'مرّت ' + secs + ' ثانية' + (secs > 8 ? ' · أول مرة أبطأ لأن أداة القراءة تُحمَّل' : '') },
+    ft: { label: 'إلغاء', ok: true, go: ocrCancel } };
+}
+var OCR_ST = { 'loading tesseract core': 'تحميل أداة القراءة (مرة واحدة)', 'loading language traineddata': 'تحميل بيانات القراءة (مرة واحدة)', 'initializing tesseract': 'تهيئة أداة القراءة', 'initializing api': 'تهيئة أداة القراءة', 'recognizing text': 'قراءة الصورة' };
+function ocrWorker(kill) {
   return ocrLib().then(function (T) {
-    return T.createWorker('eng', 1, { workerPath: ocrBase() + 'worker.min.js', corePath: ocrBase(), langPath: ocrBase(), gzip: true, logger: function (m) { if (onp && m.status === 'recognizing text') onp(m.progress || 0); } });
+    return T.createWorker('eng', 1, { workerPath: ocrBase() + 'worker.min.js', corePath: ocrBase(), langPath: ocrBase(), gzip: true,
+      errorHandler: function (e) { kill(e instanceof Error ? e : new Error(String(e))); },
+      logger: function (m) { var t = OCR_ST[m.status]; if (t) ocrStage('جارٍ ' + t + (m.progress >= 0 && m.progress < 1 ? ' ' + Math.round(m.progress * 100) + '%' : '…'), m.progress >= 0 && m.progress < 1 ? m.progress : null); else OCR_T = Date.now(); } });
   }).then(function (w) { return w.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' }).then(function () { return w; }); });
+}
+function ocrRace(p, dead) {
+  return new Promise(function (ok, no) {
+    var iv = setInterval(function () { if (Date.now() - OCR_T > 60000) { clearInterval(iv); no(new Error('stall')); } }, 3000);
+    dead.catch(function (e) { clearInterval(iv); no(e); });
+    p.then(function (v) { clearInterval(iv); ok(v); }, function (e) { clearInterval(iv); no(e); });
+  });
+}
+/* فكّ الصورة: createImageBitmap مع احترام اتجاه الكاميرا، وإلا عبر عنصر img (بعض الأجهزة لا تدعم الأولى) */
+function ocrDecode(file) {
+  var viaImg = function () { return new Promise(function (ok, no) { var u = URL.createObjectURL(file), im = new Image(); im.onload = function () { ok(im); }; im.onerror = function () { no(new Error('decode')); }; im.src = u; }); };
+  if (!window.createImageBitmap) return viaImg();
+  return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () { return createImageBitmap(file); }).catch(viaImg);
 }
 /* تكبير الصورة ورمادية خفيفة: الأكواد الصغيرة تُقرأ بعدها بدقة (جُرّب على صورة حقيقية) */
 function ocrPrep(file) {
-  return createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () { return createImageBitmap(file); }).then(function (bm) {
-    var sc = bm.width > 2600 ? 2600 / bm.width : Math.min(2.5, Math.max(1, 1800 / bm.width)), c = document.createElement('canvas'); c.width = Math.round(bm.width * sc); c.height = Math.round(bm.height * sc);
+  return ocrDecode(file).then(function (bm) {
+    var bw = bm.naturalWidth || bm.width, bh = bm.naturalHeight || bm.height, sc = bw > 2600 ? 2600 / bw : Math.min(2.5, Math.max(1, 1800 / bw)), c = document.createElement('canvas'); c.width = Math.round(bw * sc); c.height = Math.round(bh * sc);
     var x = c.getContext('2d'); x.filter = 'grayscale(1) contrast(1.15)'; x.drawImage(bm, 0, 0, c.width, c.height);
-    var t = document.createElement('canvas'), ts = Math.min(1, 900 / bm.width); t.width = Math.round(bm.width * ts); t.height = Math.round(bm.height * ts); t.getContext('2d').drawImage(bm, 0, 0, t.width, t.height);
+    var t = document.createElement('canvas'), ts = Math.min(1, 900 / bw); t.width = Math.round(bw * ts); t.height = Math.round(bh * ts); t.getContext('2d').drawImage(bm, 0, 0, t.width, t.height);
     return { cv: c, thumb: t.toDataURL('image/jpeg', 0.7) };
   });
 }
@@ -2404,14 +2438,15 @@ function ocrQty(it, m, r) {
   if (norm(it.unit) === 'كيلو') return { qty: r.w, flag: '' };
   return { qty: r.w, flag: 'unit' };
 }
-function ocrDraft(pr) {
+function ocrDraft(pr, ctx) {
+  ctx = ctx || {};
   var map = (S.settings && S.settings.itemCodes) || {}, sum = 0, lines = pr.rows.map(function (r, i) {
     sum = r2(sum + r.w);
     var m = map[r.code], it = m && item(m.item) && !item(m.item).arch ? item(m.item) : null, l = { id: 'l' + (i + 1), raw: (r.code ? r.code + ' · ' : '') + r.packs + ' عبوة · ' + fmt(r.w) + ' كغ', item: null, qty: r.w, price: 0, flag: 'item', ocr: { code: r.code, packs: r.packs, w: r.w, ok: r.codeOk } };
     if (it) { var q = ocrQty(it, m, r); l.item = it.id; l.qty = q.qty; l.flag = q.flag; }
     return l;
   });
-  var lid = fv('led') || 'kitchen', d = { id: newId('d', S.drafts || []), date: rcvDate() || today(), led: lid, src: pr.rq ? (pr.wck ? 'WCK ' : '') + pr.rq : 'صورة', created: today(), lines: lines,
+  var lid = ctx.led || fv('led') || 'kitchen', d = { id: newId('d', S.drafts || []), date: ctx.date || rcvDate() || today(), led: lid, src: pr.rq ? (pr.wck ? 'WCK ' : '') + pr.rq : 'صورة', created: today(), lines: lines,
     ocr: { total: pr.total, sum: sum, n: lines.length, ok: pr.total != null && Math.abs(sum - pr.total) < 0.005 } };
   S.drafts = S.drafts || []; S.drafts.push(d); audit('مسودة توريد من صورة: ' + pl(lines.length, 'سطر واحد', 'سطران', 'أسطر'));
   if (OCR_IMG) OCR_IMG.did = d.id;
@@ -2419,16 +2454,24 @@ function ocrDraft(pr) {
   return d;
 }
 function ocrRun(file) {
-  var prog = function (p) { say('جارٍ قراءة الصورة… ' + Math.round(p * 100) + '%'); };
-  say('جارٍ تجهيز الصورة…');
-  return ocrPrep(file).then(function (pp) {
-    OCR_IMG = { url: pp.thumb, did: '' };
-    return ocrWorker(prog).then(function (w) { return w.recognize(pp.cv).then(function (r) { return w.terminate().then(function () { return r.data.text; }); }); });
-  }).then(function (text) {
+  var kill, dead = new Promise(function (ok, no) { kill = no; }); dead.catch(function () {}); OCR_KILL = kill;
+  var ctx = { led: fv('led'), date: rcvDate() }; /* تُلتقط قبل أن تحلّ نافذة التقدّم محل نافذة المسودة */
+  ocrStage('جارٍ تجهيز الصورة…');
+  var chain = ocrPrep(file).then(function (pp) {
+    OCR_IMG = { url: pp.thumb, did: '' }; ocrStage('جارٍ تحميل أداة القراءة…');
+    return ocrWorker(kill).then(function (w) { ocrStage('جارٍ قراءة الصورة…'); return w.recognize(pp.cv).then(function (r) { return w.terminate().then(function () { return r.data.text; }); }); });
+  });
+  return ocrRace(chain, dead).then(function (text) {
     var pr = ocrRows(text);
+    ocrEnd(); OCR_KILL = null;
     if (!pr.rows.length) { say('لم أجد أسطر طلبية في الصورة: صوّر الجدول كاملًا ومستقيمًا'); return null; }
-    return ocrDraft(pr);
-  }).catch(function (e) { say(/net|Failed|load|fetch/i.test(String((e && e.message) || e)) ? 'تحتاج اتصالًا بالإنترنت لتحميل أداة القراءة (مرة واحدة)' : 'تعذّرت قراءة الصورة'); return null; });
+    return ocrDraft(pr, ctx);
+  }).catch(function (e) {
+    var m = String((e && e.message) || e); ocrEnd(); OCR_KILL = null;
+    if (m === 'cancel') { say('أُلغيت القراءة'); return null; }
+    say(m === 'stall' ? 'توقفت القراءة عند «' + OCR_STAGE.replace(/[…]+$/, '') + '»: تأكد من الإنترنت وجرّب مرة أخرى' : m === 'net' ? 'تحتاج اتصالًا بالإنترنت لتحميل أداة القراءة (مرة واحدة)' : 'تعذّرت قراءة الصورة (' + m.slice(0, 60) + ')');
+    return null;
+  });
 }
 function ocrPick() {
   var f = $('ofile');
@@ -5468,6 +5511,7 @@ function shell() {
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
     shFields: (f.fields || []).map(function (x) { return Object.assign({ did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
+    shHasBusy: !!f.busy, shBusyText: f.busy ? f.busy.text : '', shBusyW: f.busy && f.busy.pct >= 0 ? Math.max(4, Math.round(f.busy.pct * 100)) + '%' : '40%', shBusyAnim: f.busy && f.busy.pct >= 0 ? 'none' : 'kind 1.3s ease-in-out infinite', shBusyHint: f.busy ? f.busy.hint || '' : '',
     shHasNote: !!nt, shNote: nt ? nt.text : '', shNoteBg: ntn[0], shNoteFg: ntn[1],
     shHasFooter: !!sft, shFtLabel: sft ? sft.label : '', shFtDisabled: sft ? !sft.ok : false, shFtBg: sft && sft.ok ? '#14563A' : '#D9DDD8', shFtFg: sft && sft.ok ? '#FFFFFF' : '#4A544F',
     shFtGo: sft ? (sft.ok ? sft.go : function () { say(req); }) : noop,
