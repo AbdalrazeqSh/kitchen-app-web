@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.82';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.83';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -428,7 +428,7 @@ function inlineN(f) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = '1'; 
 /* المبلغ والبيان في صف واحد: خانة مبلغ ضيقة مميزة (خلفية خضراء خفيفة وخط أكبر) وبجانبها البيان؛ يُستعمل في كل نوافذ الحركات المالية (المالك 2026-11-18) */
 function fPair(k1, cap1, k2, cap2, ph2) {
   var f = fText(k1, '', '0', 'decimal'); f.cw = '124px'; f.gp = '10px'; f.lf = '0'; f.lbd = 'none'; f.hasCap = true; f.cap1 = cap1; f.cap2 = cap2;
-  f.hasSide = true; f.sideV = String(fv(k2)); f.sideIn = function (v) { fset(k2, v); }; f.sidePh = ph2 || ''; f.ibg = '#F2F9F5'; f.ibd = '#14563A'; f.ifs = '19px'; f.ifw = '600'; return f;
+  f.hasSide = true; f.sideV = String(fv(k2)); f.sideIn = function (v) { fset(k2, v); }; f.sidePh = ph2 || ''; f.ibg = '#F2F9F5'; f.ibd = '#14563A'; f.ifs = '18px'; f.ifw = '500'; return f;
 }
 function fText0(k, label, ph, mode, hint) {
   var calc = mode === 'decimal', cur = String(fv(k)), ex = calc && hasOp(cur) ? evalNum(cur) : null;
@@ -447,13 +447,13 @@ function fDate(k, label, lo, hi, hint) { var f = fText(k, label, '', 'text', hin
 function fArea(k, label, ph, hint) { var f = fText(k, label, ph, 'text', hint); f.isText = false; f.isGrow = false; f.isArea = true; return f; }
 function fTime(k, label, hint) { var f = fText(k, label, '', 'text', hint); f.isGrow = false; f.isText = true; f.itype = 'time'; return inlineF(f); }
 /* قائمة منسدلة: تُعرض القيمة الحالية وحدها، والنقر عليها يفتح الخيارات الأخرى. تُستعمل لكل اختيار عملة في النوافذ */
-function fSelect(k, label, opts, sel) {
+function fSelect(k, label, opts, sel, closedLabel) {
   var ok = k + '_o', open = fv(ok) === '1', cur = opts.filter(function (o) { return o[0] === sel; })[0] || opts[0], f = fChips(k, label, opts);
-  f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cdir = 'column'; f.cflex = '1 1 auto'; f.ctal = 'start';
-  f.chips = open ? opts.map(function (o) { return X({ label: o[1], on: sel !== '' && sel != null && o[0] === cur[0], go: function () { A.form[k] = o[0]; A.form[ok] = ''; render(); } }); })
-    : [X({ label: (sel === '' || sel == null ? 'اختر…' : cur[1]) + '  ▾', go: function () { A.form[ok] = '1'; render(); } })];
-  if (!open) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = 'none'; f.cflex = '1 1 auto'; f.cjc = 'flex-end'; } /* المغلقة: العنوان يمينًا وقيمتها يسارًا في سطر واحد (كل القوائم المنسدلة) */
-  return f;
+  var tog = function () { A.form[ok] = open ? '' : '1'; render(); };
+  f.isChips = false; f.isDD = true; f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = 'none'; f.ddOpen = open; f.ddToggle = tog;
+  f.ddLabel = closedLabel || (sel === '' || sel == null ? 'اختر…' : cur[1]);
+  f.ddOpts = opts.map(function (o) { var on = sel !== '' && sel != null ? o[0] === cur[0] : o[0] === ''; return { label: o[1], bg: on ? '#EAF3EE' : '#fff', fg: on ? '#14563A' : '#1B2421', fw: on ? '500' : '400', go: function () { A.form[k] = o[0]; A.form[ok] = ''; render(); } }; });
+  return f; /* قائمة منسدلة حقيقية تطفو فوق الصفحة ولا تدفع ما تحتها (المالك 2026-11-18) */
 }
 function fChips(k, label, opts, hint) {
   var cur = fv(k), short = opts.length <= 3 && opts.reduce(function (a, o) { return a + String(o[1]).length; }, 0) <= 20 && label.length <= 16, f;
@@ -1778,7 +1778,7 @@ function payPlan(f, ils, rate) {
 }
 function fundFields() {
   if (!A.form.fund) A.form.fund = defFund(); ensureSrc(fund(A.form.fund));
-  var f = fund(fv('fund')), fl = [fChips('fund', 'من أي رصيد؟', funds().map(function (x) { return [x.id, fName(x) + ' · ' + fBalAll(x)]; }))];
+  var f = fund(fv('fund')), fl = [fSelect('fund', 'من أي رصيد؟', funds().map(function (x) { return [x.id, fName(x) + ' · ' + fBalAll(x)]; }), fv('fund'))];
   if (f && f.curs.length > 1) fl.push(fChips('src', 'يُصرف من', [['ils', 'رصيد الشيكل'], ['usd', 'الدولار بسعر الصرف']]));
   if (f && hasCur(f, 'usd') && (fv('src') || fDefSrc(f)) === 'usd') { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); fl.push(fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'ما يقابل المبلغ يُخصم من الدولار')); }
   return fl;
@@ -1849,7 +1849,7 @@ function pgFund() {
 /* ---------- الإجراءات ---------- */
 function modesOf(f, dir) {
   if (f.curs.length === 1) return [[f.curs[0], f.curs[0] === 'usd' ? 'دولار' : 'شيكل']];
-  return dir === 'out' ? [['ils', 'شيكل'], ['conv', 'شيكل من الدولار'], ['usd', 'دولار']] : [['ils', 'شيكل'], ['usd', 'دولار']];
+  return dir === 'out' ? [['ils', 'شيكل'], ['conv', 'من الدولار'], ['usd', 'دولار']] : [['ils', 'شيكل'], ['usd', 'دولار']];
 }
 function doMove() {
   var dir = fv('dir') || 'out', f = fund(fv('fund')), ms0 = modesOf(f, dir), md = ms0.some(function (x) { return x[0] === fv('mode'); }) ? fv('mode') : ms0[0][0], a = num('amt'), rt = num('rate'), note = (fv('note') || '').trim(), m = { id: mid(S.fm, 'm'), date: moveDate(), h: f.id, dir: dir, note: note }; if (fv('cat')) m.cat = fv('cat'); phTag(m, phTake());
@@ -3786,9 +3786,7 @@ function doCount(fid) {
 }
 function catChips(dir, m0) {
   var nt = (fv('note') || '').trim(), g = nt ? catName(catOf({ dir: dir, note: nt, w: m0 && m0.w, x: m0 && m0.x, ini: m0 && m0.ini })) : '', opts = [['', 'تلقائي']].concat(dir === 'in' ? CATS_IN : CATS_OUT);
-  var f = fSelect('cat', 'التصنيف', opts, fv('cat') || '');
-  if (fv('cat_o') !== '1') f.chips = [X({ label: (fv('cat') ? (opts.filter(function (o) { return o[0] === fv('cat'); })[0] || ['', ''])[1] : 'تلقائي' + (g ? ': ' + g : '')) + '  ▾', go: function () { A.form.cat_o = '1'; render(); } })];
-  return f;
+  return fSelect('cat', 'التصنيف', opts, fv('cat') || '', fv('cat') ? '' : 'تلقائي' + (g ? ': ' + g : ''));
 }
 
 /* ---------- حركات العمال (مكافأة، خصم، دفعة، مخالفة): تعديل، تغيير التاريخ، إلغاء. الأصل يبقى في السجل ملغى ولا يُحذف ---------- */
@@ -5888,7 +5886,7 @@ function shell() {
     shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
-    shFields: (f.fields || []).map(function (x) { return Object.assign({ lbd: 'block', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
+    shFields: (f.fields || []).map(function (x) { return Object.assign({ isDD: false, ddOpen: false, ddLabel: '', ddOpts: [], ddToggle: noop, lbd: 'block', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
     shHasBusy: !!f.busy, shBusyText: f.busy ? f.busy.text : '', shBusyW: f.busy && f.busy.pct >= 0 ? Math.max(4, Math.round(f.busy.pct * 100)) + '%' : '40%', shBusyAnim: f.busy && f.busy.pct >= 0 ? 'none' : 'kind 1.3s ease-in-out infinite', shBusyHint: f.busy ? f.busy.hint || '' : '',
     shHasNote: !!nt, shNote: nt ? nt.text : '', shNoteBg: ntn[0], shNoteFg: ntn[1],
     shHasFooter: !!sft, shFtLabel: sft ? sft.label : '', shFtDisabled: sft ? !sft.ok : false, shFtBg: sft && sft.ok ? '#14563A' : '#D9DDD8', shFtFg: sft && sft.ok ? '#FFFFFF' : '#4A544F',
