@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.74';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.75';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1029,8 +1029,8 @@ function chefOptSheet(sh) {
   var make = function () { return chefCompose(sel.map(function (g) { return g.spec(); }), { merge: many && fv('cmode') === 'merge', mats: fv('cs_mats') === '1', dist: fv('cs_dist') === '1', notes: fv('cs_notes') === '1' }); };
   return { title: 'نسخة للشيف', sub: multi ? 'اختر ما يصل الشيف' : 'اختر الأقسام التي تصل الشيف', fields: fl,
     note: !sel.length ? { text: 'اختر طبخة واحدة على الأقل.', tone: 'warn' } : !ok ? { text: 'اختر قسمًا واحدًا على الأقل.', tone: 'warn' } : null,
-    acts: [X({ title: 'حفظ صورة', icon: 'i-download', go: function () { if (ok) saveChef(make(), 'png'); } }), X({ title: 'حفظ PDF', icon: 'i-download', go: function () { if (ok) saveChef(make(), 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { if (ok) saveChef(make(), 'txt'); } })],
-    ft: { label: 'مشاركة (أي تطبيق)', ok: ok, go: function () { var d = make(); shut(); shareChef(d); } } };
+    acts: [X({ title: 'تنزيل صورة', icon: 'i-download', go: function () { if (ok) saveChef(make(), 'png'); } }), X({ title: 'تنزيل PDF', icon: 'i-download', go: function () { if (ok) saveChef(make(), 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { if (ok) saveChef(make(), 'txt'); } })],
+    ft: { label: 'مشاركة', ok: ok, go: function () { var d = make(); shut(); shareChef(d); } } };
 }
 function shareChefBatch(b, saved) { if (saved === false) chefOpen({ k: 'draft', label: batchName(b), spec: function () { return chefSpecBatch(b, false); } }); else chefOpen({ k: 'batch', id: b.id }); }
 function shareChefPlan(p) { chefOpen({ k: 'plan', id: p.id }); }
@@ -1652,7 +1652,7 @@ function photoSheet(sh) {
   var t = sh.title || 'صورة مرفقة';
   return { title: 'صورة مرفقة', sub: sh.title || '', fields: [fPhotoView(A.form.pvUrl)],
     ft: { label: 'مشاركة', ok: !!A.form.pvUrl, go: function () { phShare(sh.id, t); } },
-    ft2: { label: 'حفظ في المستندات', go: function () { phSave(sh.id); } } };
+    ft2: { label: 'تنزيل', go: function () { phSave(sh.id); } } };
 }
 
 /* مدخلات الملفات المخفية (index.html) */
@@ -1664,7 +1664,7 @@ function phWire() {
   if (c) c.addEventListener('change', function () { if (c.files[0]) phFileIn(c.files[0], 'cam'); c.value = ''; });
 }
 
-/* معاينة أي صورة مولَّدة (كشف، تقرير، ملخص، نسخة الشيف) داخل التطبيق أولًا، وتحتها «مشاركة» و«حفظ في المستندات» */
+/* معاينة أي صورة مولَّدة (كشف، تقرير، ملخص، نسخة الشيف) داخل التطبيق أولًا، وتحتها «مشاركة» و«تنزيل» */
 var IMGP = null;
 function imgShow(c, name, title, text, pdf) { IMGP = { url: c.toDataURL('image/png'), name: name, title: title, text: text || '', cv: pdf ? c : null }; openSh({ t: 'imgp' }, {}); }
 function imgPreview(make, name, title, text, pdf) {
@@ -1676,9 +1676,9 @@ function imgSheet(sh) {
   if (sh.t !== 'imgp' || !IMGP) return null;
   var g = IMGP;
   return { title: g.title, sub: 'هكذا ستصل الصورة', fields: [fPhotoView(g.url)],
-    acts: g.cv ? [X({ title: 'ملف PDF للطباعة', icon: 'i-doc', go: function () { var pn = g.name.replace(/\.png$/, '.pdf'); deliverFile(pn, u8b64(pdfFromCanvas(g.cv)), 'application/pdf', g.title, g.text).catch(function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); }); } })] : [],
+    acts: g.cv ? [X({ title: 'PDF', icon: 'i-doc', go: function () { var pn = g.name.replace(/\.png$/, '.pdf'); deliverFile(pn, u8b64(pdfFromCanvas(g.cv)), 'application/pdf', g.title, g.text).catch(function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); }); } })] : [],
     ft: { label: 'مشاركة', ok: true, go: function () { deliverFile(g.name, g.url.split(',')[1], 'image/png', g.title, g.text).catch(function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); }); } },
-    ft2: { label: 'حفظ في المستندات', go: function () { saveFile(g.name, g.url.split(',')[1], 'image/png', g.title).then(function (r) { say(savedMsg(r, 'الصورة')); }, function () { say('تعذّر حفظ الصورة'); }); } } };
+    ft2: { label: 'تنزيل', go: function () { saveFile(g.name, g.url.split(',')[1], 'image/png', g.title).then(function (r) { say(savedMsg(r, 'الصورة')); }, function () { say('تعذّر حفظ الصورة'); }); } } };
 }
 
 /* ===== 02m-money.js ===== */
@@ -3176,9 +3176,9 @@ function pgReports() {
   }
   if (k !== 'workers' && roHasMe(k)) bl.push(B('chips', { items: [[false, 'عرضي'], [true, 'كما يُصدَّر']].map(function (a) { return X({ label: a[1], on: !!A.rexp === a[0], go: function () { setState({ rexp: a[0] }); } }); }) }));
   bl.push(B('paper', { pap: repDoc(k) }));
-  bl.push(B('btns', { items: [X({ label: k === 'workers' ? 'داخلي: بلا مشاركة' : 'مشاركة (أي تطبيق)', icon: 'i-send', on: k !== 'workers', go: function () { if (k === 'workers') say('كشف العمال داخلي ولا يُرسل'); else exportReport(k, 'share'); } })] }));
+  bl.push(B('btns', { items: [X({ label: k === 'workers' ? 'داخلي: بلا مشاركة' : 'مشاركة', icon: 'i-send', on: k !== 'workers', go: function () { if (k === 'workers') say('كشف العمال داخلي ولا يُرسل'); else exportReport(k, 'share'); } })] }));
   if (k !== 'workers') bl.push(B('btns', { items: [X({ label: 'خيارات التقرير', icon: 'i-sliders', go: function () { var f = {}; RO[k].forEach(function (a) { f[a[0]] = roV(k, a[0]); }); f.order = secOrder(k).join(','); openSh({ t: 'repOpt', k: k }, f); } })] }));
-  bl.push(B('btns', { items: [X({ label: 'مشاركة PDF', icon: 'i-send', go: function () { exportReport(k, 'sharepdf'); } }), X({ label: 'حفظ PDF', icon: 'i-download', go: function () { exportReport(k, 'pdf'); } }), X({ label: 'حفظ صورة', icon: 'i-download', go: function () { exportReport(k, 'png'); } }), X({ label: 'نسخ النص', icon: 'i-copy', go: function () { copyReport(k); } })] }));
+  bl.push(B('btns', { items: [X({ label: 'مشاركة PDF', icon: 'i-send', go: function () { exportReport(k, 'sharepdf'); } }), X({ label: 'تنزيل PDF', icon: 'i-download', go: function () { exportReport(k, 'pdf'); } }), X({ label: 'تنزيل صورة', icon: 'i-download', go: function () { exportReport(k, 'png'); } }), X({ label: 'نسخ النص', icon: 'i-copy', go: function () { copyReport(k); } })] }));
   if (k === 'stock' || k === 'wfp') bl.push(B('btns', { items: [X({ label: 'تغيير دورة تقرير المخزون', icon: 'i-clock', go: function () { openSh({ t: 'stockEvery' }, { n: String(S.settings.stockEvery || 3) }); } })] }));
   var di = dayInfo();
   if (k === 'wck' && di.sent && di.sent.ver > 1) bl.push(B('note', { tone: 'warn', icon: 'i-doc', text: 'النسخة الحالية معدَّلة رقم ' + di.sent.ver + '، وفيها: ' + di.sent.ch.join('، ') + '.' }));
@@ -3897,7 +3897,15 @@ function exName(k, ext) { return 'مطبخ-عهد-' + { cook: 'الاستهلا�
 var SHSEQ = 0;
 function shareTmpName(name) { var m = /\.([a-z0-9]{2,4})$/i.exec(name || ''); return 'kitchen-' + Date.now().toString(36) + (++SHSEQ) + '.' + (m ? m[1].toLowerCase() : 'png'); }
 function shareCancelled(er) { return /cancel|dismiss/i.test(String((er && er.message) || er || '')); }
+function shareNative() { try { return !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform() && Capacitor.isPluginAvailable && Capacitor.isPluginAvailable('KitchenShare') && Capacitor.Plugins && Capacitor.Plugins.KitchenShare); } catch (e) { return false; } }
 function deliverFile(name, b64data, mime, title, text) {
+  if (shareNative()) { /* إضافة أندرويد: منح إذن القراءة صراحةً فيصل المرفق إلى واتساب وغيره من أول مرة */
+    return Capacitor.Plugins.KitchenShare.file({ name: shareTmpName(name), data: b64data, mime: mime, title: title || '', text: text || '' }).catch(function (er) {
+      if (shareCancelled(er)) throw er; return deliverFilePlain(name, b64data, mime, title, text); });
+  }
+  return deliverFilePlain(name, b64data, mime, title, text);
+}
+function deliverFilePlain(name, b64data, mime, title, text) {
   if (P.Filesystem && P.Share) {
     var tmp = shareTmpName(name), body = text || title || '';
     return P.Filesystem.writeFile({ path: tmp, data: b64data, directory: 'CACHE' }).then(function (r) {
@@ -3927,7 +3935,9 @@ function exportReport(k, how) {
     var title = rptName(k);
     if (how === 'sharepdf') return deliverFile(exName(k, 'pdf'), u8b64(pdfFromCanvas(c)), 'application/pdf', title, shortText(k)).then(function () { done(); say('جُهّز «' + title + '» كملف PDF'); });
     if (how === 'pdf') return saveFile(exName(k, 'pdf'), u8b64(pdfFromCanvas(c)), 'application/pdf', title).then(function (r) { done(); say(savedMsg(r, 'ملف PDF لـ«' + title + '»')); });
-    done(); imgShow(c, exName(k, 'png'), title, how === 'share' ? shortText(k) : '');
+    /* «مشاركة» تفتح قائمة النظام مباشرة بالصورة (حركة واحدة)، و«تنزيل صورة» تحفظها في المستندات بلا معاينة وسيطة */
+    if (how === 'share') return deliverFile(exName(k, 'png'), c.toDataURL('image/png').split(',')[1], 'image/png', title, shortText(k)).then(function () { done(); });
+    return saveFile(exName(k, 'png'), c.toDataURL('image/png').split(',')[1], 'image/png', title).then(function (r) { done(); say(savedMsg(r, 'صورة «' + title + '»')); });
   }).catch(function (e) { if (e && /cancel|dismiss/i.test(String(e.message || e))) { done(); return; } fail(); });
 }
 function shortText(k) { var d = repDoc(k, true); return d.title + ' — ' + d.date + (d.lead ? '\n' + d.lead : ''); }
@@ -4103,7 +4113,7 @@ function wstSheet(sh) {
     fields: [fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()),
       fChips('sum', 'ملخص الإجماليات في الأعلى', [['1', 'إظهار'], ['0', 'إخفاء']]), fChips('det', 'حركات المكافآت والخصومات بتواريخها', [['1', 'إظهار'], ['0', 'إخفاء']])],
     rows: d.sums.map(function (s) { return X({ title: s.l, end: s.v, endTone: s.tone }); }).concat([X({ title: d.settle ? d.settle.l : d.closeL, end: d.settle ? d.settle.v + ' · ' + d.closeV : d.closeV, endTone: d.closeTone })]),
-    acts: [X({ title: 'حفظ صورة', icon: 'i-download', go: function () { wstSend(w, o, 'png'); } }), X({ title: 'حفظ PDF', icon: 'i-download', go: function () { wstSend(w, o, 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { wstSend(w, o, 'txt'); } })],
+    acts: [X({ title: 'تنزيل صورة', icon: 'i-download', go: function () { wstSend(w, o, 'png'); } }), X({ title: 'تنزيل PDF', icon: 'i-download', go: function () { wstSend(w, o, 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { wstSend(w, o, 'txt'); } })],
     ft: { label: 'إرسال (أي تطبيق)', ok: true, go: function () { shut(); wstSend(w, o, 'share'); } } };
 }
 
