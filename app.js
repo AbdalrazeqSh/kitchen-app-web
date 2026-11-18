@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.70';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.71';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1966,7 +1966,7 @@ function gwOk() { return S.settings.gwOk === GW_FROM; } /* لا إرسال إل�
 function gwUrl() { return String(S.settings.syncGwUrl || '').trim(); }
 function gwSec(m) {
   var f = fund(m.h); if (!f) return '';
-  if (f.w) return S.settings.gwHam && /حميدا/.test(f.name || '') ? 'ham' : ''; /* تبويب «رصيد مع حميدا» لا يُرسَل إليه افتراضيًا: له دفتر حميدا المستقل، وتُفعَّل بقرار المالك فقط */
+  if (f.w) return /حميدا/.test(f.name || '') ? 'ham' : ''; /* رصيد حميدا يطابق تبويب «رصيد مع حميدا»: حميدا نفسها تكتب فيه من تطبيقها، فالمزامنة هنا باتجاهين (إرسال ما ينقص الشيت + استيراد ما ينقص التطبيق) بقرار المالك 2026-11-18 */
   return m.cur === 'ils' ? 'ils' : f.name === 'بايننس' ? 'bin' : 'bank';
 }
 function gwRow(m, sec, n, rev, pre) {
@@ -1982,6 +1982,14 @@ function gwOps() {
     else if (!odd && !(st === 0 && m.date < GW_FROM)) ops.push(gwRow(m, sec, st + 1, false, st ? 'استرجاع: ' : ''));
   });
   return ops;
+}
+function gwHamFund() { return (S.funds || []).filter(function (f) { return f.w && /حميدا/.test(f.name || ''); })[0] || null; }
+function gwImport(rows) { /* صفوف الشيت التي ليست في التطبيق (من تطبيق حميدا): تُضاف حركات بعلامة gwIn وتُعلَّم مُرسَلة فلا تعود إلى الشيت */
+  var f = gwHamFund(), sent = S.settings.shSent = S.settings.shSent || {}, n = 0; if (!f) return 0;
+  rows.forEach(function (r) { var a = r2(r.i || r.o || 0); if (!r.d || !(a > 0)) return;
+    var m = { id: mid(S.fm, 'm'), date: r.d, h: f.id, dir: r.i ? 'in' : 'out', cur: 'ils', amt: a, ils: 0, rate: 0, note: String(r.n || '').trim(), gwIn: 1 };
+    S.fm.push(m); sent[m.id] = 1; n++; });
+  return n;
 }
 function gwPost(body) {
   return fetch(gwUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ key: S.settings.syncGwKey || '' }, body)) })
@@ -2002,7 +2010,23 @@ function gwKick() {
   if (!gwUrl() || !S.settings.syncGwAuto || !gwOk()) return;
   clearTimeout(GW_T); GW_T = setTimeout(function () { gwSend(); }, 2500);
 }
-try { window.addEventListener('online', gwKick); setTimeout(function () { try { gwKick(); } catch (e) {} }, 7000); } catch (e) {}
+/* رصيد حميدا تلقائيًا: كل ما يضيفه تطبيق حميدا في الشيت يدخل رصيد حميدا هنا، وما تحذفه من الشيت يُلغى هنا (الحركات المستوردة فقط، وسجلها يبقى) */
+var GW_HB = false, GW_HAT = 0;
+function gwHamPull(force) {
+  if (!gwUrl() || !gwOk() || GW_HB || GW_BUSY || !gwHamFund() || (!force && Date.now() - GW_HAT < 120000)) return Promise.resolve();
+  GW_HB = true; GW_HAT = Date.now();
+  return gwPost({ list: { from: GW_FROM } }).then(function (j) {
+    GW_HB = false; var L = (j.list || {}).ham; if (!j.list || !L) return;
+    var f = gwHamFund(), sent = S.settings.shSent = S.settings.shSent || {}, mv = (S.fm || []).filter(function (m) { return m.h === f.id && !m.void && m.date >= GW_FROM; }), imp = [], ch = 0;
+    L.forEach(function (r) { r.used = false; });
+    mv.filter(function (m) { return !m.gwIn; }).concat(mv.filter(function (m) { return m.gwIn; })).forEach(function (m) { m._r = gwFind(L, m, false); if (m._r) m._r.used = true; });
+    L.forEach(function (r) { if (!r.used) imp.push(r); });
+    mv.forEach(function (m) { var hit = !!m._r; delete m._r; if (!hit && m.gwIn) { m.void = true; sent[m.id] = 2; ch++; } }); /* حذفتها حميدا من الشيت: تُلغى هنا ويبقى سجلها */
+    ch += gwImport(imp);
+    if (ch) { save(); try { render('morph'); } catch (e) {} }
+  }).catch(function () { GW_HB = false; });
+}
+try { window.addEventListener('online', gwKick); document.addEventListener('visibilitychange', function () { if (!document.hidden) gwHamPull(); }); setTimeout(function () { try { gwHamPull(true); } catch (e) {} }, 9000); setTimeout(function () { try { gwKick(); } catch (e) {} }, 7000); } catch (e) {}
 
 /* فحص قبل الإرسال (قراءة فقط): يقرأ صفوف الشيت من GW_FROM ويطابقها بحركات التطبيق (نفس القسم والتاريخ والمبلغ والاتجاه، كل صف مرة واحدة).
    ما وُجد في الشيت لا يُرسَل ثانيةً (يُعلَّم مُرسَلًا)، وما ليس فيه يُرسَل، وما في الشيت فقط يُعرض ولا يمسّه التطبيق. */
@@ -2016,7 +2040,7 @@ function gwPreview() {
   if (!gwUrl() || GW_PVBUSY) return Promise.resolve(); GW_PVBUSY = true; GW_ERR = '';
   return gwPost({ list: { from: GW_FROM } }).then(function (j) {
     if (!j.list) throw new Error('كود البوابة قديم: الصق الكود الجديد في Apps Script وانشر إصدارًا جديدًا'); /* بلا قائمة الشيت لا يُفحص شيء ولا يُعدّ كل شيء ناقصًا */
-    var L = j.list, sent = S.settings.shSent || {}, mv = [], pv = { match: [], send: [], only: [], at: Date.now() };
+    var L = j.list, sent = S.settings.shSent || {}, mv = [], pv = { match: [], send: [], only: [], imp: [], at: Date.now() };
     Object.keys(L).forEach(function (k) { (L[k] || []).forEach(function (r) { r.used = false; r.sec = k; }); });
     (S.fm || []).forEach(function (m) { var sec = gwSec(m); if (sec && m.date >= GW_FROM) mv.push({ m: m, sec: sec, st: +sent[m.id] || 0 }); });
     mv.filter(function (x) { return x.st > 0; }).forEach(function (x) { /* ما أرسله التطبيق سابقًا يستهلك صفّه كي لا يُعدّ «في الشيت فقط» */
@@ -2027,7 +2051,7 @@ function gwPreview() {
       var r = gwFind(L[x.sec] || [], x.m, false);
       if (r) { r.used = true; pv.match.push({ m: x.m, sec: x.sec, row: r }); } else pv.send.push({ m: x.m, sec: x.sec });
     });
-    Object.keys(L).forEach(function (k) { (L[k] || []).forEach(function (r) { if (!r.used) pv.only.push(r); }); });
+    Object.keys(L).forEach(function (k) { (L[k] || []).forEach(function (r) { if (r.used) return; (k === 'ham' && gwHamFund() ? pv.imp : pv.only).push(r); }); });
     GW_PV = pv; GW_PVBUSY = false; render();
   }).catch(function (e) { GW_PVBUSY = false; GW_ERR = String((e && e.message) || e || 'تعذّر الاتصال'); try { render(); } catch (x) {} });
 }
@@ -2035,6 +2059,7 @@ function gwApprove() {
   if (!GW_PV) return;
   var sent = S.settings.shSent = S.settings.shSent || {};
   GW_PV.match.forEach(function (x) { if (!(+sent[x.m.id] > 0)) sent[x.m.id] = 1; }); /* موجودة في الشيت أصلًا: تُعلَّم مُرسَلة بلا كتابة */
+  gwImport(GW_PV.imp || []);
   S.settings.gwOk = GW_FROM; S.settings.syncGwAuto = 1; GW_PV = null; save();
   return gwSend();
 }
@@ -2050,6 +2075,10 @@ function gwRowsX(pv) {
   var rows = [X({ title: 'ستُرسل إلى الشيت', sub: 'حركات التطبيق غير الموجودة فيه', tag: String(pv.send.length), tagTone: pv.send.length ? 'warn' : 'ok' })];
   gwCap(rows, 'send', pv.send.map(function (x) { return X({ title: String(x.m.note || (fund(x.m.h) || {}).name || ''), sub: dlabel(x.m.date) + ' · ' + ((fund(x.m.h) || {}).name || ''), end: (x.m.dir === 'in' ? '+' : '−') + gwAmt(x.m) }); }));
   rows.push(X({ title: 'موجودة في الشيت أصلًا', sub: 'لن تُرسَل مرة ثانية', tag: String(pv.match.length), tagTone: 'ok' }));
+  if (pv.imp && pv.imp.length) {
+    rows.push(X({ title: 'ستُستورد إلى التطبيق (حميدا)', sub: 'مكتوبة في تبويب «رصيد مع حميدا» وليست عندك: تُضاف حركات لرصيد حميدا', tag: String(pv.imp.length), tagTone: 'warn' }));
+    gwCap(rows, 'imp', pv.imp.map(function (r) { return X({ title: r.n || '—', sub: dshow(r.d) + ' · حميدا', end: r.i ? '+' + r.i : '−' + r.o }); }));
+  }
   rows.push(X({ title: 'في الشيت فقط', sub: 'لا يمسّها التطبيق: تأكد أنها ليست حركة تخص التطبيق', tag: String(pv.only.length), tagTone: pv.only.length ? 'warn' : 'ok' }));
   gwCap(rows, 'only', pv.only.map(function (r) { return X({ title: r.n || '—', sub: dshow(r.d) + ' · ' + ({ bin: 'بايننس', bank: 'البنك', ils: 'الشيكل', ham: 'حميدا' }[r.sec] || r.sec), end: r.i ? '+' + r.i : '−' + r.o }); }));
   return rows;
@@ -2076,7 +2105,7 @@ function gwSheet(sh) {
   if (gwOk()) acts.push(X({ title: S.settings.syncGwAuto ? 'إيقاف الإرسال' : 'تشغيل الإرسال', icon: 'i-wifi', go: gwOnOff }));
   return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط · من ' + dshow(GW_FROM), fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fText('gwkey', 'كلمة سر البوابة', '')], rows: rows, acts: acts,
     note: { text: 'حدود العمل من ' + dshow(GW_FROM) + ' فصاعدًا. قبل أول إرسال يقرأ التطبيق الشيت (قراءة فقط) ويطابق حركاته بصفوفه: ما وُجد فيه لا يُرسَل ثانيةً، وما ليس فيه يُرسَل بعد اعتمادك. التعديل والإلغاء يُضيفان صف فرق ولا يمسّان القديم.', tone: 'info' },
-    ft: pv ? { label: 'اعتماد وإرسال ' + pv.send.length, ok: !!url, go: function () { shut(); say('جارٍ الإرسال إلى الشيت…'); Promise.resolve(gwApprove()).then(function () { say(GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : 'الشيت محدَّث'); }); } } : { label: 'حفظ', ok: !!url, go: function () { gwSave(); shut(); } } };
+    ft: pv ? { label: 'اعتماد وإرسال ' + pv.send.length + (pv.imp && pv.imp.length ? ' واستيراد ' + pv.imp.length : ''), ok: !!url, go: function () { shut(); say('جارٍ الإرسال إلى الشيت…'); Promise.resolve(gwApprove()).then(function () { say(GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : 'الشيت محدَّث'); }); } } : { label: 'حفظ', ok: !!url, go: function () { gwSave(); shut(); } } };
 }
 
 /* ===== 02n-init.js ===== */
