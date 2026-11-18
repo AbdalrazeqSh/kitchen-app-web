@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.83';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.84';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -426,9 +426,9 @@ function fSecret(k, label, ph, hint) {
 /* رقم قصير: العنوان يمينًا وخانة ضيقة يسارًا في سطر واحد */
 function inlineN(f) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = '1'; f.cw = '160px'; return f; }
 /* المبلغ والبيان في صف واحد: خانة مبلغ ضيقة مميزة (خلفية خضراء خفيفة وخط أكبر) وبجانبها البيان؛ يُستعمل في كل نوافذ الحركات المالية (المالك 2026-11-18) */
-function fPair(k1, cap1, k2, cap2, ph2) {
+function fPair(k1, cap1, k2, cap2, ph2, num2) {
   var f = fText(k1, '', '0', 'decimal'); f.cw = '124px'; f.gp = '10px'; f.lf = '0'; f.lbd = 'none'; f.hasCap = true; f.cap1 = cap1; f.cap2 = cap2;
-  f.hasSide = true; f.sideV = String(fv(k2)); f.sideIn = function (v) { fset(k2, v); }; f.sidePh = ph2 || ''; f.ibg = '#F2F9F5'; f.ibd = '#14563A'; f.ifs = '18px'; f.ifw = '500'; return f;
+  f.hasSide = true; f.sideV = String(fv(k2)); f.sideIn = function (v) { fset(k2, v); }; f.sidePh = ph2 || ''; if (num2) { f.sideDir = 'ltr'; f.sideMode = 'decimal'; f.sideTa = 'right'; f.sideFs = '18px'; f.cw = '150px'; } f.ibg = '#F2F9F5'; f.ibd = '#14563A'; f.ifs = '18px'; f.ifw = '500'; return f;
 }
 function fText0(k, label, ph, mode, hint) {
   var calc = mode === 'decimal', cur = String(fv(k)), ex = calc && hasOp(cur) ? evalNum(cur) : null;
@@ -1930,8 +1930,8 @@ function moneySheet(sh) {
       var fo = fund(fv('from')), to = fund(fv('to')), opts = funds().map(function (x) { return [x.id, x.name]; }), fl2 = [fSelect('from', 'من رصيد', opts, fv('from')), fSelect('to', 'إلى رصيد', opts.filter(function (o) { return o[0] !== fv('from'); }), fv('to'))];
       var cu = fv('cur') || (fo ? fDefCur(fo) : 'ils'), am = num('amt'), dc = to ? (hasCur(to, cu) ? cu : fMain(to)) : cu, diff = dc !== cu;
       if (fo && fo.curs.length > 1) { A.form.cur = cu; fl2.push(fSeg('cur', 'العملة المرسلة', fo.curs.map(function (c) { return [c, c === 'usd' ? 'دولار' : 'شيكل']; }))); }
-      var fb = fText('amt', cu === 'usd' ? 'المرسل بالدولار' : 'المرسل بالشيكل', '0', 'decimal'); fb.fd = 'column'; fb.ai = 'stretch'; fb.gp = '6px'; fb.lf = '0'; fb.cw = '100%'; fl2.push(fb);
-      if (to) fl2.push(fText('got', dc === 'usd' ? 'الواصل بالدولار' : 'الواصل بالشيكل' + (diff ? '' : ' (اختياري)'), '0', 'decimal', diff ? 'يُحسب سعر الصرف من الرقمين' : 'اتركه فارغًا إن وصل كاملًا، أو اكتب ما وصل فعلًا'));
+      if (to) fl2.push(fPair('amt', cu === 'usd' ? 'المرسل $' : 'المرسل ₪', 'got', (dc === 'usd' ? 'الواصل $' : 'الواصل ₪') + (diff ? '' : ' (اختياري)'), '', true));
+      else fl2.push(fText('amt', cu === 'usd' ? 'المرسل بالدولار' : 'المرسل بالشيكل', '0', 'decimal'));
       fl2 = fl2.concat(dayFields()); fl2.push(fPhoto('صورة الوصل (اختياري)'));
       var gt = num('got') || (diff ? 0 : am), fee = diff ? 0 : r2(am - gt);
       R = { title: 'تحويل بين الأرصدة', sub: fo ? fo.name + ' · ' + fBalAll(fo) : 'اختر الرصيدين', fields: fl2,
@@ -5886,7 +5886,7 @@ function shell() {
     shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
-    shFields: (f.fields || []).map(function (x) { return Object.assign({ isDD: false, ddOpen: false, ddLabel: '', ddOpts: [], ddToggle: noop, lbd: 'block', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
+    shFields: (f.fields || []).map(function (x) { return Object.assign({ sideDir: 'rtl', sideMode: 'text', sideFs: '15px', sideTa: 'start', isDD: false, ddOpen: false, ddLabel: '', ddOpts: [], ddToggle: noop, lbd: 'block', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
     shHasBusy: !!f.busy, shBusyText: f.busy ? f.busy.text : '', shBusyW: f.busy && f.busy.pct >= 0 ? Math.max(4, Math.round(f.busy.pct * 100)) + '%' : '40%', shBusyAnim: f.busy && f.busy.pct >= 0 ? 'none' : 'kind 1.3s ease-in-out infinite', shBusyHint: f.busy ? f.busy.hint || '' : '',
     shHasNote: !!nt, shNote: nt ? nt.text : '', shNoteBg: ntn[0], shNoteFg: ntn[1],
     shHasFooter: !!sft, shFtLabel: sft ? sft.label : '', shFtDisabled: sft ? !sft.ok : false, shFtBg: sft && sft.ok ? '#14563A' : '#D9DDD8', shFtFg: sft && sft.ok ? '#FFFFFF' : '#4A544F',
