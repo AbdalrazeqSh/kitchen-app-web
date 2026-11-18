@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.77';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.78';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2127,10 +2127,10 @@ function gwSheet(sh) {
 /* ===== 02m3-snap.js ===== */
 /* ---------- مرآة الشيت: تبويبات منظمة يبنيها التطبيق كاملة وتنعكس على الشيت (من التطبيق إلى الشيت فقط) ----------
    التطبيق هو الأساس والشيت صورة كاملة واضحة له: كل تبويب لقطة تُعاد كتابتها كلها عند أي تغيير (فلا تكرار ولا فروق ولا صفوف يتيمة).
-   تُكتب حصرًا في تبويبات اسمها ينتهي بـ «(التطبيق)»؛ تبويبات المالك القديمة لا تُمَس أبدًا. حدود العمل من GW_FROM.
+   تُكتب حصرًا في تبويبات اسمها ينتهي بـ «(التطبيق)»؛ تبويبات المالك القديمة لا تُمَس أبدًا. اللقطات من أول بيانات التطبيق (لا تتقيد بحد GW_FROM).
    كل لقطة: { tab, cols, widths, freeze, rows:[[خلايا]], kinds:['title'|'sec'|'hdr'|'row'|'sub'|'tot'|'note'|'gap'] }.
    البصمة تُقارَن بآخر ما أُرسل (S.settings.shSnap) فلا يُعاد إرسال لقطة لم تتغير. */
-var SNAP_ON = true, SNAP_SFX = ' (التطبيق)', SNAP_BUSY = false, SNAP_T = null, SNAP_ERR = '';
+var SNAP_FROM = '0000-00-00' /* اللقطات تعرض كل بيانات التطبيق منذ البداية؛ حد 1/11 للإرسال والمطابقة فقط (المالك 2026-11-18) */, SNAP_ON = true, SNAP_SFX = ' (التطبيق)', SNAP_BUSY = false, SNAP_T = null, SNAP_ERR = '';
 function snD(d) { return d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : ''; }
 function snDay(d) { return ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][new Date(d + 'T12:00:00').getDay()]; }
 function snN(v) { return v === null || v === undefined || v === '' ? '' : r2(+v); }
@@ -2141,7 +2141,7 @@ function snHash(b) { var s = JSON.stringify([b.rows, b.kinds, b.widths]), h = 53
 /* ---------- العمال: الأرصدة، الحضور اليومي، حركات الحساب ---------- */
 function snapWorkers() {
   var ws = (S.workers || []).filter(function (w) { return !w.arch; }), nc = Math.max(8, 2 + ws.length), b = snB('العمال', 'العمال · الحضور والحسابات (يُحدَّث تلقائيًا من التطبيق)', nc, [95, 95].concat(ws.map(function () { return 90; })));
-  snAdd(b, 'note', ['حدود العمل من ' + snD(GW_FROM) + ' · الرصيد موجب = للعامل على المطبخ · لا تعدّل هنا: التعديل من التطبيق']);
+  snAdd(b, 'note', ['كل بيانات التطبيق منذ البداية · الرصيد موجب = للعامل على المطبخ · لا تعدّل هنا: التعديل من التطبيق']);
   snAdd(b, 'gap', []);
   snAdd(b, 'sec', ['أ. الأرصدة الحالية']);
   snAdd(b, 'hdr', ['العامل', 'اليومية', 'رصيد افتتاحي', 'مستحق الحضور', 'إضافات ومكافآت', 'خصومات ومخالفات', 'الدفعات والسلف', 'الرصيد الحالي']);
@@ -2153,17 +2153,17 @@ function snapWorkers() {
   });
   snAdd(b, 'tot', ['الإجمالي', ''].concat(T.map(snN)));
   snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ب. الحضور اليومي (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'sec', ['ب. الحضور اليومي (من البداية)']);
   snAdd(b, 'hdr', ['التاريخ', 'اليوم'].concat(ws.map(function (w) { return w.name; })));
-  var days = {}; (S.att || []).forEach(function (a) { if (a.date >= GW_FROM) (days[a.date] = days[a.date] || {})[a.w] = a; });
+  var days = {}; (S.att || []).forEach(function (a) { if (a.date >= SNAP_FROM) (days[a.date] = days[a.date] || {})[a.w] = a; });
   Object.keys(days).sort().forEach(function (d) {
     snAdd(b, 'row', [snD(d), snDay(d)].concat(ws.map(function (w) { var a = days[d][w.id], s = a && stat(a.st); return a ? (s ? s.name : a.st) : ''; })));
   });
   snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ج. حركات العمال (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'sec', ['ج. حركات العمال (من البداية)']);
   snAdd(b, 'hdr', ['التاريخ', 'العامل', 'النوع', 'البيان', 'المبلغ', 'أثره على الرصيد', 'الحالة']);
   var neg = { viol: 1, buy: 1, ded: 1, pay: 1, adv: 1 }, nm = {}; ws.forEach(function (w) { nm[w.id] = w.name; });
-  (S.wl || []).filter(function (e) { return e.kind !== 'open' && e.date >= GW_FROM && nm[e.w]; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); }).forEach(function (e) {
+  (S.wl || []).filter(function (e) { return e.kind !== 'open' && e.date >= SNAP_FROM && nm[e.w]; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); }).forEach(function (e) {
     var c = wCat(e), n = !!neg[c], t = (WCAT[c] || [c])[0];
     snAdd(b, 'row', [snD(e.date), nm[e.w], t, e.note && e.note !== t ? e.note : '', snN(e.amt), e.void ? '' : e.amt ? (n ? '−' : '+') + snN(e.amt) : 'تنبيه فقط', e.void ? 'ملغاة' : 'سارية']);
   });
@@ -2173,14 +2173,14 @@ function snapWorkers() {
 /* ---------- الطبخ الخارجي: ملخص المؤسسات، الطبخات بموادها، الإضافات والدفعات ---------- */
 function snapExt() {
   var b = snB('طبخ خارجي', 'طبخ المؤسسات والمبادرات (يُحدَّث تلقائيًا من التطبيق)', 9, [95, 130, 140, 70, 120, 80, 70, 95, 95]);
-  snAdd(b, 'note', ['حدود العمل من ' + snD(GW_FROM) + ' · الرصيد قبل هذا التاريخ يُعرض مرة واحدة كرصيد سابق · المبالغ بالشيكل']);
+  snAdd(b, 'note', ['كل بيانات التطبيق منذ البداية · المبالغ بالشيكل']);
   snAdd(b, 'gap', []);
   snAdd(b, 'sec', ['أ. ملخص المؤسسات']);
   snAdd(b, 'hdr', ['المؤسسة', 'النوع', 'الرصيد السابق', 'القدور', 'تكلفة الطبخات', 'إضافات', 'الدفعات', 'المستحق']);
   var sum = function (a) { return r2(a.reduce(function (t, x) { return t + (x.cost != null ? x.cost : x.amt || 0); }, 0)); }, ins = (S.insts || []).filter(function (i) { return !i.arch; }), T = [0, 0, 0, 0, 0, 0];
   var acct = function (i) {
     var all = S.batches.filter(function (x) { return x.inst === i.id && !x.void; }).sort(function (p, q) { return p.date < q.date ? -1 : p.date > q.date ? 1 : 0; });
-    var pre = function (d) { return (d || '') < GW_FROM; }, nw = function (d) { return (d || '') >= GW_FROM; };
+    var pre = function (d) { return (d || '') < SNAP_FROM; }, nw = function (d) { return (d || '') >= SNAP_FROM; };
     var prev = r2(sum(all.filter(function (x) { return pre(x.date); })) + sum((i.chg || []).filter(function (x) { return pre(x.date); })) - sum((i.pay || []).filter(function (x) { return pre(x.date); })));
     var bs = all.filter(function (x) { return nw(x.date); }), chg = (i.chg || []).filter(function (x) { return nw(x.date); }), pay = (i.pay || []).filter(function (x) { return nw(x.date); });
     var cost = sum(bs), ch = sum(chg), pd = sum(pay);
@@ -2193,7 +2193,7 @@ function snapExt() {
   });
   snAdd(b, 'tot', ['الإجمالي', ''].concat(T.map(snN)));
   snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ب. الطبخات بموادها (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'sec', ['ب. الطبخات بموادها (من البداية)']);
   snAdd(b, 'hdr', ['التاريخ', 'المؤسسة', 'الطبخة', 'القدور', 'الصنف', 'الكمية', 'الوحدة', 'سعر الوحدة', 'التكلفة']);
   var bl = []; A_.forEach(function (x) { x.a.bs.forEach(function (bt) { bl.push({ b: bt, i: x.i }); }); });
   bl.sort(function (p, q) { return p.b.date < q.b.date ? -1 : p.b.date > q.b.date ? 1 : (p.b.ts || 0) - (q.b.ts || 0); }).forEach(function (x) {
@@ -2207,7 +2207,7 @@ function snapExt() {
     snAdd(b, 'sub', [first ? snD(bt.date) : '', x.i.name, 'إجمالي ' + batchName(bt), snN(bt.pots || 0), '', '', '', '', free && !(bt.cost > 0) ? 'عيني' : snN(bt.cost || 0)]);
   });
   snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ج. الإضافات والدفعات (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'sec', ['ج. الإضافات والدفعات (من البداية)']);
   snAdd(b, 'hdr', ['التاريخ', 'المؤسسة', 'النوع', 'البيان', 'المبلغ']);
   var mv = []; A_.forEach(function (x) { x.a.chg.forEach(function (c) { mv.push([c.date || '', x.i.name, 'إضافة', c.note || '', snN(c.amt)]); }); x.a.pay.forEach(function (c) { mv.push([c.date || '', x.i.name, 'دفعة', c.note || '', snN(c.amt)]); }); });
   mv.sort(function (p, q) { return p[0] < q[0] ? -1 : p[0] > q[0] ? 1 : 0; }).forEach(function (r) { r[0] = snD(r[0]); snAdd(b, 'row', r); });
@@ -2217,7 +2217,7 @@ function snapExt() {
 /* ---------- المخزن وWFP: الأرصدة الحالية لكل مخزن + حركات المخزن من حدود العمل ---------- */
 function snapStock(tab, title, pick) {
   var b = snB(tab, title, 7, [95, 150, 150, 80, 90, 110, 160]), ls = (S.ledgers || []).filter(function (l) { return !l.arch && pick(l); });
-  snAdd(b, 'note', ['حدود العمل من ' + snD(GW_FROM) + ' · الحالة بحسب المعتاد في يوم الطبخ · الرصيد السالب = نقص مسجّل للمطالبة']);
+  snAdd(b, 'note', ['كل بيانات التطبيق منذ البداية · الحالة بحسب المعتاد في يوم الطبخ · الرصيد السالب = نقص مسجّل للمطالبة']);
   snAdd(b, 'gap', []);
   snAdd(b, 'sec', ['أ. المخزون الحالي']);
   ls.forEach(function (l) {
@@ -2226,10 +2226,10 @@ function snapStock(tab, title, pick) {
     stockRows(l.id).forEach(function (r, k) { snAdd(b, 'row', [k + 1, r.it.name, snN(r.q), r.it.unit || '', r.st.t]); });
   });
   snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ب. حركات المخزن (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'sec', ['ب. حركات المخزن (من البداية)']);
   snAdd(b, 'hdr', ['التاريخ', 'المخزن', 'الصنف', 'الكمية', 'الوحدة', 'النوع', 'البيان']);
   var ok = {}; ls.forEach(function (l) { ok[l.id] = l; });
-  var mv = (S.moves || []).filter(function (m) { return ok[m.led] && m.kind !== 'hist' && m.date >= GW_FROM; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); });
+  var mv = (S.moves || []).filter(function (m) { return ok[m.led] && m.kind !== 'hist' && m.date >= SNAP_FROM; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); });
   if (mv.length > 4000) mv = mv.slice(mv.length - 4000);
   mv.forEach(function (m) { var it = item(m.item) || { name: '؟', unit: '' }; snAdd(b, 'row', [snD(m.date), ok[m.led].name || m.led, it.name, snN(m.q), it.unit || '', KIND[m.kind] || m.kind, m.note || '']); });
   return b;
