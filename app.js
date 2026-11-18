@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.71';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.72';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1995,36 +1995,44 @@ function gwPost(body) {
   return fetch(gwUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ key: S.settings.syncGwKey || '' }, body)) })
     .then(function (r) { return r.json(); }).then(function (j) { if (!j || !j.ok) throw new Error((j && j.err) || 'رفضت البوابة الطلب'); return j; });
 }
+/* حركات حميدا لا تُرسَل قبل مطابقتها بالشيت: حميدا قد تكون كتبتها عندها (التحويل والراتب مثلًا)، فتُعلَّم مُرسَلة بدل أن تُكتب ثانيةً */
 function gwSend() {
   if (!gwUrl() || GW_BUSY || !gwOk()) return Promise.resolve();
-  var ops = gwOps(); if (!ops.length) return Promise.resolve();
+  if (!gwOps().some(function (o) { return o.sec === 'ham'; })) return gwSend2(true);
+  return gwHamPull(true).then(function (ok) { return gwSend2(!!ok); });
+}
+function gwSend2(hamOk) {
+  if (!gwUrl() || GW_BUSY || !gwOk()) return Promise.resolve();
+  var ops = gwOps().filter(function (o) { return hamOk || o.sec !== 'ham'; }); if (!ops.length) return Promise.resolve();
   var batch = ops.slice(0, 40); GW_BUSY = true;
   return gwPost({ rows: batch }).then(function (j) {
     var sent = S.settings.shSent, byId = {}; batch.forEach(function (o) { byId[o.id] = 1; });
     (j.done || []).forEach(function (id) { if (!byId[id]) return; var k = id.lastIndexOf('#'), mid = id.slice(0, k), n = +id.slice(k + 1); if ((+sent[mid] || 0) === n - 1) sent[mid] = n; });
     S.settings.syncGwAt = Date.now(); GW_ERR = ''; GW_BUSY = false; save();
-    if (ops.length > batch.length) return gwSend();
+    if (ops.length > batch.length) return gwSend2(hamOk);
   }).catch(function (e) { GW_BUSY = false; GW_ERR = String((e && e.message) || e || 'تعذّر الاتصال'); try { render(); } catch (x) {} });
 }
 function gwKick() {
   if (!gwUrl() || !S.settings.syncGwAuto || !gwOk()) return;
   clearTimeout(GW_T); GW_T = setTimeout(function () { gwSend(); }, 2500);
+  if (typeof gwSnapKick === 'function') gwSnapKick();
 }
 /* رصيد حميدا تلقائيًا: كل ما يضيفه تطبيق حميدا في الشيت يدخل رصيد حميدا هنا، وما تحذفه من الشيت يُلغى هنا (الحركات المستوردة فقط، وسجلها يبقى) */
 var GW_HB = false, GW_HAT = 0;
 function gwHamPull(force) {
-  if (!gwUrl() || !gwOk() || GW_HB || GW_BUSY || !gwHamFund() || (!force && Date.now() - GW_HAT < 120000)) return Promise.resolve();
+  if (!gwUrl() || !gwOk() || GW_HB || GW_BUSY || !gwHamFund() || (!force && Date.now() - GW_HAT < 120000)) return Promise.resolve(false);
   GW_HB = true; GW_HAT = Date.now();
   return gwPost({ list: { from: GW_FROM } }).then(function (j) {
-    GW_HB = false; var L = (j.list || {}).ham; if (!j.list || !L) return;
+    GW_HB = false; var L = (j.list || {}).ham; if (!j.list || !L) return false;
     var f = gwHamFund(), sent = S.settings.shSent = S.settings.shSent || {}, mv = (S.fm || []).filter(function (m) { return m.h === f.id && !m.void && m.date >= GW_FROM; }), imp = [], ch = 0;
     L.forEach(function (r) { r.used = false; });
     mv.filter(function (m) { return !m.gwIn; }).concat(mv.filter(function (m) { return m.gwIn; })).forEach(function (m) { m._r = gwFind(L, m, false); if (m._r) m._r.used = true; });
     L.forEach(function (r) { if (!r.used) imp.push(r); });
-    mv.forEach(function (m) { var hit = !!m._r; delete m._r; if (!hit && m.gwIn) { m.void = true; sent[m.id] = 2; ch++; } }); /* حذفتها حميدا من الشيت: تُلغى هنا ويبقى سجلها */
+    mv.forEach(function (m) { var hit = !!m._r; delete m._r; if (hit && !m.gwIn && !(+sent[m.id] > 0)) { sent[m.id] = 1; ch++; } /* موجودة في الشيت (كتبتها حميدا): تُعلَّم مُرسَلة فلا تُكتب ثانيةً */ if (!hit && m.gwIn) { m.void = true; sent[m.id] = 2; ch++; } }); /* حذفتها حميدا من الشيت: تُلغى هنا ويبقى سجلها */
     ch += gwImport(imp);
     if (ch) { save(); try { render('morph'); } catch (e) {} }
-  }).catch(function () { GW_HB = false; });
+    return true;
+  }).catch(function () { GW_HB = false; return false; });
 }
 try { window.addEventListener('online', gwKick); document.addEventListener('visibilitychange', function () { if (!document.hidden) gwHamPull(); }); setTimeout(function () { try { gwHamPull(true); } catch (e) {} }, 9000); setTimeout(function () { try { gwKick(); } catch (e) {} }, 7000); } catch (e) {}
 
@@ -2098,15 +2106,154 @@ function gwSheet(sh) {
   if (GW_ERR) rows.push(X({ title: 'آخر خطأ', sub: GW_ERR }));
   if (GW_PVBUSY) rows.push(X({ title: 'جارٍ قراءة الشيت…', sub: 'قراءة فقط، لا يُكتب فيه شيء' }));
   if (pv) rows = rows.concat(gwRowsX(pv));
+  if (gwOk() && typeof snapRows === 'function') rows = rows.concat(snapRows());
   var acts = [
     X({ title: 'اختبار الاتصال', icon: 'i-wifi', go: function () { gwSave(); say('جارٍ الاختبار…'); gwPost({ ping: 1 }).then(function () { GW_ERR = ''; say('البوابة تعمل وكلمة السر صحيحة'); render(); }).catch(function (e) { GW_ERR = String((e && e.message) || e); say('تعذّر الاتصال: ' + GW_ERR); render(); }); } }),
     X({ title: 'فحص قبل الإرسال', icon: 'i-search', go: function () { gwSave(); GW_PV = null; say('جارٍ قراءة الشيت…'); gwPreview(); } })
   ];
   if (gwOk()) acts.push(X({ title: S.settings.syncGwAuto ? 'إيقاف الإرسال' : 'تشغيل الإرسال', icon: 'i-wifi', go: gwOnOff }));
+  if (gwOk()) acts.push(X({ title: 'تحديث تبويبات الشيت', icon: 'i-wifi', go: function () { say('جارٍ تحديث التبويبات…'); gwSnapSend(true).then(function () { say(SNAP_ERR ? 'تعذّر: ' + SNAP_ERR : 'تبويبات الشيت محدَّثة'); }); } }));
   return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط · من ' + dshow(GW_FROM), fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fText('gwkey', 'كلمة سر البوابة', '')], rows: rows, acts: acts,
     note: { text: 'حدود العمل من ' + dshow(GW_FROM) + ' فصاعدًا. قبل أول إرسال يقرأ التطبيق الشيت (قراءة فقط) ويطابق حركاته بصفوفه: ما وُجد فيه لا يُرسَل ثانيةً، وما ليس فيه يُرسَل بعد اعتمادك. التعديل والإلغاء يُضيفان صف فرق ولا يمسّان القديم.', tone: 'info' },
     ft: pv ? { label: 'اعتماد وإرسال ' + pv.send.length + (pv.imp && pv.imp.length ? ' واستيراد ' + pv.imp.length : ''), ok: !!url, go: function () { shut(); say('جارٍ الإرسال إلى الشيت…'); Promise.resolve(gwApprove()).then(function () { say(GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : 'الشيت محدَّث'); }); } } : { label: 'حفظ', ok: !!url, go: function () { gwSave(); shut(); } } };
 }
+
+/* ===== 02m3-snap.js ===== */
+/* ---------- مرآة الشيت: تبويبات منظمة يبنيها التطبيق كاملة وتنعكس على الشيت (من التطبيق إلى الشيت فقط) ----------
+   التطبيق هو الأساس والشيت صورة كاملة واضحة له: كل تبويب لقطة تُعاد كتابتها كلها عند أي تغيير (فلا تكرار ولا فروق ولا صفوف يتيمة).
+   تُكتب حصرًا في تبويبات اسمها ينتهي بـ «(التطبيق)»؛ تبويبات المالك القديمة لا تُمَس أبدًا. حدود العمل من GW_FROM.
+   كل لقطة: { tab, cols, widths, freeze, rows:[[خلايا]], kinds:['title'|'sec'|'hdr'|'row'|'sub'|'tot'|'note'|'gap'] }.
+   البصمة تُقارَن بآخر ما أُرسل (S.settings.shSnap) فلا يُعاد إرسال لقطة لم تتغير. */
+var SNAP_ON = false, SNAP_SFX = ' (التطبيق)', SNAP_BUSY = false, SNAP_T = null, SNAP_ERR = '';
+function snD(d) { return d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : ''; }
+function snDay(d) { return ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][new Date(d + 'T12:00:00').getDay()]; }
+function snN(v) { return v === null || v === undefined || v === '' ? '' : r2(+v); }
+function snB(tab, title, cols, widths) { var b = { tab: tab + SNAP_SFX, cols: cols, widths: widths, freeze: 1, rows: [], kinds: [] }; snAdd(b, 'title', [title]); return b; }
+function snAdd(b, kind, cells) { b.rows.push(cells); b.kinds.push(kind); }
+function snHash(b) { var s = JSON.stringify([b.rows, b.kinds, b.widths]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
+
+/* ---------- العمال: الأرصدة، الحضور اليومي، حركات الحساب ---------- */
+function snapWorkers() {
+  var ws = (S.workers || []).filter(function (w) { return !w.arch; }), nc = Math.max(8, 2 + ws.length), b = snB('العمال', 'العمال · الحضور والحسابات (يُحدَّث تلقائيًا من التطبيق)', nc, [95, 95].concat(ws.map(function () { return 90; })));
+  snAdd(b, 'note', ['حدود العمل من ' + snD(GW_FROM) + ' · الرصيد موجب = للعامل على المطبخ · لا تعدّل هنا: التعديل من التطبيق']);
+  snAdd(b, 'gap', []);
+  snAdd(b, 'sec', ['أ. الأرصدة الحالية']);
+  snAdd(b, 'hdr', ['العامل', 'اليومية', 'رصيد افتتاحي', 'مستحق الحضور', 'إضافات ومكافآت', 'خصومات ومخالفات', 'الدفعات والسلف', 'الرصيد الحالي']);
+  var T = [0, 0, 0, 0, 0, 0];
+  ws.forEach(function (w) {
+    var v = [E.wSum(S, w.id, ['open']), E.wDue(S, w.id), E.wSum(S, w.id, ['add']), r2(E.wSum(S, w.id, ['deduct', 'viol'])), E.wSum(S, w.id, ['pay']), E.wBalance(S, w.id)];
+    v.forEach(function (x, k) { T[k] = r2(T[k] + x); });
+    snAdd(b, 'row', [w.name, snN(w.daily), snN(v[0]), snN(v[1]), snN(v[2]), snN(v[3]), snN(v[4]), snN(v[5])]);
+  });
+  snAdd(b, 'tot', ['الإجمالي', ''].concat(T.map(snN)));
+  snAdd(b, 'gap', []);
+  snAdd(b, 'sec', ['ب. الحضور اليومي (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'hdr', ['التاريخ', 'اليوم'].concat(ws.map(function (w) { return w.name; })));
+  var days = {}; (S.att || []).forEach(function (a) { if (a.date >= GW_FROM) (days[a.date] = days[a.date] || {})[a.w] = a; });
+  Object.keys(days).sort().forEach(function (d) {
+    snAdd(b, 'row', [snD(d), snDay(d)].concat(ws.map(function (w) { var a = days[d][w.id], s = a && stat(a.st); return a ? (s ? s.name : a.st) : ''; })));
+  });
+  snAdd(b, 'gap', []);
+  snAdd(b, 'sec', ['ج. حركات العمال (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'hdr', ['التاريخ', 'العامل', 'النوع', 'البيان', 'المبلغ', 'أثره على الرصيد', 'الحالة']);
+  var neg = { viol: 1, buy: 1, ded: 1, pay: 1, adv: 1 }, nm = {}; ws.forEach(function (w) { nm[w.id] = w.name; });
+  (S.wl || []).filter(function (e) { return e.kind !== 'open' && e.date >= GW_FROM && nm[e.w]; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); }).forEach(function (e) {
+    var c = wCat(e), n = !!neg[c], t = (WCAT[c] || [c])[0];
+    snAdd(b, 'row', [snD(e.date), nm[e.w], t, e.note && e.note !== t ? e.note : '', snN(e.amt), e.void ? '' : e.amt ? (n ? '−' : '+') + snN(e.amt) : 'تنبيه فقط', e.void ? 'ملغاة' : 'سارية']);
+  });
+  return b;
+}
+
+/* ---------- الطبخ الخارجي: ملخص المؤسسات، الطبخات بموادها، الإضافات والدفعات ---------- */
+function snapExt() {
+  var b = snB('طبخ خارجي', 'طبخ المؤسسات والمبادرات (يُحدَّث تلقائيًا من التطبيق)', 9, [95, 130, 140, 70, 120, 80, 70, 95, 95]);
+  snAdd(b, 'note', ['حدود العمل من ' + snD(GW_FROM) + ' · الرصيد قبل هذا التاريخ يُعرض مرة واحدة كرصيد سابق · المبالغ بالشيكل']);
+  snAdd(b, 'gap', []);
+  snAdd(b, 'sec', ['أ. ملخص المؤسسات']);
+  snAdd(b, 'hdr', ['المؤسسة', 'النوع', 'الرصيد السابق', 'القدور', 'تكلفة الطبخات', 'إضافات', 'الدفعات', 'المستحق']);
+  var sum = function (a) { return r2(a.reduce(function (t, x) { return t + (x.cost != null ? x.cost : x.amt || 0); }, 0)); }, ins = (S.insts || []).filter(function (i) { return !i.arch; }), T = [0, 0, 0, 0, 0, 0];
+  var acct = function (i) {
+    var all = S.batches.filter(function (x) { return x.inst === i.id && !x.void; }).sort(function (p, q) { return p.date < q.date ? -1 : p.date > q.date ? 1 : 0; });
+    var pre = function (d) { return (d || '') < GW_FROM; }, nw = function (d) { return (d || '') >= GW_FROM; };
+    var prev = r2(sum(all.filter(function (x) { return pre(x.date); })) + sum((i.chg || []).filter(function (x) { return pre(x.date); })) - sum((i.pay || []).filter(function (x) { return pre(x.date); })));
+    var bs = all.filter(function (x) { return nw(x.date); }), chg = (i.chg || []).filter(function (x) { return nw(x.date); }), pay = (i.pay || []).filter(function (x) { return nw(x.date); });
+    var cost = sum(bs), ch = sum(chg), pd = sum(pay);
+    return { prev: prev, bs: bs, chg: chg, pay: pay, cost: cost, ch: ch, pd: pd, pots: bs.reduce(function (t, x) { return t + (x.pots || 0); }, 0), due: r2(prev + cost + ch - pd) };
+  };
+  var A_ = ins.map(function (i) { return { i: i, a: acct(i) }; });
+  A_.forEach(function (x) {
+    var a = x.a, v = [a.prev, a.pots, a.cost, a.ch, a.pd, a.due]; v.forEach(function (n, k) { T[k] = r2(T[k] + n); });
+    snAdd(b, 'row', [x.i.name, x.i.init ? 'مبادرة' : 'مؤسسة'].concat(v.map(snN)));
+  });
+  snAdd(b, 'tot', ['الإجمالي', ''].concat(T.map(snN)));
+  snAdd(b, 'gap', []);
+  snAdd(b, 'sec', ['ب. الطبخات بموادها (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'hdr', ['التاريخ', 'المؤسسة', 'الطبخة', 'القدور', 'الصنف', 'الكمية', 'الوحدة', 'سعر الوحدة', 'التكلفة']);
+  var bl = []; A_.forEach(function (x) { x.a.bs.forEach(function (bt) { bl.push({ b: bt, i: x.i }); }); });
+  bl.sort(function (p, q) { return p.b.date < q.b.date ? -1 : p.b.date > q.b.date ? 1 : (p.b.ts || 0) - (q.b.ts || 0); }).forEach(function (x) {
+    var bt = x.b, free = !!(bt.order && bt.order[0]) && E.isFree(led(bt.order[0])), lump = bt.pm === 'lump', first = true;
+    spiceLast(bt.lines || []).forEach(function (ln) {
+      var li = item(ln.item) || { name: '؟', unit: '' }, c = ln.cost != null ? ln.cost : r2((ln.qty || 0) * (ln.price || 0)), eff = ln.qty > 0 ? r2(c / ln.qty) : 0;
+      snAdd(b, 'row', [first ? snD(bt.date) : '', first ? x.i.name : '', first ? batchName(bt) : '', first ? snN(bt.pots || 0) : '', li.name, snN(ln.qty), li.unit, free || lump || !(c > 0) ? '' : snN(eff), free || lump || !(c > 0) ? '' : snN(c)]); first = false;
+    });
+    if (!lump) (bt.xl || []).forEach(function (xx) { snAdd(b, 'row', ['', '', '', '', xx.k || xx.name || xx.note || 'رسوم إضافية', '', '', '', snN(xx.amt || 0)]); });
+    if (lump) snAdd(b, 'row', ['', '', '', '', 'سعر القدر المقطوع', snN(bt.pots || 0), 'قدر', snN(bt.lump || 0), snN((bt.pots || 0) * (bt.lump || 0))]);
+    snAdd(b, 'sub', [first ? snD(bt.date) : '', x.i.name, 'إجمالي ' + batchName(bt), snN(bt.pots || 0), '', '', '', '', free && !(bt.cost > 0) ? 'عيني' : snN(bt.cost || 0)]);
+  });
+  snAdd(b, 'gap', []);
+  snAdd(b, 'sec', ['ج. الإضافات والدفعات (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'hdr', ['التاريخ', 'المؤسسة', 'النوع', 'البيان', 'المبلغ']);
+  var mv = []; A_.forEach(function (x) { x.a.chg.forEach(function (c) { mv.push([c.date || '', x.i.name, 'إضافة', c.note || '', snN(c.amt)]); }); x.a.pay.forEach(function (c) { mv.push([c.date || '', x.i.name, 'دفعة', c.note || '', snN(c.amt)]); }); });
+  mv.sort(function (p, q) { return p[0] < q[0] ? -1 : p[0] > q[0] ? 1 : 0; }).forEach(function (r) { r[0] = snD(r[0]); snAdd(b, 'row', r); });
+  return b;
+}
+
+/* ---------- المخزن وWFP: الأرصدة الحالية لكل مخزن + حركات المخزن من حدود العمل ---------- */
+function snapStock(tab, title, pick) {
+  var b = snB(tab, title, 7, [95, 150, 150, 80, 90, 110, 160]), ls = (S.ledgers || []).filter(function (l) { return !l.arch && pick(l); });
+  snAdd(b, 'note', ['حدود العمل من ' + snD(GW_FROM) + ' · الحالة بحسب المعتاد في يوم الطبخ · الرصيد السالب = نقص مسجّل للمطالبة']);
+  snAdd(b, 'gap', []);
+  snAdd(b, 'sec', ['أ. المخزون الحالي']);
+  ls.forEach(function (l) {
+    snAdd(b, 'sub', [l.name || LSHORT[l.id] || l.id, '', '', '', '', '', '']);
+    snAdd(b, 'hdr', ['#', 'الصنف', 'الرصيد', 'الوحدة', 'الحالة']);
+    stockRows(l.id).forEach(function (r, k) { snAdd(b, 'row', [k + 1, r.it.name, snN(r.q), r.it.unit || '', r.st.t]); });
+  });
+  snAdd(b, 'gap', []);
+  snAdd(b, 'sec', ['ب. حركات المخزن (من ' + snD(GW_FROM) + ')']);
+  snAdd(b, 'hdr', ['التاريخ', 'المخزن', 'الصنف', 'الكمية', 'الوحدة', 'النوع', 'البيان']);
+  var ok = {}; ls.forEach(function (l) { ok[l.id] = l; });
+  var mv = (S.moves || []).filter(function (m) { return ok[m.led] && m.kind !== 'hist' && m.date >= GW_FROM; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); });
+  if (mv.length > 4000) mv = mv.slice(mv.length - 4000);
+  mv.forEach(function (m) { var it = item(m.item) || { name: '؟', unit: '' }; snAdd(b, 'row', [snD(m.date), ok[m.led].name || m.led, it.name, snN(m.q), it.unit || '', KIND[m.kind] || m.kind, m.note || '']); });
+  return b;
+}
+function snapList() {
+  return [snapWorkers(), snapExt(),
+    snapStock('المخزن', 'المخزن · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id !== 'wfp'; }),
+    snapStock('WFP', 'مخزن WFP · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id === 'wfp'; })].filter(function (b) { return b.rows.length > 3; });
+}
+
+/* إرسال اللقطات التي تغيّرت فقط (واحدة بعد واحدة)، أو كلها عند force */
+function gwSnapSend(force) {
+  if (!gwUrl() || !gwOk() || SNAP_BUSY || !SNAP_ON) return Promise.resolve(); /* لا تُفعَّل حتى تُنشر البوابة الجديدة وتُفحص اللقطات */
+  var sh = S.settings.shSnap = S.settings.shSnap || {}, list;
+  try { list = snapList(); } catch (e) { SNAP_ERR = 'تعذّر بناء اللقطة: ' + String((e && e.message) || e); return Promise.resolve(); }
+  var todo = list.filter(function (b) { return force || sh[b.tab] !== snHash(b); }); if (!todo.length) return Promise.resolve();
+  SNAP_BUSY = true;
+  var next = function (k) {
+    if (k >= todo.length) { SNAP_BUSY = false; SNAP_ERR = ''; S.settings.shSnapAt = Date.now(); try { localStorage.setItem('kitchen_snap_at', String(S.settings.shSnapAt)); } catch (e) {} return; }
+    var b = todo[k];
+    return gwPost({ snap: { tab: b.tab, cols: b.cols, widths: b.widths, freeze: b.freeze, rows: b.rows, kinds: b.kinds } }).then(function () { sh[b.tab] = snHash(b); return next(k + 1); });
+  };
+  return Promise.resolve(next(0)).then(function () { save(); try { render('morph'); } catch (e) {} }).catch(function (e) { SNAP_BUSY = false; SNAP_ERR = String((e && e.message) || e || 'تعذّر الإرسال'); try { render('morph'); } catch (x) {} });
+}
+function gwSnapKick() { clearTimeout(SNAP_T); SNAP_T = setTimeout(function () { gwSnapSend(false); }, 6000); }
+function snapRows() {
+  var sh = S.settings.shSnap || {}, n = Object.keys(sh).length;
+  return [X({ title: 'تبويبات الشيت المنعكسة', sub: 'العمال · طبخ خارجي · المخزن · WFP: لقطات كاملة من التطبيق تُكتب في تبويبات «(التطبيق)» ولا تمسّ تبويباتك' + (S.settings.shSnapAt ? ' · آخر تحديث ' + dlabel(new Date(S.settings.shSnapAt).toISOString().slice(0, 10)) : ''), tag: SNAP_ERR ? 'خطأ' : SNAP_BUSY ? 'جارٍ…' : n ? 'متزامنة' : 'لم تُرسَل', tagTone: SNAP_ERR ? 'bad' : n ? 'ok' : 'warn' })].concat(SNAP_ERR ? [X({ title: 'خطأ اللقطات', sub: SNAP_ERR })] : []);
+}
+try { setTimeout(function () { try { gwSnapKick(); } catch (e) {} }, 12000); } catch (e) {}
 
 /* ===== 02n-init.js ===== */
 /* ---------- حساب الجهة (المبادرة): تكلفة الطبخات + إضافات − دفعات = المتبقي ---------- */
