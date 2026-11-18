@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.80';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.81';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1749,7 +1749,7 @@ function todayMoney() { var t = today(), ms = fmOn().filter(function (m) { retur
 function defFund() { var l = fund(S.settings.lastFund); if (l && !l.arch) return l.id; var c = funds().filter(function (f) { return !hasCur(f, 'usd'); })[0]; return (c || funds()[0] || {}).id; }
 function dayBack(n) { return iso(new Date(Date.now() - 864e5 * (+n || 0))); }
 function movesDesc(list) { return list.map(function (m, i) { return { m: m, i: i }; }).sort(function (a, b) { return a.m.date < b.m.date ? 1 : a.m.date > b.m.date ? -1 : b.i - a.i; }).map(function (o) { return o.m; }); }
-function moreRow(n, go) { return X({ icon: 'i-chevD', icTone: 'mute', title: 'عرض ' + n + ' أخرى', sub: 'الأحدث أولًا', chev: false, go: go }); }
+function moreRow(n, go) { return X({ more: true, icon: 'i-chevD', icTone: 'mute', title: 'عرض ' + n + ' أخرى', sub: 'الأحدث أولًا', chev: false, go: go }); }
 function mid(list, p) { return newId(p, list); }
 
 /* خطة الصرف من رصيد: من الشيكل إن كفى، وإلا من الدولار بسعر الصرف */
@@ -2083,7 +2083,7 @@ var GW_OPEN = {};
 function gwCap(rows, key, items) { /* القائمة بأكثر من 6 تُختصر إلى 5 + «عرض N أخرى» (قاعدة التطبيق) */
   var open = !!GW_OPEN[key], n = items.length - 5;
   (items.length > 6 && !open ? items.slice(0, 5) : items).forEach(function (x) { rows.push(x); });
-  if (items.length > 6) rows.push(X({ icon: open ? 'i-minus' : 'i-chevD', icTone: 'mute', title: open ? 'طيّ القائمة' : 'عرض ' + n + ' أخرى', go: function () { GW_OPEN[key] = !open; render('morph'); } }));
+  if (items.length > 6) rows.push(X({ more: true, icon: open ? 'i-minus' : 'i-chevD', icTone: 'mute', title: open ? 'طيّ القائمة' : 'عرض ' + n + ' أخرى', go: function () { GW_OPEN[key] = !open; render('morph'); } }));
 }
 function gwRowsX(pv) {
   var rows = [X({ title: 'ستُرسل إلى الشيت', sub: 'حركات التطبيق غير الموجودة فيه', tag: String(pv.send.length), tagTone: pv.send.length ? 'warn' : 'ok' })];
@@ -4449,7 +4449,7 @@ function pgToday() {
   att.forEach(function (a) { var k = a.row.title; a.row.hasX = true; a.row.xGo = function () { S.settings.attHide = S.settings.attHide || {}; S.settings.attHide[k] = td0; Object.keys(S.settings.attHide).forEach(function (z) { if (S.settings.attHide[z] !== td0) delete S.settings.attHide[z]; }); mutated('أُخفي التنبيه حتى الغد', function () { delete S.settings.attHide[k]; save(); render(); }); }; });
   att.sort(function (a, b) { return a.rank - b.rank; });
   var ALIM = 3, aOpen = !!A.attOpen, aItems = (aOpen ? att : att.slice(0, ALIM)).map(function (a) { return a.row; });
-  if (att.length > ALIM) aItems.push(X({ icon: aOpen ? 'i-minus' : 'i-chevD', icTone: 'mute', title: aOpen ? 'طيّ القائمة' : 'عرض ' + (att.length - ALIM) + ' أخرى', sub: aOpen ? '' : 'مرتّبة بالأهمية', chev: false, go: function () { setState({ attOpen: !aOpen }); } }));
+  if (att.length > ALIM) aItems.push(X({ more: true, icon: aOpen ? 'i-minus' : 'i-chevD', icTone: 'mute', title: aOpen ? 'طيّ القائمة' : 'عرض ' + (att.length - ALIM) + ' أخرى', sub: aOpen ? '' : 'مرتّبة بالأهمية', chev: false, go: function () { setState({ attOpen: !aOpen }); } }));
   bl.push(B('rows', { title: 'يحتاج انتباهك' + (att.length ? ' (' + att.length + ')' : ''), items: aItems, empty: 'لا شيء يحتاج انتباهك الآن' }));
   bl.push(B('rows', { title: 'طبخ اليوم', sort: sortInfo('batches'), items: sortedBatches(tb).map(batchRow), empty: hol ? 'عطلة: لا طبخ اليوم' : 'لا طبخ اليوم بعد' }));
   var pv = dayBatches('private');
@@ -4584,7 +4584,7 @@ function pgKitchen() {
     }), empty: 'لا طبخات مخططة. خطّط لتعرف ما ينقص قبل أن تطبخ.' }));
   if (k === 'private') planDistBlocks(plans()).forEach(function (b) { bl.push(b); });
   var allB = batchesOf(k).filter(function (b) { return !b.void; }), todayB = allB.filter(function (b) { return b.date === today(); });
-  bl.push(B('rows', { title: 'طبخات اليوم', items: sortedBatches(todayB).map(batchRow).concat(allB.length ? [X({ icon: 'i-calendar', icTone: 'info', title: 'كل الطبخات (' + allB.length + ')', sub: 'مجمّعة حسب اليوم', chev: true, go: function () { open('batches', { bk: k }); } })] : []), empty: 'لا طبخات اليوم' }));
+  bl.push(B('rows', { title: 'طبخات اليوم', items: sortedBatches(todayB).map(batchRow).concat(allB.length ? [X({ more: true, chev: true, icon: 'i-calendar', icTone: 'info', title: 'كل الطبخات (' + allB.length + ')', sub: 'مجمّعة حسب اليوم', chev: true, go: function () { open('batches', { bk: k }); } })] : []), empty: 'لا طبخات اليوم' }));
   if (k === 'external') {
     bl.push(B('rows', { title: 'المؤسسات', act: 'مؤسسة', actGo: function () { openSh({ t: 'addInst' }, { name: '', src: 'own' }); },
       items: instsOf(false).map(function (i) {
@@ -4603,7 +4603,7 @@ function pgKitchen() {
   var use = {}; S.batches.forEach(function (b) { if (!b.void && b.recipe) use[b.recipe] = (use[b.recipe] || 0) + 1; });
   var top = rs.filter(function (r) { return !r.draft && !r.exp; }).sort(function (x, y) { return (use[y.id] || 0) - (use[x.id] || 0); }).slice(0, 3);
   bl.push(B('rows', { title: 'الوصفات', act: 'وصفة', actGo: function () { openSh({ t: 'addRecipe' }, { name: '', kinds: k }); },
-    items: top.map(function (r) { return recipeRow(r, k); }).concat([X({ icon: 'i-book', icTone: 'info', title: 'كل الوصفات (' + rs.length + ')', sub: pl(rs.filter(function (r) { return !r.draft && !r.exp; }).length, 'معتمدة', 'معتمدتان', 'معتمدة') + ' · ' + (rs.length - rs.filter(function (r) { return !r.draft && !r.exp; }).length) + ' مبدئية/تجريبية', chev: true, go: function () { open('recipes', { rk: k }); } })]), empty: 'لا وصفات لهذا النوع بعد' }));
+    items: top.map(function (r) { return recipeRow(r, k); }).concat([X({ more: true, chev: true, icon: 'i-book', icTone: 'info', title: 'كل الوصفات (' + rs.length + ')', sub: pl(rs.filter(function (r) { return !r.draft && !r.exp; }).length, 'معتمدة', 'معتمدتان', 'معتمدة') + ' · ' + (rs.length - rs.filter(function (r) { return !r.draft && !r.exp; }).length) + ' مبدئية/تجريبية', chev: true, go: function () { open('recipes', { rk: k }); } })]), empty: 'لا وصفات لهذا النوع بعد' }));
   return bl;
 }
 function pgStock() {
@@ -4732,7 +4732,7 @@ function pgWorkers() {
     var todo = wl.filter(function (w) { return !w.arch && !wAtt(w); }), done = wl.filter(function (w) { return w.arch || wAtt(w); });
     /* أكثر من 3 بلا تسجيل: صف واحد مختصر يُفتح بالنقر، بدل صفوف متطابقة (لهم «حضور الباقين» وجدول الأسبوع) */
     var tItems = todo.map(wRow);
-    if (todo.length > 3) tItems = A.todoOpen ? [X({ icon: 'i-minus', icTone: 'mute', title: 'طيّ القائمة', go: function () { setState({ todoOpen: false }); } })].concat(tItems) : [X({ icon: 'i-users', icTone: 'warn', title: 'عرض الأسماء', sub: todo.slice(0, 3).map(function (w) { return w.name; }).join('، ') + '…', tag: String(todo.length), tagTone: 'warn', chev: true, go: function () { setState({ todoOpen: true }); } })];
+    if (todo.length > 3) tItems = A.todoOpen ? [X({ more: true, icon: 'i-minus', icTone: 'mute', title: 'طيّ القائمة', go: function () { setState({ todoOpen: false }); } })].concat(tItems) : [X({ icon: 'i-users', icTone: 'warn', title: 'عرض الأسماء', sub: todo.slice(0, 3).map(function (w) { return w.name; }).join('، ') + '…', tag: String(todo.length), tagTone: 'warn', chev: true, go: function () { setState({ todoOpen: true }); } })];
     bl.push(B('rows', { all: true, title: 'بلا تسجيل (' + todo.length + ')', sort: todo.length > 3 && !A.todoOpen ? null : sortInfo('workers'), items: tItems, empty: 'سُجّل حضور الجميع اليوم' }));
     if (done.length) bl.push(B('rows', { all: true, title: 'سُجّل (' + done.length + ')', items: done.map(wRow) }));
   } else bl.push(B('rows', { all: true, title: m === 'att' ? 'سجّل حضور اليوم' : 'أرصدة العمال', sort: sortInfo('workers'), items: wl.map(wRow) }));
