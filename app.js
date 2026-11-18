@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.78';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.79';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2112,11 +2112,14 @@ function gwSheet(sh) {
   if (GW_ERR) rows.push(X({ title: 'آخر خطأ', sub: GW_ERR }));
   if (GW_PVBUSY) rows.push(X({ title: 'جارٍ قراءة الشيت…', sub: 'قراءة فقط، لا يُكتب فيه شيء' }));
   if (pv) rows = rows.concat(gwRowsX(pv));
+  if (gwOk() && typeof waRows === 'function') rows = rows.concat(waRows());
   if (gwOk() && typeof snapRows === 'function') rows = rows.concat(snapRows());
   var acts = [
     X({ title: 'اختبار الاتصال', icon: 'i-wifi', go: function () { gwSave(); say('جارٍ الاختبار…'); gwPost({ ping: 1 }).then(function () { GW_ERR = ''; say('البوابة تعمل وكلمة السر صحيحة'); render(); }).catch(function (e) { GW_ERR = String((e && e.message) || e); say('تعذّر الاتصال: ' + GW_ERR); render(); }); } }),
     X({ title: 'فحص قبل الإرسال', icon: 'i-search', go: function () { gwSave(); GW_PV = null; say('جارٍ قراءة الشيت…'); gwPreview(); } })
   ];
+  if (gwOk()) acts.push(X({ title: 'فحص تبويب العمال', icon: 'i-search', go: function () { gwSave(); say('جارٍ قراءة الشيت…'); waDry(); } }));
+  if (gwOk() && WA_PV && WA_PV.ok) acts.push(X({ title: 'كتابة العمال في تبويبك', icon: 'i-wifi', go: function () { say('جارٍ الكتابة…'); waWrite(); } }));
   if (gwOk()) acts.push(X({ title: S.settings.syncGwAuto ? 'إيقاف الإرسال' : 'تشغيل الإرسال', icon: 'i-wifi', go: gwOnOff }));
   if (gwOk()) acts.push(X({ title: 'تحديث تبويبات الشيت', icon: 'i-wifi', go: function () { say('جارٍ تحديث التبويبات…'); gwSnapSend(true).then(function () { say(SNAP_ERR ? 'تعذّر: ' + SNAP_ERR : 'تبويبات الشيت محدَّثة'); }); } }));
   return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط · من ' + dshow(GW_FROM), fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fSecret('gwkey', 'كلمة سر البوابة', '')], rows: rows, acts: acts,
@@ -2235,9 +2238,9 @@ function snapStock(tab, title, pick) {
   return b;
 }
 function snapList() {
-  return [snapWorkers(), snapExt(),
+  return [typeof waOn === 'function' && waOn() ? null : snapWorkers(), snapExt(),
     snapStock('المخزن', 'المخزن · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id !== 'wfp'; }),
-    snapStock('WFP', 'مخزن WFP · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id === 'wfp'; })].filter(function (b) { return b.rows.length > 3; });
+    snapStock('WFP', 'مخزن WFP · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id === 'wfp'; })].filter(function (b) { return b && b.rows.length > 3; });
 }
 
 /* إرسال اللقطات التي تغيّرت فقط (واحدة بعد واحدة)، أو كلها عند force */
@@ -2254,12 +2257,72 @@ function gwSnapSend(force) {
   };
   return Promise.resolve(next(0)).then(function () { save(); try { render('morph'); } catch (e) {} }).catch(function (e) { SNAP_BUSY = false; SNAP_ERR = String((e && e.message) || e || 'تعذّر الإرسال'); try { render('morph'); } catch (x) {} });
 }
-function gwSnapKick() { clearTimeout(SNAP_T); SNAP_T = setTimeout(function () { gwSnapSend(false); }, 6000); }
+function gwSnapKick() { try { if (typeof waKick === 'function') waKick(); } catch (e) {} clearTimeout(SNAP_T); SNAP_T = setTimeout(function () { gwSnapSend(false); }, 6000); }
 function snapRows() {
   var sh = S.settings.shSnap || {}, n = Object.keys(sh).length;
   return [X({ title: 'تبويبات الشيت المنعكسة', sub: 'العمال · طبخ خارجي · المخزن · WFP: لقطات كاملة من التطبيق تُكتب في تبويبات «(التطبيق)» ولا تمسّ تبويباتك' + (S.settings.shSnapAt ? ' · آخر تحديث ' + dlabel(new Date(S.settings.shSnapAt).toISOString().slice(0, 10)) : ''), tag: SNAP_ERR ? 'خطأ' : SNAP_BUSY ? 'جارٍ…' : n ? 'متزامنة' : 'لم تُرسَل', tagTone: SNAP_ERR ? 'bad' : n ? 'ok' : 'warn' })].concat(SNAP_ERR ? [X({ title: 'خطأ اللقطات', sub: SNAP_ERR })] : []);
 }
 try { setTimeout(function () { try { gwSnapKick(); } catch (e) {} }, 12000); } catch (e) {}
+
+/* ===== 02m4-wapp.js ===== */
+/* ---------- العمال داخل تبويب المالك نفسه («العمال») بدل تبويب لقطة منفصل ----------
+   التطبيق يضيف ذيلًا بعد آخر صف للمالك في ثلاثة جداول بأعمدته نفسها (الحضور A:L، الدفعات O:R، الإضافات والخصومات W:AB)؛ معادلات المالك (إجمالي المستحق/المدفوع/الرصيد) تحسبها كما هي.
+   الذيل وحده يُعاد كتابته (عمود مفتاح مخفي app:…)، وصفوف المالك لا تُمس. قبل أول كتابة: «فحص» (قراءة فقط) ثم اعتماد (المالك 2026-11-18). */
+var WA_TAB = 'العمال', WA_PV = null, WA_BUSY = false, WA_ERR = '', WA_CHK = null, WA_T = null;
+function waSpec(dry) {
+  var ws = S.workers || [], nm = {}; ws.forEach(function (w) { nm[w.id] = w.name; });
+  var days = {}; (S.att || []).forEach(function (a) { if (!nm[a.w]) return; var s = stat(a.st); (days[a.date] = days[a.date] || {})[nm[a.w]] = s ? s.name : a.st; });
+  var att = Object.keys(days).sort().map(function (d) { return { k: 'app:att:' + d, d: { d: d }, st: days[d] }; });
+  var byT = function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); };
+  var L = (S.wl || []).filter(function (e) { return e.kind !== 'open' && nm[e.w]; }).sort(byT), pay = [], log = [];
+  L.forEach(function (e) {
+    var c = wCat(e), t = (WCAT[c] || [e.kind])[0], a = r2(e.amt || 0);
+    if (!e.void && (e.kind === 'pay' || c === 'buy')) { pay.push({ k: 'app:pay:' + e.id, v: [{ d: e.date }, nm[e.w], a, e.note && e.note !== t ? e.note : (c === 'buy' ? t : '')] }); return; }
+    if (e.kind === 'pay' || c === 'buy') return; /* دفعة ملغاة: لا أثر ولا صف */
+    var add = e.kind === 'add', sign = add ? 1 : -1, act = !a ? 'تنبيه' : (c === 'kbuy' ? 'شراء للمطبخ ' : c === 'adjw' ? 'تسوية ' : add ? 'إضافة ' : 'خصم ') + a + ' ش';
+    log.push({ k: 'app:log:' + e.id, v: [nm[e.w], e.note && e.note !== t ? e.note : t, act, e.void ? 'ملغي' : 'تم', { d: e.date }, e.void || !a ? '' : sign * a] });
+  });
+  return { tab: WA_TAB, dry: !!dry, peek: 'C1:L5',
+    setup: [{ type: 'hdr', cell: 'AB7', from: 'AA7', text: 'المبلغ (±)' }, { type: 'fappend', range: 'C3:L3', has: '$AB$8', add: '+SUMIF($W$8:$W$499,{c}$1,$AB$8:$AB$499)' }],
+    blocks: [
+      { id: 'att', c0: 1, n: 12, row0: 8, key: 34, skip: [1], dedup: [0], map: { row: 7, c0: 3, n: 10 }, rows: att },
+      { id: 'pay', c0: 15, n: 4, row0: 8, key: 35, dedup: [0, 1, 2], rows: pay },
+      { id: 'log', c0: 23, n: 6, row0: 8, key: 36, nf: { 5: '#,##0.##' }, rows: log }] };
+}
+function waHash() { var s = JSON.stringify(waSpec(false).blocks), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
+function waOn() { return !!(S.settings.shApp && S.settings.shApp.workers && S.settings.shApp.workers.on); }
+function waDry() {
+  if (!gwUrl() || WA_BUSY) return Promise.resolve(); WA_BUSY = true; WA_ERR = ''; WA_PV = null;
+  return gwPost({ app: waSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); WA_PV = j; WA_BUSY = false; render(); }).catch(function (e) { WA_BUSY = false; WA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+}
+function waWrite() {
+  if (!gwUrl() || WA_BUSY) return Promise.resolve(); WA_BUSY = true; WA_ERR = '';
+  return gwPost({ app: waSpec(false) }).then(function (j) {
+    if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا');
+    WA_BUSY = false; var sa = S.settings.shApp = S.settings.shApp || {}; sa.workers = { on: 1, hash: waHash(), at: Date.now() }; WA_PV = null;
+    var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], p = j.peek || [];
+    if (p[0] && p[4]) p[0].forEach(function (h, i) { var w = (S.workers || []).filter(function (x) { return x.name === String(h).trim(); })[0]; if (!w) return; var a = E.wBalance(S, w.id), b = pn(p[4][i]); if (Math.abs(a - b) > 0.011) bad.push({ n: w.name, app: a, sheet: b }); });
+    WA_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save(); try { render('morph'); } catch (x) {}
+  }).catch(function (e) { WA_BUSY = false; WA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+}
+function waKick() {
+  if (!waOn() || !gwUrl() || !gwOk()) return; clearTimeout(WA_T);
+  WA_T = setTimeout(function () { try { if (S.settings.shApp.workers.hash !== waHash()) waWrite(); } catch (e) {} }, 5000);
+}
+function waRows() {
+  var rows = [], pv = WA_PV;
+  if (waOn()) rows.push(X({ title: 'تبويب «العمال» في الشيت', sub: 'التطبيق يُضيف صفوفه تحت صفوفك (حضور، دفعات، إضافات وخصومات) ومعادلاتك تحسبها' + (WA_CHK && WA_CHK.bad.length ? '' : ' · الأرصدة مطابقة'), tag: WA_ERR ? 'خطأ' : WA_BUSY ? '…' : 'يعمل', tagTone: WA_ERR ? 'bad' : 'ok' }));
+  if (WA_ERR) rows.push(X({ title: 'خطأ العمال', sub: WA_ERR }));
+  if (WA_CHK) { WA_CHK.bad.forEach(function (b) { rows.push(X({ title: b.n, sub: 'الرصيد في الشيت يخالف التطبيق', end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (WA_CHK.missing.length) rows.push(X({ title: 'عمال بلا عمود في تبويبك', sub: WA_CHK.missing.join('، '), tag: String(WA_CHK.missing.length), tagTone: 'warn' })); }
+  if (pv) {
+    if (!pv.ok) rows.push(X({ title: 'لا كتابة', sub: pv.err || 'رفضت البوابة', tag: 'خطأ', tagTone: 'bad' }));
+    var nmB = { att: 'أيام الحضور', pay: 'الدفعات والسلف', log: 'الإضافات والخصومات' };
+    (pv.blocks || []).forEach(function (b) { rows.push(X({ title: nmB[b.id] || b.id, sub: 'تحت صفك ' + b.manualLast + (b.dropped ? ' · ' + b.dropped + ' موجودة عندك يدويًا فلا تُكرَّر' : '') + (b.hadApp ? ' · يُعاد كتابة ' + b.hadApp + ' صف للتطبيق' : ''), tag: String(b.want), tagTone: 'ok' })); });
+    if (pv.missing && pv.missing.length) rows.push(X({ title: 'عمال بلا عمود في تبويبك', sub: pv.missing.join('، '), tag: String(pv.missing.length), tagTone: 'warn' }));
+  }
+  return rows;
+}
+try { setTimeout(function () { try { waKick(); } catch (e) {} }, 13000); } catch (e) {}
 
 /* ===== 02n-init.js ===== */
 /* ---------- حساب الجهة (المبادرة): تكلفة الطبخات + إضافات − دفعات = المتبقي ---------- */
@@ -5815,7 +5878,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { snapList: function () { return snapList(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
