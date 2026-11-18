@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.76';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.77';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -417,6 +417,12 @@ function mutated(msg, undo) { save(); say(msg, undo); }
 function fText(k, label, ph, mode, hint) {
   var f = fText0(k, label, ph, mode, hint); return mode === 'decimal' ? inlineN(f) : f;
 }
+/* حقل سر (كلمة سر البوابة، كلمة الدخول): مخفي افتراضيًا وفي مكانه زر عين للإظهار والإخفاء. كل حقل سر يمرّ من هنا (حارس: tests/total-guard-test.js) */
+function fSecret(k, label, ph, hint) {
+  var f = fText0(k, label, ph, 'text', hint), rv = fv('_rv_' + k) === '1';
+  f.isGrow = false; f.isText = true; f.itype = rv ? 'text' : 'password'; f.dir = 'ltr'; f.ta = 'left'; f.isEye = true; f.eyeSlash = rv ? 'M3 3l18 18' : '';
+  f.eyeGo = function () { fset('_rv_' + k, rv ? '' : '1'); }; return f;
+}
 /* رقم قصير: العنوان يمينًا وخانة ضيقة يسارًا في سطر واحد */
 function inlineN(f) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = '1'; f.cw = '160px'; return f; }
 function fText0(k, label, ph, mode, hint) {
@@ -425,7 +431,7 @@ function fText0(k, label, ph, mode, hint) {
   var op = function (c) { return function () { var v = String(fv(k)); if (!v || v === '-') return; fset(k, /[×÷+\-]$/.test(v) ? v.slice(0, -1) + c : v + c); }; },
     eq = function () { var v = String(fv(k)); if (hasOp(v) && !/[×÷+\-]$/.test(v)) fset(k, String(evalNum(v))); };
   return { label: label, hint: hint || '', hasHint: !!hint, isText: calc || (mode || 'text') !== 'text', isGrow: !calc && (mode || 'text') === 'text', isChips: false, value: cur, ph: ph || '', mode: mode || 'text', itype: 'text', min: '', max: '', isArea: false,
-    dir: calc ? 'ltr' : 'rtl', ta: calc ? 'right' : 'start', isCalc: calc, opAdd: op('+'), opSub: op('-'), opMul: op('×'), opDiv: op('÷'), opEq: eq, keep: function () {}, onKey: calc ? eq : noop,
+    dir: calc ? 'ltr' : 'rtl', ta: calc ? 'right' : 'start', isCalc: calc, isEye: false, eyeGo: function () {}, eyeSlash: '', opAdd: op('+'), opSub: op('-'), opMul: op('×'), opDiv: op('÷'), opEq: eq, keep: function () {}, onKey: calc ? eq : noop,
     onInput: function (v) { fset(k, v); }, chips: [] };
 }
 /* حقل بسطر واحد: العنوان يمينًا والقيمة يسارًا */
@@ -2113,7 +2119,7 @@ function gwSheet(sh) {
   ];
   if (gwOk()) acts.push(X({ title: S.settings.syncGwAuto ? 'إيقاف الإرسال' : 'تشغيل الإرسال', icon: 'i-wifi', go: gwOnOff }));
   if (gwOk()) acts.push(X({ title: 'تحديث تبويبات الشيت', icon: 'i-wifi', go: function () { say('جارٍ تحديث التبويبات…'); gwSnapSend(true).then(function () { say(SNAP_ERR ? 'تعذّر: ' + SNAP_ERR : 'تبويبات الشيت محدَّثة'); }); } }));
-  return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط · من ' + dshow(GW_FROM), fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fText('gwkey', 'كلمة سر البوابة', '')], rows: rows, acts: acts,
+  return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط · من ' + dshow(GW_FROM), fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fSecret('gwkey', 'كلمة سر البوابة', '')], rows: rows, acts: acts,
     note: { text: 'حدود العمل من ' + dshow(GW_FROM) + ' فصاعدًا. قبل أول إرسال يقرأ التطبيق الشيت (قراءة فقط) ويطابق حركاته بصفوفه: ما وُجد فيه لا يُرسَل ثانيةً، وما ليس فيه يُرسَل بعد اعتمادك. التعديل والإلغاء يُضيفان صف فرق ولا يمسّان القديم.', tone: 'info' },
     ft: pv ? { label: 'اعتماد وإرسال ' + pv.send.length + (pv.imp && pv.imp.length ? ' واستيراد ' + pv.imp.length : ''), ok: !!url, go: function () { shut(); say('جارٍ الإرسال إلى الشيت…'); Promise.resolve(gwApprove()).then(function () { say(GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : 'الشيت محدَّث'); }); } } : { label: 'حفظ', ok: !!url, go: function () { gwSave(); shut(); } } };
 }
@@ -5974,7 +5980,7 @@ function syncSheet(sh) {
   if (sh.t === 'sync') {
     var s = syncSess();
     if (!s) {
-      var pw = fText('pw', 'كلمة السر', '', 'text'); pw.isGrow = false; pw.isText = true; pw.itype = 'password';
+      var pw = fSecret('pw', 'كلمة السر', '');
       return { title: 'الحساب والمزامنة', sub: 'ادخل مرة واحدة على كل جهاز', fields: [fText('email', 'البريد', 'name@example.com', 'email'), pw],
         note: { text: 'تُحفظ الجلسة فقط ولا تُحفظ كلمة السر. بعد الدخول يتزامن التطبيق تلقائيًا مع كل اتصال بالإنترنت.', tone: 'info' },
         ft: { label: 'دخول', ok: !!(fv('email').trim() && fv('pw')), go: doSyncLogin } };
