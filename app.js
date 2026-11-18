@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.79';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.80';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4666,7 +4666,7 @@ function pgStock() {
     var sa = stockAfter(l0).filter(function (r) { return r.need > 0; }), cov = {}; plR.forEach(function (r) { cov[r.it.id] = r; });
     bl.push(B('rows', { title: 'المخطط له · ' + pl(plans().length, 'طبخة واحدة', 'طبختان', 'طبخات'), act: 'نسخ', actGo: function () { copyText(stockAfterText(l0), 'نُسخت حالة المخزن بعد الطبخ'); }, sort: sortInfo('stock'), all: true, items: (sa.length ? [X({ hdr: true, chev: true, colw: 96, title: 'الصنف', end: 'الآن', end2: 'بعد الطبخ' })] : []).concat(sa.map(function (r) {
       var c = cov[r.it.id];
-      return X({ title: r.it.name, colw: 96, end: fmt(r.q) + ' ' + r.it.unit, endSub2: packTxt(r.it, r.q), end2: fmt(r.rem) + ' ' + r.it.unit, end2Tone: r.rem < 0 ? 'bad' : '', end2Sub: packTxt(r.it, Math.max(r.rem, 0)), chev: true, go: function () { openSh({ t: 'item', id: r.it.id }); }, lp: function () { stockQa(r.it, l0, r.q); } });
+      return X({ title: r.it.name, sub: 'يلزم ' + fmt(r.need), colw: 96, end: fmt(r.q) + ' ' + r.it.unit, endSub2: packTxt(r.it, r.q), end2: fmt(r.rem) + ' ' + r.it.unit, end2Tone: r.rem < 0 ? 'bad' : '', end2Sub: packTxt(r.it, Math.max(r.rem, 0)), chev: true, go: function () { openSh({ t: 'item', id: r.it.id }); }, lp: function () { stockQa(r.it, l0, r.q); } });
     })), empty: 'لا أصناف' }));
     return bl;
   }
