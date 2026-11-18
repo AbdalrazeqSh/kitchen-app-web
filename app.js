@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.81';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.82';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -425,6 +425,11 @@ function fSecret(k, label, ph, hint) {
 }
 /* رقم قصير: العنوان يمينًا وخانة ضيقة يسارًا في سطر واحد */
 function inlineN(f) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = '1'; f.cw = '160px'; return f; }
+/* المبلغ والبيان في صف واحد: خانة مبلغ ضيقة مميزة (خلفية خضراء خفيفة وخط أكبر) وبجانبها البيان؛ يُستعمل في كل نوافذ الحركات المالية (المالك 2026-11-18) */
+function fPair(k1, cap1, k2, cap2, ph2) {
+  var f = fText(k1, '', '0', 'decimal'); f.cw = '124px'; f.gp = '10px'; f.lf = '0'; f.lbd = 'none'; f.hasCap = true; f.cap1 = cap1; f.cap2 = cap2;
+  f.hasSide = true; f.sideV = String(fv(k2)); f.sideIn = function (v) { fset(k2, v); }; f.sidePh = ph2 || ''; f.ibg = '#F2F9F5'; f.ibd = '#14563A'; f.ifs = '19px'; f.ifw = '600'; return f;
+}
 function fText0(k, label, ph, mode, hint) {
   var calc = mode === 'decimal', cur = String(fv(k)), ex = calc && hasOp(cur) ? evalNum(cur) : null;
   if (ex != null) hint = '= ' + fmt(ex) + (hint ? ' · ' + hint : '');
@@ -447,6 +452,7 @@ function fSelect(k, label, opts, sel) {
   f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cdir = 'column'; f.cflex = '1 1 auto'; f.ctal = 'start';
   f.chips = open ? opts.map(function (o) { return X({ label: o[1], on: sel !== '' && sel != null && o[0] === cur[0], go: function () { A.form[k] = o[0]; A.form[ok] = ''; render(); } }); })
     : [X({ label: (sel === '' || sel == null ? 'اختر…' : cur[1]) + '  ▾', go: function () { A.form[ok] = '1'; render(); } })];
+  if (!open) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = 'none'; f.cflex = '1 1 auto'; f.cjc = 'flex-end'; } /* المغلقة: العنوان يمينًا وقيمتها يسارًا في سطر واحد (كل القوائم المنسدلة) */
   return f;
 }
 function fChips(k, label, opts, hint) {
@@ -458,7 +464,7 @@ function fChips(k, label, opts, hint) {
 }
 /* شريط بنصفين متساويين لاختيار من 2 إلى 3 (نوع الحركة، العملة) */
 function fSeg(k, label, opts) {
-  var f = fChips(k, label, opts); f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cbg = '#EEF1EC'; f.cpad = '4px'; f.cflex = '1'; f.cjc = 'center';
+  var f = fChips(k, label, opts); if (!label) f.lbd = 'none'; f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cbg = '#EEF1EC'; f.cpad = '4px'; f.cflex = '1'; f.cjc = 'center';
   f.chips = opts.map(function (o) { var sel = fv(k) === o[0]; return X({ label: o[1], on: sel, selTone: o[2] === 'bad' ? 'bad' : undefined, go: function () { fset(k, o[0]); } }); });
   f.chips.forEach(function (c, i) { var on = fv(k) === opts[i][0], bad = on && opts[i][2] === 'bad'; c.bg = on ? (bad ? '#B3261E' : '#14563A') : 'transparent'; c.fg = on ? '#FFFFFF' : '#5B6660'; c.bd = on ? (bad ? '#B3261E' : '#14563A') : 'transparent'; });
   return f;
@@ -503,6 +509,8 @@ function usageOf(id) { if (!(id in UC)) { var u = E.usage(S, id); UC[id] = u && 
 function resetCaches() { UC = {}; PC = {}; }
 /* ---------- خطة الطبخات القادمة ---------- */
 function plans() { return (S.plans || []).filter(function (p) { return !p.done && !p.off && rec(p.recipeId); }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }); }
+/* خطط تبويب الطبخ (طبخ / طبخ خارجي): لا تُعرض خطط نوع في تبويب نوع آخر (المالك 2026-11-18) */
+function plansOf(k) { return plans().filter(function (p) { return (p.kind || 'private') === (k === 'init' ? 'external' : k); }); }
 function planLines() { return plans().map(function (p) { return { date: p.date, lines: E.scaleRecipe(rec(p.recipeId), p.pots, p) }; }); }
 var PC = {};
 function planCover(id) { // يكفي كم طبخة مخططة؟ null إن لم يدخل الصنف في أي خطة
@@ -1717,6 +1725,9 @@ function fTxt(cur, n) { return cur === 'usd' ? usdTxt(n) : money(n); }
 function hasCur(f, c) { return f.curs.indexOf(c) >= 0; }
 function fMain(f) { return f.curs[0]; }
 /* العملة الافتراضية في نوافذ الإدخال: الشيكل إن وُجد في الرصيد */
+/* مصدر الصرف الافتراضي في كل نوافذ الدفع: الشيكل إن وُجد في الرصيد، والدولار خيار يختاره المالك من القائمة (المالك 2026-11-18) */
+function fDefSrc(f) { return f && hasCur(f, 'ils') ? 'ils' : 'usd'; }
+function ensureSrc(f) { var d = fDefSrc(f); if (!A.form.src || (A.form.srcAuto && A.form.src === A.form.srcAuto)) { A.form.src = d; A.form.srcAuto = d; } return A.form.src; }
 function fDefCur(f) { return f && f.curs.indexOf('ils') >= 0 ? 'ils' : f.curs[0]; }
 /* اسم الرصيد للعرض: إن طابق اسمَ عامل يُضاف «(رصيد)» حتى لا يُلتبس بالعامل */
 /* لون هوية كل رصيد على اسمه فقط (بلا تغيير قياسات): بنك فلسطين أحمر عنابي، بايننس ذهبي */
@@ -1755,7 +1766,7 @@ function mid(list, p) { return newId(p, list); }
 /* خطة الصرف من رصيد: من الشيكل إن كفى، وإلا من الدولار بسعر الصرف */
 function payPlan(f, ils, rate) {
   if (!f || !(ils > 0)) return { ok: false, txt: '' };
-  var src = fv('src') || 'usd';
+  var src = fv('src') || fDefSrc(f);
   if (hasCur(f, 'ils') && (!hasCur(f, 'usd') || src === 'ils')) {
     var b = fBal(f.id, 'ils'); return { ok: true, cur: 'ils', amt: ils, ils: 0, rate: 0, txt: 'يُخصم ' + money(ils) + ' من رصيد الشيكل' + (b < ils ? ' (يصير سالبًا، والأفضل الصرف من الدولار بسعر الصرف)' : '') };
   }
@@ -1766,10 +1777,10 @@ function payPlan(f, ils, rate) {
   return { ok: false, txt: '' };
 }
 function fundFields() {
-  if (!A.form.fund) A.form.fund = defFund(); if (!A.form.src) A.form.src = 'usd';
+  if (!A.form.fund) A.form.fund = defFund(); ensureSrc(fund(A.form.fund));
   var f = fund(fv('fund')), fl = [fChips('fund', 'من أي رصيد؟', funds().map(function (x) { return [x.id, fName(x) + ' · ' + fBalAll(x)]; }))];
-  if (f && f.curs.length > 1) fl.push(fChips('src', 'يُصرف من', [['usd', 'الدولار بسعر الصرف'], ['ils', 'رصيد الشيكل']]));
-  if (f && hasCur(f, 'usd') && (fv('src') || 'usd') === 'usd') { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); fl.push(fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'ما يقابل المبلغ يُخصم من الدولار')); }
+  if (f && f.curs.length > 1) fl.push(fChips('src', 'يُصرف من', [['ils', 'رصيد الشيكل'], ['usd', 'الدولار بسعر الصرف']]));
+  if (f && hasCur(f, 'usd') && (fv('src') || fDefSrc(f)) === 'usd') { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); fl.push(fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'ما يقابل المبلغ يُخصم من الدولار')); }
   return fl;
 }
 function payFund(fid, w, ils, note, kind, rate, wl) {
@@ -1903,12 +1914,11 @@ function moneySheet(sh) {
       var dir = fv('dir') || 'out'; if (!fv('dir')) A.form.dir = dir; var fo0 = fund(fv('fund')) || fund(defFund()); if (!fund(fv('fund'))) A.form.fund = fo0.id; f = fo0;
       var ms = modesOf(f, dir), md = ms.some(function (x) { return x[0] === fv('mode'); }) ? fv('mode') : ms[0][0], a = num('amt'), rt = num('rate'), fl = [];
       var cl = (dir === 'in' ? CATS_IN : CATS_OUT).map(function (c) { return c[0]; }); if (fv('cat') && cl.indexOf(fv('cat')) < 0) A.form.cat = '';
-      if (!fv('dlock')) fl.push(fSeg('dir', 'نوع الحركة', [['out', 'ناقص (صرف)', 'bad'], ['in', 'وارد (دخل)', 'ok']]));
+      if (!fv('dlock')) fl.push(fSeg('dir', '', [['out', 'ناقص (صرف)', 'bad'], ['in', 'وارد (دخل)', 'ok']]));
       fl.push(fSelect('fund', 'من أي رصيد', funds().map(function (x) { return [x.id, fName(x) + ' · ' + fBalAll(x)]; }), fv('fund')));
       if (ms.length > 1) { A.form.mode = md; fl.push(ms.length <= 3 ? fSeg('mode', 'العملة', ms) : fSelect('mode', 'العملة', ms, md)); }
-      var fa = fText('amt', md === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالشيكل', '0', 'decimal'); fa.fd = 'column'; fa.ai = 'stretch'; fa.gp = '6px'; fa.lf = '0'; fa.cw = '100%'; fl.push(fa);
+      fl.push(fPair('amt', md === 'usd' ? 'المبلغ $' : 'المبلغ ₪', 'note', 'البيان', dir === 'in' ? 'مثال: مبيعات، إيداع' : 'مثال: كارة، نقل، كهرباء'));
       if (md === 'conv') { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); fl.push(fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'ما يقابل المبلغ يُخصم من الدولار')); }
-      fl.push(fText('note', 'البيان', dir === 'in' ? 'مثال: مبيعات، إيداع' : 'مثال: كارة، نقل، كهرباء'));
       fl.push(catChips(dir)); fl = fl.concat(dayFields()); fl.push(fPhoto('صورة الوصل أو السند (اختياري)'));
       var usd = md === 'conv' && a > 0 && rt > 0 ? r2(a / rt) : 0, cur = md === 'conv' ? 'usd' : md, delta = md === 'conv' ? usd : a, after = r2(fBal(f.id, cur) + (dir === 'in' ? delta : -delta));
       R = { title: fv('dlock') ? (dir === 'in' ? 'وارد جديد' : 'ناقص جديد (صرف)') : 'حركة جديدة', sub: f.name + ' · الرصيد الآن: ' + fBalAll(f), fields: fl,
@@ -2489,20 +2499,32 @@ function pgDraft() {
   bl.push(B('rows', { items: [
     X({ icon: 'i-box', icTone: 'ok', title: 'سيُسجَّل في ' + (L ? L.name : '—'), sub: 'بتاريخ ' + dlabel(d.date), tag: 'تعديل', tagTone: 'info', chev: true, go: function () { openSh({ t: 'dmeta', did: d.id }, { led: d.led, day: '', dtxt: d.date }); } })
   ] }));
-  if (!rcvOk(d.date)) bl.push(B('note', { tone: 'warn', icon: 'i-lock', text: d.date > today() ? 'لا يُسجَّل بتاريخ مستقبلي: غيّر التاريخ.' : 'هذا اليوم مُغلق: غيّر التاريخ أو أعد فتح اليوم.' }));
+  if (d.date > today()) bl.push(B('note', { tone: 'info', icon: 'i-truck', text: 'توريد قادم: لا يدخل المخزن قبل ' + dlabel(d.date) + '، ويُسجَّل تلقائيًا في ذلك اليوم. تقدر تعدّل تاريخه متى شئت قبل ذلك.' }));
+  else if (!rcvOk(d.date)) bl.push(B('note', { tone: 'warn', icon: 'i-lock', text: 'هذا اليوم مُغلق: غيّر التاريخ أو أعد فتح اليوم.' }));
   bl.push(B('btns', { items: [X({ label: 'ترك المسودة', icon: 'i-minus', go: function () { openSh({ t: 'dDrop', did: d.id }); } })] }));
   return bl;
 }
-function dReady(d) { return !!d && d.lines.length > 0 && !dNeeds(d).length && rcvOk(d.date); }
-function approveDraft() {
-  var d = draftOf(A.did); if (!dReady(d)) return;
+function dReady(d) { return !!d && d.lines.length > 0 && !dNeeds(d).length && (rcvOk(d.date) || d.date > today()); }
+/* ترحيل مسودة إلى المخزن (حركات استلام بتاريخها) — يستعملها الاعتماد المباشر ووصول التوريد القادم */
+function draftPost(d, date) {
   var made = [], olds = []; ocrLearn(d);
   d.lines.forEach(function (l) {
-    var it = item(l.item), mv = E.addMove(S, { date: d.date, led: d.led, item: l.item, q: l.qty, kind: 'receive', ref: d.id, price: l.price > 0 ? l.price : undefined, note: d.src && d.src !== 'نص' ? 'توريد ' + d.src : 'مسودة توريد' });
+    var it = item(l.item), mv = E.addMove(S, { date: date, led: d.led, item: l.item, q: l.qty, kind: 'receive', ref: d.id, price: l.price > 0 ? l.price : undefined, note: d.src && d.src !== 'نص' ? 'توريد ' + d.src : 'مسودة توريد' });
     made.push(mv.id);
     if (l.price > 0 && !E.isFree(led(d.led))) { olds.push([it, it.price]); it.price = l.price; (d.olds = d.olds || []).push([it.id, l.price, olds[olds.length - 1][1]]); }
   });
-  d.done = 'approved'; d.doneAt = today(); d.moves = made;
+  d.done = 'approved'; d.doneAt = today(); d.moves = made; d.date = date;
+  return { made: made, olds: olds };
+}
+function approveDraft() {
+  var d = draftOf(A.did); if (!dReady(d)) return;
+  if (d.date > today()) { /* توريد قادم: يُجدوَل ولا يمسّ المخزن حتى يحين تاريخه (المالك 2026-11-18) */
+    d.done = 'sched'; d.doneAt = today(); audit('جدولة توريد قادم: ' + pl(d.lines.length, 'صنف واحد', 'صنفين', 'أصناف') + ' إلى ' + led(d.led).name + ' بتاريخ ' + d.date);
+    A.led = d.led; open('main', { tab: 'stock' });
+    mutated('جُدول التوريد: يدخل المخزن في ' + dlabel(d.date), function () { d.done = ''; delete d.doneAt; A.did = d.id; setState({ page: 'order', sh: null }); save(); });
+    return;
+  }
+  var r = draftPost(d, d.date), made = r.made, olds = r.olds;
   audit('اعتماد مسودة توريد: ' + pl(d.lines.length, 'صنف واحد', 'صنفين', 'أصناف') + ' إلى ' + led(d.led).name + ' بتاريخ ' + d.date);
   A.led = d.led; open('main', { tab: 'stock' });
   mutated('اعتُمد التوريد: ' + pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف') + ' إلى ' + led(d.led).name, function () {
@@ -2510,6 +2532,15 @@ function approveDraft() {
     d.done = ''; delete d.doneAt; delete d.moves; delete d.olds; A.did = d.id; setState({ page: 'order', sh: null }); save();
   });
 }
+/* وصول التوريدات القادمة: كل توريد مجدول بلغ تاريخه يدخل المخزن بتاريخه (أو اليوم إن كان يومه مغلقًا) */
+function supSched() { return (S.drafts || []).filter(function (d) { return d.done === 'sched'; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }
+function supArrive(force) {
+  var due = supSched().filter(function (d) { return force === d.id || d.date <= today(); }), n = 0;
+  due.forEach(function (d) { var dt = d.date <= today() && rcvOk(d.date) ? d.date : today(); draftPost(d, dt); audit('وصل توريد قادم: ' + supTitle(d) + ' إلى ' + led(d.led).name + ' بتاريخ ' + dt); n++; });
+  if (n) { save(); try { render('morph'); } catch (e) {} try { say(n === 1 ? 'وصل التوريد القادم ودخل المخزن' : 'وصلت ' + n + ' توريدات قادمة ودخلت المخزن'); } catch (e) {} }
+  return n;
+}
+try { document.addEventListener('visibilitychange', function () { if (!document.hidden) supArrive(); }); setInterval(function () { supArrive(); }, 600000); setTimeout(function () { supArrive(); }, 3000); } catch (e) {}
 function doNewDraft() {
   var lines = parseOrder(fv('otxt')); if (!lines.length) return;
   var lid = fv('led') || 'kitchen', d = { id: newId('d', S.drafts || []), date: rcvDate() || today(), led: lid, src: (fv('dsrc') || '').trim() || 'نص', created: today(), lines: lines };
@@ -2567,7 +2598,7 @@ function orderSheet(sh) {
     case 'dmeta': {
       d = draftOf(sh.did); var rw2 = rcvWhen(), dd = rcvDate();
       R = { title: 'مكان وتاريخ التوريد', sub: 'يُطبَّقان على كل أسطر المسودة', fields: [fChips('led', 'المخزن', ledgers().map(function (x) { return [x.id, x.name]; })), rw2[0]], note: rcvNote(dd),
-        ft: { label: 'حفظ', ok: !!dd && dd <= today(), go: function () { d.led = fv('led') || d.led; d.date = dd; shut(); mutated('حُدّث مكان المسودة وتاريخها'); } } };
+        ft: { label: 'حفظ', ok: !!dd, go: function () { d.led = fv('led') || d.led; d.date = dd; shut(); mutated('حُدّث مكان المسودة وتاريخها'); setTimeout(function () { supArrive(); }, 0); } } };
       break;
     }
     case 'supLine': {
@@ -2604,7 +2635,7 @@ function orderSheet(sh) {
 }
 
 /* ---------- سجل التوريدات: كل مسودة معتمدة = توريدة مستقلة بأسطرها، ويمكن إلغاؤها كاملة ---------- */
-function supplies() { return (S.drafts || []).filter(function (d) { return d.done === 'approved' || d.done === 'voided'; }).sort(function (a, b) { return (b.date + (b.doneAt || '')) < (a.date + (a.doneAt || '')) ? -1 : 1; }); }
+function supplies() { return (S.drafts || []).filter(function (d) { return d.done === 'approved' || d.done === 'voided' || d.done === 'sched'; }).sort(function (a, b) { return (b.date + (b.doneAt || '')) < (a.date + (a.doneAt || '')) ? -1 : 1; }); }
 function supMoves(d) {
   if (d.moves && d.moves.length) return d.moves.filter(function (id) { return E.by(S.moves, id); });
   var used = {}, out = [];
@@ -2621,17 +2652,19 @@ function pgSupplies() {
   return [B('note', { tone: 'info', icon: 'i-truck', text: 'كل توريدة معتمدة قائمة مستقلة بأصنافها. افتح توريدة لمراجعتها أو لإلغائها كاملة.' }),
     B('kpi', { items: [X({ label: 'التوريدات', value: act.length, sub: 'معتمدة', go: function () { openSh({ t: 'kSup' }); } }), X({ label: 'الأصناف', value: act.reduce(function (a, d) { return a + d.lines.length; }, 0), sub: 'في كل التوريدات', go: function () { openSh({ t: 'kSupI' }); } }), X({ label: 'آخر توريدة', value: act.length ? dlabel(act[0].date) : '—', sub: act.length ? supTitle(act[0]) : '', go: act.length ? function () { open('supply', { sid: act[0].id }); } : undefined })] }),
     B('rows', { title: 'التوريدات', items: sp.map(function (d) {
-      return X({ icon: 'i-truck', icTone: d.done === 'voided' ? 'warn' : 'ok', title: supTitle(d), sub: dlabel(d.date) + ' · ' + (led(d.led) ? led(d.led).name : '') + ' · ' + pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف'), tag: d.done === 'voided' ? 'أُلغيت' : '', tagTone: 'warn', chev: true, go: function () { open('supply', { sid: d.id }); }, lp: function () { supplyQa(d); } });
+      return X({ icon: 'i-truck', icTone: d.done === 'voided' ? 'warn' : 'ok', title: supTitle(d), sub: dlabel(d.date) + ' · ' + (led(d.led) ? led(d.led).name : '') + ' · ' + pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف'), tag: d.done === 'voided' ? 'أُلغيت' : d.done === 'sched' ? 'قادمة' : '', tagTone: d.done === 'sched' ? 'info' : 'warn', chev: true, go: function () { open('supply', { sid: d.id }); }, lp: function () { supplyQa(d); } });
     }), empty: 'لا توريدات معتمدة بعد' })];
 }
 function pgSupply() {
   var d = draftOf(A.sid), bl = [];
   if (!d) return [B('note', { tone: 'warn', icon: 'i-alert', text: 'هذه التوريدة غير موجودة.' })];
   var L = led(d.led), free = E.isFree(L), val = dValue(d);
-  if (d.done === 'voided') bl.push(B('note', { tone: 'warn', icon: 'i-lock', text: 'أُلغيت هذه التوريدة' + (d.voidAt ? ' بتاريخ ' + dlabel(d.voidAt) : '') + ' وأُزيلت كمياتها من المخزن.' }));
+  if (d.done === 'sched') bl.push(B('note', { tone: 'info', icon: 'i-truck', text: 'توريد قادم: لا يدخل المخزن قبل ' + dlabel(d.date) + '، ويُسجَّل تلقائيًا في ذلك اليوم. إن تأخّر عدّل تاريخه، وإن وصل مبكرًا اضغط «وصل الآن».' }));
+  if (d.done === 'voided') bl.push(B('note', { tone: 'warn', icon: 'i-lock', text: 'أُلغيت هذه التوريدة' + (d.voidAt ? ' بتاريخ ' + dlabel(d.voidAt) : '') + (d.schedVoid ? ' قبل أن تصل، فلم يدخل المخزن منها شيء.' : ' وأُزيلت كمياتها من المخزن.') }));
   bl.push(B('kpi', { items: [X({ label: 'الأصناف', value: d.lines.length, sub: 'في التوريدة' }), X({ label: 'التاريخ', value: dlabel(d.date), sub: L ? L.name : '' }), X({ label: free ? 'القيمة' : 'القيمة المكتوبة', value: free ? 'عيني' : val > 0 ? money(val) : '—', sub: '' })] }));
   bl.push(B('rows', { title: 'الأصناف', items: spiceLast(d.lines).map(function (l) { var it = item(l.item); return X({ title: it ? it.name : l.raw, sub: l.price > 0 && !free ? 'بسعر ' + money(l.price) : '', end: fmt(l.qty) + ' ' + (it ? it.unit : ''), endSub2: it ? packTxt(it, l.qty) : '', chev: d.done === 'approved', go: d.done === 'approved' ? function () { openSh({ t: 'supLine', sid: d.id, lid: l.id }, { unitMode: 'base', qty: String(l.qty) }); } : noop }); }), empty: '' }));
   if (d.done === 'approved') bl.push(B('note', { tone: 'info', icon: 'i-pencil', text: 'اضغط أي صنف لتعديل صنفه أو كميته، أو لحذفه من التوريدة.' }));
+  if (d.done === 'sched') bl.push(B('btns', { items: [X({ label: 'تعديل التاريخ', icon: 'i-calendar', go: function () { openSh({ t: 'dmeta', did: d.id }, { led: d.led, day: '', dtxt: d.date }); } }), X({ label: 'وصل الآن', icon: 'i-truck', go: function () { d.date = today(); supArrive(d.id); } }), X({ label: 'إلغاء التوريد القادم', icon: 'i-minus', go: function () { d.done = 'voided'; d.voidAt = today(); d.schedVoid = 1; audit('إلغاء توريد قادم: ' + supTitle(d)); save(); open('supplies'); mutated('أُلغي التوريد القادم', function () { d.done = 'sched'; delete d.voidAt; delete d.schedVoid; save(); render(); }); } })] }));
   if (d.done === 'approved') bl.push(B('btns', { items: [X({ label: 'إلغاء التوريدة كاملة', icon: 'i-minus', go: function () { openSh({ t: 'supVoid', sid: d.id }); } })] }));
   return bl;
 }
@@ -3751,7 +3784,12 @@ function doCount(fid) {
   S.fm.push(m); S.settings.lastCount = S.settings.lastCount || {}; S.settings.lastCount[fid] = today();
   audit('جرد «' + f.name + '»: فرق ' + fTxt(cur, diff)); shut(); mutated('سُجّلت تسوية الجرد ' + fTxt(cur, Math.abs(diff)), function () { S.fm = S.fm.filter(function (x) { return x.id !== m.id; }); save(); render(); });
 }
-function catChips(dir, m0) { var nt = (fv('note') || '').trim(), g = nt ? catName(catOf({ dir: dir, note: nt, w: m0 && m0.w, x: m0 && m0.x, ini: m0 && m0.ini })) : ''; return fChips('cat', 'التصنيف', [['', 'تلقائي']].concat(dir === 'in' ? CATS_IN : CATS_OUT), g ? 'التلقائي الآن: ' + g : 'التلقائي يخمّنه من البيان'); }
+function catChips(dir, m0) {
+  var nt = (fv('note') || '').trim(), g = nt ? catName(catOf({ dir: dir, note: nt, w: m0 && m0.w, x: m0 && m0.x, ini: m0 && m0.ini })) : '', opts = [['', 'تلقائي']].concat(dir === 'in' ? CATS_IN : CATS_OUT);
+  var f = fSelect('cat', 'التصنيف', opts, fv('cat') || '');
+  if (fv('cat_o') !== '1') f.chips = [X({ label: (fv('cat') ? (opts.filter(function (o) { return o[0] === fv('cat'); })[0] || ['', ''])[1] : 'تلقائي' + (g ? ': ' + g : '')) + '  ▾', go: function () { A.form.cat_o = '1'; render(); } })];
+  return f;
+}
 
 /* ---------- حركات العمال (مكافأة، خصم، دفعة، مخالفة): تعديل، تغيير التاريخ، إلغاء. الأصل يبقى في السجل ملغى ولا يُحذف ---------- */
 function wlLink(e) { return (S.fm || []).filter(function (m) { return m.wl === e.id && !m.void; })[0] || null; }
@@ -3851,7 +3889,7 @@ function finSheet(sh) {
       m = E.by(S.fm, sh.id); var w2 = wk(m.w) || {}, fo2 = fund(fv('fund')) || fund(m.h), a2 = num('amt'), rt2 = num('rate'), fl3 = [];
       var fa2 = fText('amt', 'المبلغ بالشيكل', '0', 'decimal'); fa2.fd = 'column'; fa2.ai = 'stretch'; fa2.gp = '6px'; fa2.lf = '0'; fa2.cw = '100%'; fl3.push(fa2);
       fl3.push(fSelect('fund', 'من أي رصيد', funds().map(function (x) { return [x.id, fName(x) + ' · ' + fBalAll(x)]; }), fo2.id));
-      if (fo2.curs.length > 1) { if (!fv('src')) A.form.src = 'usd'; fl3.push(fSeg('src', 'يُصرف من', [['usd', 'الدولار'], ['ils', 'الشيكل']])); }
+      if (fo2.curs.length > 1) { ensureSrc(fo2); fl3.push(fSeg('src', 'يُصرف من', [['ils', 'الشيكل'], ['usd', 'الدولار']])); }
       if (hasCur(fo2, 'usd') && (fo2.curs.length < 2 || fv('src') === 'usd')) { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); fl3.push(fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'ما يقابل المبلغ يُخصم من الدولار')); }
       fl3 = fl3.concat(dayFields());
       var pp2 = payPlan(fo2, a2, rt2);
@@ -3861,9 +3899,8 @@ function finSheet(sh) {
     }
     case 'fEdit': {
       m = E.by(S.fm, sh.id); var lk = mLocked(m), conv = m.cur === 'usd' && m.ils > 0, a = num('amt'), fl = [];
-      if (!lk) fl.push(fText('amt', conv ? 'المبلغ بالشيكل' : m.cur === 'usd' ? 'المبلغ بالدولار' : 'المبلغ بالشيكل', '0', 'decimal'));
-      if (!lk) fl.push(fSeg('dir', 'نوع الحركة', [['in', 'وارد'], ['out', 'ناقص (صرف)', 'bad']]));
-      fl.push(fText('note', 'البيان', ''));
+      if (!lk) fl.push(fSeg('dir', '', [['in', 'وارد'], ['out', 'ناقص (صرف)', 'bad']]));
+      if (!lk) fl.push(fPair('amt', conv ? 'المبلغ ₪' : m.cur === 'usd' ? 'المبلغ $' : 'المبلغ ₪', 'note', 'البيان', '')); else fl.push(fText('note', 'البيان', ''));
       fl.push(catChips(fv('dir') || m.dir, m)); if ((fv('cat') || '') && (fv('note') || '').trim()) fl.push(fChips('rule', 'تطبيق التصنيف', [['no', 'هذه الحركة فقط'], ['yes', 'كل حركات بنفس البيان']], 'يُصنَّف أيضًا ما تسجّله لاحقًا بالبيان نفسه'));
       if (!lk) fl = fl.concat(dayFields());
       return { title: 'تعديل الحركة', sub: (fund(m.h) || {}).name + ' · ' + dlong(m.date), fields: fl,
@@ -4453,16 +4490,16 @@ function pgToday() {
   bl.push(B('rows', { title: 'يحتاج انتباهك' + (att.length ? ' (' + att.length + ')' : ''), items: aItems, empty: 'لا شيء يحتاج انتباهك الآن' }));
   bl.push(B('rows', { title: 'طبخ اليوم', sort: sortInfo('batches'), items: sortedBatches(tb).map(batchRow), empty: hol ? 'عطلة: لا طبخ اليوم' : 'لا طبخ اليوم بعد' }));
   var pv = dayBatches('private');
-  if (pv.length || dayDist().length) {
+  if (f !== 'external' && (pv.length || dayDist().length)) {
     var da0 = distAgg(pv), drows = [X({ par: true, icon: 'i-pot', icTone: da0.und > 0 ? 'warn' : 'ok', title: 'الموزّع ' + fmt(da0.given) + ' من ' + fmt(da0.priv) + ' قدر', sub: da0.und > 0 ? 'غير موزّع ' + fmt(da0.und) : 'كلها موزّعة', tag: da0.und > 0 ? 'ناقص' : 'تمّ', tagTone: da0.und > 0 ? 'warn' : 'ok' })];
     dayDist().forEach(function (x) { drows.push(X({ kid: true, icon: 'i-users', icTone: 'mute', title: benName(x.ben), sub: x.dish ? (rec(x.dish) || {}).name : '', tag: fmt(x.pots) + ' قدر', tagTone: 'mute', chev: true, go: function () { openSh({ t: 'distDay', eid: x.id }, { ben: x.ben, pots: String(x.pots), dish: x.dish || '' }); },
       lp: function () { var g = E.by(S.bens || [], x.ben); if (g) benQa(g); } })); });
     bl.push(B('rows', { title: 'توزيع القدور', act: 'توزيع', actGo: function () { openSh({ t: 'distDay' }, { ben: '', pots: '', dish: distDish0() }); }, items: drows }));
   }
-  if (campsToday().length) bl.push(B('acts', { items: [X({ title: 'رسائل المخيمات', icon: 'i-send', go: function () { openSh({ t: 'campSms' }, {}); } })] }));
+  if (f !== 'external' && campsToday().length) bl.push(B('acts', { items: [X({ title: 'رسائل المخيمات', icon: 'i-send', go: function () { openSh({ t: 'campSms' }, {}); } })] }));
   var tmw = iso(new Date(Date.now() + 864e5));
-  planDistBlocks(plans().filter(function (p) { return p.date <= tmw; })).forEach(function (b) { bl.push(b); });
-  bl.push(moneyCard());
+  if (f !== 'external') planDistBlocks(plans().filter(function (p) { return p.date <= tmw; })).forEach(function (b) { bl.push(b); });
+  moneyCard().forEach(function (b) { bl.push(b); });
   if (!hol && !di.closed) bl.push(B('btns', { items: [X({ label: 'اليوم عطلة', icon: 'i-calendar', go: function () { openSh({ t: 'holiday' }, { reason: S.settings.weekHol && S.settings.weekHol !== 'لا يوجد' ? 'الجمعة' : 'الجمعة', other: '' }); } })] }));
   var ready = [hol || !wd.none, true].filter(Boolean).length;
   bl.push(B('note', { tone: di.closed ? 'ok' : di.reopened ? 'warn' : 'info', icon: 'i-lock',
@@ -4495,7 +4532,7 @@ function stockAfter(l0) {
   var sim = poolSim(), use = {}, ids = {}, rows = [];
   plans().forEach(function (p) {
     var order = E.planOrder(S, p.kind || 'private', p.inst);
-    E.scaleRecipe(rec(p.recipeId), p.pots, p).forEach(function (l) { poolTake(sim, planOrdFor(p, l.item, order), l.item, l.qty); use[l.item] = r2((use[l.item] || 0) + l.qty); ids[l.item] = 1; });
+    E.scaleRecipe(rec(p.recipeId), p.pots, p).forEach(function (l) { var ord = planOrdFor(p, l.item, order); poolTake(sim, ord, l.item, l.qty); if (ord.indexOf(l0) >= 0) { use[l.item] = r2((use[l.item] || 0) + l.qty); ids[l.item] = 1; } }); /* لا يُحسب «يلزم» لمخزن لا تسحب منه الخطة (تبديل المخزن يغيّر الأرقام) */
   });
   itemsIn(l0).forEach(function (it) { ids[it.id] = 1; });
   Object.keys(ids).forEach(function (id) {
@@ -4575,14 +4612,15 @@ function pgKitchen() {
     return X({ label: a[1], on: k === a[0], count: batchesOf(a[0]).filter(function (b) { return !b.void; }).length, go: function () { setState({ kk: a[0] }); } });
   }) }));
   bl.push(B('btns', { items: [X({ label: KNF[k] + ' جديدة', icon: 'i-plus', on: true, go: function () { startBatch(k); } })] }));
-  bl.push(B('rows', { title: 'الطبخات القادمة' + (plans().length ? ' (' + plans().length + ')' : ''), act: 'تخطيط', actGo: function () { openSh({ t: 'planAdd', rec: null }, { day: '1', pots: '3' }); },
-    items: plans().map(function (p) {
+  var kp = plansOf(k);
+  bl.push(B('rows', { title: 'الطبخات القادمة' + (kp.length ? ' (' + kp.length + ')' : ''), act: 'تخطيط', actGo: function () { openSh({ t: 'planAdd', rec: null }, { day: '1', pots: '3', kind: k }); },
+    items: kp.map(function (p) {
       var r = rec(p.recipeId), short = planShort(p);
       return X({ icon: 'i-calendar', icTone: short ? 'warn' : 'info', title: r.name, sub: dlabel(p.date).replace(/^(اليوم|أمس)$/, '$1') + ' · ' + (p.inst && inst(p.inst) ? inst(p.inst).name : KN[p.kind || 'private']) + ' · ' + pl(p.pots, 'قدر واحد', 'قدران', 'قدور'),
         tag: short ? 'ينقص ' + pl(short, 'صنف', 'صنفان', 'أصناف') : 'المواد تكفي', tagTone: short ? 'warn' : 'ok', chev: true, go: function () { openSh({ t: 'planView', id: p.id }); },
         lp: function () { qa(r.name, dlabel(p.date), [['عرض ما يلزم', 'i-calendar', function () { openSh({ t: 'planView', id: p.id }); }], ['نسخة للشيف', 'i-image', function () { shut(); shareChefPlan(p); }], ['تغيير التاريخ', 'i-calendar', function () { openSh({ t: 'planDate', id: p.id }, { day: '', dtxt: '' }); }], ['ابدأ هذه الطبخة', 'i-pot', function () { shut(); startFromPlan(p); }]].concat(p.date <= today() ? [['بدء سريع بكميات الوصفة', 'i-check', function () { quickStartPlan(p); }]] : [])); } });
     }), empty: 'لا طبخات مخططة. خطّط لتعرف ما ينقص قبل أن تطبخ.' }));
-  if (k === 'private') planDistBlocks(plans()).forEach(function (b) { bl.push(b); });
+  if (k === 'private') planDistBlocks(kp).forEach(function (b) { bl.push(b); });
   var allB = batchesOf(k).filter(function (b) { return !b.void; }), todayB = allB.filter(function (b) { return b.date === today(); });
   bl.push(B('rows', { title: 'طبخات اليوم', items: sortedBatches(todayB).map(batchRow).concat(allB.length ? [X({ more: true, chev: true, icon: 'i-calendar', icTone: 'info', title: 'كل الطبخات (' + allB.length + ')', sub: 'مجمّعة حسب اليوم', chev: true, go: function () { open('batches', { bk: k }); } })] : []), empty: 'لا طبخات اليوم' }));
   if (k === 'external') {
@@ -4645,7 +4683,8 @@ function pgStock() {
     return X({ icon: 'i-doc', icTone: nd ? 'warn' : 'ok', title: pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف') + ' · ' + (led(d.led) ? led(d.led).name : ''), sub: 'من ' + (d.src || 'نص') + ' · ' + dlabel(d.created || d.date), tag: nd ? nd + ' للمراجعة' : 'جاهزة', tagTone: nd ? 'warn' : 'ok', chev: true,
       go: function () { open('order', { did: d.id }); }, lp: function () { qa('مسودة توريد', pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف'), [['فتح ومراجعة', 'i-doc', function () { shut(); open('order', { did: d.id }); }], ['ترك المسودة', 'i-minus', function () { openSh({ t: 'dDrop', did: d.id }); }]]); } });
   }) }));
-  if (supplies().length) bl.push(B('rows', { items: [X({ icon: 'i-truck', icTone: 'ok', title: 'سجل التوريدات', sub: pl(supplies().filter(function (d) { return d.done === 'approved'; }).length, 'توريدة واحدة', 'توريدتان', 'توريدات') + ' · آخرها ' + dlabel(supplies()[0].date), chev: true, go: function () { open('supplies'); } })] }));
+  if (supSched().length) bl.push(B('rows', { title: 'توريد قادم', items: supSched().map(function (d) { return X({ icon: 'i-truck', icTone: 'info', title: supTitle(d), sub: 'يدخل المخزن ' + dlabel(d.date) + ' · ' + (led(d.led) ? led(d.led).name : '') + ' · ' + pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف'), tag: 'قادم', tagTone: 'info', chev: true, go: function () { open('supply', { sid: d.id }); } }); }) }));
+  if (supplies().length) bl.push(B('rows', { items: [X({ icon: 'i-truck', icTone: 'ok', title: 'سجل التوريدات', sub: pl(supplies().filter(function (d) { return d.done === 'approved'; }).length, 'توريدة واحدة', 'توريدتان', 'توريدات') + (supplies().filter(function (d) { return d.done === 'approved'; })[0] ? ' · آخرها ' + dlabel(supplies().filter(function (d) { return d.done === 'approved'; })[0].date) : ''), chev: true, go: function () { open('supplies'); } })] }));
   var mkRow = function (r) {
     var al = alertable(L, r.it, r.q);
     var byCat = A.sort.stock.f === 'cat', cat = itemCat(r.it);
@@ -4657,14 +4696,15 @@ function pgStock() {
   if (byCat0) { bl.push(B('rows', { title: 'الأصناف مرتّبة بالفئة', sort: sortInfo('stock'), items: rows.map(mkRow), empty: 'لا أصناف في هذا المخزن بعد' })); return bl; }
   var sg = A.sg || 'all', mainR = rows.filter(function (r) { return r.it.grp !== 'spice'; }), spR = rows.filter(function (r) { return r.it.grp === 'spice'; });
   var plR = rows.filter(function (r) { return planCover(r.it.id); });
-  if (sg === 'after') sg = 'plan'; if (sg === 'plan' && !plans().length) sg = 'all';
-  var segs = [['all', 'الكل', rows.length], ['main', 'الأساسية', mainR.length]].concat(spR.length ? [['spice', 'البهارات', spR.length]] : [], plans().length ? [['plan', 'المخطط له', stockAfter(l0).filter(function (r) { return r.need > 0; }).length]] : []);
-  if (spR.length || plans().length) bl.push(B('seg', { items: segs.map(function (a) {
+  var plN = stockAfter(l0).filter(function (r) { return r.need > 0; }).length, plsL = plans().filter(function (p) { return E.planOrder(S, p.kind || 'private', p.inst).indexOf(l0) >= 0; });
+  if (sg === 'after') sg = 'plan'; if (sg === 'plan' && !plN) sg = 'all';
+  var segs = [['all', 'الكل', rows.length], ['main', 'الأساسية', mainR.length]].concat(spR.length ? [['spice', 'البهارات', spR.length]] : [], plN ? [['plan', 'المخطط له', plN]] : []);
+  if (spR.length || plN) bl.push(B('seg', { items: segs.map(function (a) {
     return X({ label: a[1], count: segs.length > 3 ? undefined : a[2], on: sg === a[0], go: function () { setState({ sg: a[0] }); } });
   }) }));
   if (sg === 'plan') {
     var sa = stockAfter(l0).filter(function (r) { return r.need > 0; }), cov = {}; plR.forEach(function (r) { cov[r.it.id] = r; });
-    bl.push(B('rows', { title: 'المخطط له · ' + pl(plans().length, 'طبخة واحدة', 'طبختان', 'طبخات'), act: 'نسخ', actGo: function () { copyText(stockAfterText(l0), 'نُسخت حالة المخزن بعد الطبخ'); }, sort: sortInfo('stock'), all: true, items: (sa.length ? [X({ hdr: true, chev: true, colw: 96, title: 'الصنف', end: 'الآن', end2: 'بعد الطبخ' })] : []).concat(sa.map(function (r) {
+    bl.push(B('rows', { title: 'المخطط له · ' + pl(plsL.length, 'طبخة واحدة', 'طبختان', 'طبخات'), act: 'نسخ', actGo: function () { copyText(stockAfterText(l0), 'نُسخت حالة المخزن بعد الطبخ'); }, sort: sortInfo('stock'), all: true, items: (sa.length ? [X({ hdr: true, chev: true, colw: 96, title: 'الصنف', end: 'الآن', end2: 'بعد الطبخ' })] : []).concat(sa.map(function (r) {
       var c = cov[r.it.id];
       return X({ title: r.it.name, sub: 'يلزم ' + fmt(r.need), colw: 96, end: fmt(r.q) + ' ' + r.it.unit, endSub2: packTxt(r.it, r.q), end2: fmt(r.rem) + ' ' + r.it.unit, end2Tone: r.rem < 0 ? 'bad' : '', end2Sub: packTxt(r.it, Math.max(r.rem, 0)), chev: true, go: function () { openSh({ t: 'item', id: r.it.id }); }, lp: function () { stockQa(r.it, l0, r.q); } });
     })), empty: 'لا أصناف' }));
@@ -4743,7 +4783,7 @@ function moneyCard() {
   var items = [X(Object.assign({ par: true, icon: 'i-wallet', icTone: 'ok', title: 'الأرصدة', sub: pl(funds().length, 'رصيد واحد', 'رصيدان', 'أرصدة'), end: usdK(fTot('usd')), endSub: money(fTot('ils')), endEq: true, chev: true, go: function () { open('funds'); } }))];
   var rm = recentMoves(4); rm.forEach(function (m) { items.push(moveRowX(m, true, true)); });
   if (!rm.length) items.push(X({ icon: 'i-wallet', icTone: 'mute', title: 'لا حركات مالية بعد', sub: 'سجّل أول حركة من الزر أعلاه' }));
-  return B('rows', { title: 'المال', act: '+ حركة جديدة', actGo: function () { openMove(); }, items: items });
+  return [B('btns', { items: [X({ label: 'حركة مالية جديدة', icon: 'i-plus', on: true, go: function () { openMove(); } })] }), B('rows', { title: 'المال', items: items })]; /* الإجراء الأهم زر رئيسي كامل العرض كـ«طبخة جديدة» لا غمامة صغيرة (المالك 2026-11-18) */
 }
 function moneyRows() {
   var oi = oweInst(), ow = oweWork();
@@ -4755,7 +4795,7 @@ function moneyRows() {
 }
 function pgMore() {
   var cs = calSummary();
-  return [moneyCard(), B('rows', { title: 'الحسابات', items: moneyRows() }), B('rows', { title: 'المتابعة', items: [
+  return moneyCard().concat([B('rows', { title: 'الحسابات', items: moneyRows() }), B('rows', { title: 'المتابعة', items: [
     X({ icon: 'i-doc', icTone: 'info', title: 'التقارير والإرسال', sub: 'الاستهلاك والمخزون وكشف العمال: شارك أو انسخ', chev: true, go: function () { open('reports'); } }),
     X({ icon: 'i-calendar', icTone: 'info', title: 'التقويم والتنبيهات', sub: cs, chev: true, go: function () { open('cal'); } }),
     X({ icon: 'i-box', icTone: 'ok', title: 'الموجودات', sub: pl(AA().length, 'نوع واحد', 'نوعان', 'أنواع') + ' · قدور وأدوات ومعدات: عدد وحالة وجرد', chev: true, go: function () { open('assets'); } }),
@@ -4767,7 +4807,7 @@ function pgMore() {
     X({ icon: 'i-copy', icTone: 'info', title: 'مزامنة الشيت', sub: gwSub(), tag: gwTag().t, tagTone: gwTag().tone, chev: true, go: function () { openSh({ t: 'shGw' }, { gwurl: S.settings.syncGwUrl || '', gwkey: S.settings.syncGwKey || '' }); } }),
     X({ icon: 'i-doc', icTone: 'info', title: 'نسخة احتياطية', sub: S.settings.lastBackup ? 'آخر نسخة قبل ' + pl(backupDays(), 'يوم', 'يومين', 'أيام') + ' · شاركها أو احفظها خارج الهاتف' : 'لم تُصدَّر بعد: احفظ نسخة خارج الهاتف', chev: true, go: function () { exportBackup(); } }),
     X({ icon: 'i-lock', icTone: 'mute', title: 'عن التطبيق', sub: 'مطبخ عهد · الإصدار ' + VERSION + (updPending() ? ' · تحديث ' + updPending() + ' جاهز: أغلق التطبيق وافتحه' : '') + ' · البيانات محفوظة على هذا الجهاز', chev: false, go: function () { checkUpdate(true); } })
-  ] })];
+  ] })]);
 }
 function pgDevice() {
   return [B('rows', { title: 'الإدارة', items: [
@@ -5063,7 +5103,7 @@ function shDesc() {
   var sh = A.sh, d = A.draft, R = {}, nm, dup, it, w, l, q0, st;
   switch (sh.t) {
     case 'dish': {
-      R = pickOr(S.recipes.filter(function (r) { return !r.arch; }).sort(function (a, b) { return recUsed(b.id) - recUsed(a.id); }).map(function (r) {
+      R = pickOr(S.recipes.filter(function (r) { return !r.arch && (!fv('kind') || r.kinds.indexOf(fv('kind')) >= 0); }).sort(function (a, b) { return recUsed(b.id) - recUsed(a.id); }).map(function (r) {
         return { id: r.id, name: r.name, sub: (r.code ? r.code + ' · ' : '') + nIng(r.lines.length) + (r.draft ? ' · مبدئية' : ''), tag: r.kinds.length === 2 ? 'طبخ وطبخ خارجي' : KN[r.kinds[0]] };
       }), { title: 'اختر الطبخة', sub: 'من المسجّلة عندك، أو أضف طبخة جديدة إن لم تجدها', plural: 'الطبخات', addLabel: 'إضافة طبخة جديدة', sel: d.rec,
         onPick: function (id) {
@@ -5294,9 +5334,8 @@ function shDesc() {
         ef.push(fText('note', 'ما المخالفة؟ (اختياري)', 'مثال: تأخر عن الدوام'));
         if (sev === 'ded') { ef.push(fText('amt', 'مبلغ الخصم', '0', 'decimal')); ef.push(fQuick('amt', 'مبالغ سريعة', [5, 10, 20, 50])); }
       } else {
-        ef.push(fText('amt', 'المبلغ بالشيكل', '0', 'decimal'));
+        ef.push(fPair('amt', 'المبلغ ₪', 'note', 'البيان (اختياري)', type === 'مكافأة' ? 'مثال: امتياز، ساعات إضافية، أجرة نقل' : type === 'شراء للمطبخ' ? 'مثال: خرطوم، أكياس نفايات' : type === 'مسحوبات' ? 'مثال: 8 لتر زيت أخذها' : type === 'خصم' ? 'سبب الخصم' : ''));
         ef.push(fQuick('amt', 'مبالغ سريعة', [5, 10, 20, 50, 100].concat(type === 'دفعة نقدية' && bw > 0 && [5, 10, 20, 50, 100].indexOf(bw) < 0 ? [[bw, 'المستحق كاملًا ' + fmt(bw) + ' ₪']] : [])));
-        ef.push(fText('note', 'البيان (اختياري)', type === 'مكافأة' ? 'مثال: امتياز، ساعات إضافية، أجرة نقل' : type === 'شراء للمطبخ' ? 'مثال: خرطوم، أكياس نفايات' : type === 'مسحوبات' ? 'مثال: 8 لتر زيت أخذها' : type === 'خصم' ? 'سبب الخصم' : ''));
         if (type === 'دفعة نقدية' || type === 'سلفة') ef = ef.concat(fundFields());
       }
       ef.push(fPhoto(isV ? 'صورة توثيق المخالفة (اختياري)' : type === 'دفعة نقدية' || type === 'سلفة' ? 'صورة سند الصرف (اختياري)' : 'صورة توثيق (اختياري)'));
@@ -5460,7 +5499,7 @@ function shDesc() {
         R = pickOr(S.recipes.filter(function (r) { return !r.arch; }).sort(function (a, b) { return recUsed(b.id) - recUsed(a.id); }).map(function (r) {
           return { id: r.id, name: r.name, sub: (r.code ? r.code + ' · ' : '') + nIng(r.lines.length), tag: r.kinds.length === 2 ? 'طبخ وطبخ خارجي' : KN[r.kinds[0]] };
         }), { title: 'خطّط طبخة', sub: 'اختر الطبخة التي تنوي طبخها', plural: 'الطبخات', addLabel: '', sel: '',
-          onPick: function (id) { var r = rec(id); openSh({ t: 'planAdd', rec: id }, { day: fv('day') || '1', pots: fv('pots') || '3', kind: r.kinds.indexOf('private') >= 0 ? 'private' : 'external' }); } });
+          onPick: function (id) { var r = rec(id), kk0 = A.kk === 'init' ? 'external' : A.kk; openSh({ t: 'planAdd', rec: id }, { day: fv('day') || '1', pots: fv('pots') || '3', kind: fv('kind') && r.kinds.indexOf(fv('kind')) >= 0 ? fv('kind') : r.kinds.indexOf(kk0) >= 0 ? kk0 : r.kinds.indexOf('private') >= 0 ? 'private' : 'external' }); } });
         break;
       }
       var pr = rec(sh.rec), pp = Math.max(0, parseInt(fv('pots'), 10) || 0), shortN = pp ? planShort({ recipeId: pr.id, pots: pp, kind: fv('kind') || (pr.kinds.indexOf('private') >= 0 ? 'private' : 'external') }, null) : 0;
@@ -5618,7 +5657,7 @@ function rcvWhen() {
   if (!fv('dtxt')) A.form.dtxt = fv('day') !== '' && fv('day') !== undefined && fv('day') !== null ? dayOff(+fv('day') || 0) : today();
   return [fDate('dtxt', 'تاريخ الحركة', '', today())];
 }
-function rcvNote(d) { return !d ? null : d > today() ? { text: 'لا يُسجَّل بتاريخ مستقبلي.', tone: 'warn' } : !rcvOk(d) ? { text: 'هذا اليوم مُغلق.', tone: 'warn' } : d !== today() ? { text: 'سيُسجَّل بتاريخ ' + dlabel(d) + '.', tone: 'info' } : null; }
+function rcvNote(d) { return !d ? null : d > today() ? { text: 'توريد قادم: لا يدخل المخزن قبل ' + dlabel(d) + ' ويُسجَّل تلقائيًا في ذلك اليوم.', tone: 'info' } : !rcvOk(d) ? { text: 'هذا اليوم مُغلق.', tone: 'warn' } : d !== today() ? { text: 'سيُسجَّل بتاريخ ' + dlabel(d) + '.', tone: 'info' } : null; }
 function doRecv(it, l) {
   var q = r3(num('qty') * unitF(it, fv('unitMode'))), price = num('price'), pi = packIdx(fv('unitMode')), dt = rcvDate();
   phTag(E.addMove(S, { date: dt, led: l, item: it.id, q: q, kind: 'receive', price: price > 0 ? price : undefined, note: '' }), phTake());
@@ -5817,7 +5856,7 @@ function shell() {
   } else if (pg === 'finsum') { title = 'الملخص المالي'; sub = 'أين ذهب المال'; blocks = pgFinSum();
   } else if (pg === 'fund') { var fu = fund(s.fid); title = fu.name; sub = fKind(fu); blocks = pgFund();
   } else if (pg === 'order') { var od = draftOf(s.did); title = 'مسودة توريد'; sub = od ? (od.src || 'نص') + ' · ' + dlabel(od.created || od.date) : ''; blocks = pgDraft();
-    ft = { label: od ? 'اعتماد التوريد' + (od.lines.length ? ' · ' + pl(od.lines.length, 'صنف واحد', 'صنفان', 'أصناف') : '') : 'اعتماد', ok: dReady(od), hint: od && od.lines.length && dNeeds(od).length ? 'راجع الأسطر المعلّمة أولًا' : od && !rcvOk(od.date) ? 'غيّر تاريخ المسودة' : 'أضف سطرًا واحدًا على الأقل', go: approveDraft };
+    ft = { label: od && od.date > today() ? 'جدولة التوريد القادم' : od ? 'اعتماد التوريد' + (od.lines.length ? ' · ' + pl(od.lines.length, 'صنف واحد', 'صنفان', 'أصناف') : '') : 'اعتماد', ok: dReady(od), hint: od && od.lines.length && dNeeds(od).length ? 'راجع الأسطر المعلّمة أولًا' : od && !rcvOk(od.date) ? 'غيّر تاريخ المسودة' : 'أضف سطرًا واحدًا على الأقل', go: approveDraft };
   } else if (pg === 'supplies') { title = 'سجل التوريدات'; sub = 'كل توريدة بأصنافها'; blocks = pgSupplies();
   } else if (pg === 'supply') { var sd = draftOf(s.sid); title = sd ? supTitle(sd) : 'توريدة'; sub = sd ? dlabel(sd.date) + ' · ' + (led(sd.led) ? led(sd.led).name : '') : ''; blocks = pgSupply();
   } else if (pg === 'opening') { title = 'الأرصدة الافتتاحية'; sub = 'المخزن'; blocks = pgOpening(); ft = { label: S.settings.openingDone ? 'حفظ التعديلات' : 'اعتماد الأرصدة', ok: true, hint: '', go: approveOpening }; }
@@ -5849,7 +5888,7 @@ function shell() {
     shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
-    shFields: (f.fields || []).map(function (x) { return Object.assign({ did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
+    shFields: (f.fields || []).map(function (x) { return Object.assign({ lbd: 'block', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
     shHasBusy: !!f.busy, shBusyText: f.busy ? f.busy.text : '', shBusyW: f.busy && f.busy.pct >= 0 ? Math.max(4, Math.round(f.busy.pct * 100)) + '%' : '40%', shBusyAnim: f.busy && f.busy.pct >= 0 ? 'none' : 'kind 1.3s ease-in-out infinite', shBusyHint: f.busy ? f.busy.hint || '' : '',
     shHasNote: !!nt, shNote: nt ? nt.text : '', shNoteBg: ntn[0], shNoteFg: ntn[1],
     shHasFooter: !!sft, shFtLabel: sft ? sft.label : '', shFtDisabled: sft ? !sft.ok : false, shFtBg: sft && sft.ok ? '#14563A' : '#D9DDD8', shFtFg: sft && sft.ok ? '#FFFFFF' : '#4A544F',
@@ -5878,7 +5917,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
