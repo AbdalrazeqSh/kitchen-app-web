@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.72';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.73';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3002,12 +3002,12 @@ function searchSheet() {
 var RPTS = [['cook', 'الاستهلاك اليومي'], ['supply', 'التوريد اليومي'], ['wck', 'نسخة المراقب'], ['stock', 'حالة المخزون'], ['wfp', 'مخزون WFP'], ['workers', 'كشف العمال']];
 var RO = {
   supply: [['tiles', 'ملخص الأرقام'], ['mats', 'المواد']],
-  cook: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['mkt', 'من السوق مباشرة']],
+  cook: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['mkt', 'من السوق مباشرة'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
   wck: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
   stock: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['zero', 'الأصناف برصيد صفر']],
   wfp: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['zero', 'الأصناف برصيد صفر']]
 };
-var SEC = { cook: ['batches', 'dist', 'mats', 'mkt'], wck: ['batches', 'dist', 'mats', 'extra', 'dev'] };
+var SEC = { cook: ['batches', 'dist', 'mats', 'mkt', 'extra', 'dev'], wck: ['batches', 'dist', 'mats', 'extra', 'dev'] };
 function secLabel(k, key) { var a = (RO[k] || []).filter(function (x) { return x[0] === key; })[0]; return a ? a[1] : key; }
 function secOrder(k, saved) { var def = SEC[k] || [], sv = (typeof saved === 'string' ? saved.split(',') : (S.ro && S.ro[k] && S.ro[k].order ? String(S.ro[k].order).split(',') : [])).filter(function (x) { return def.indexOf(x) >= 0; }); return sv.concat(def.filter(function (x) { return sv.indexOf(x) < 0; })); }
 function roV(k, key) { var o = S.ro && S.ro[k]; return (o && o[key]) || ((k === 'stock' || k === 'wfp') && key === 'status' ? 'me' : 'on'); }
@@ -3020,10 +3020,10 @@ function rptName(k) { return (RPTS.filter(function (a) { return a[0] === k; })[0
 
 /* ما استُهلك اليوم: من الطبخات غير الملغاة + أي صرف خارج الطبخ. kind: '' للكل أو 'private' */
 function dayCalc(kind) {
-  var t = today(), tb = dayBatches(kind || ''), agg = {}, order = [], pots = 0;
+  var t = today(), tb = kind === 'noext' ? dayBatches('').filter(function (b) { return b.kind !== 'external'; }) : dayBatches(kind || ''), agg = {}, order = [], pots = 0;
   var ens = function (id) { if (!agg[id]) { agg[id] = { cook: 0, other: 0, kit: 0, ext: 0, mkt: 0, why: [] }; order.push(id); } return agg[id]; };
   tb.forEach(function (b) { pots = r2(pots + (b.pots || 0)); b.lines.forEach(function (l) { var a = ens(l.item); a.cook = r3(a.cook + l.qty); Object.keys(l.src || {}).forEach(function (lg) { if (lg === 'kitchen') a.kit = r3(a.kit + l.src[lg]); else { a.ext = r3(a.ext + l.src[lg]); if (lg === 'mkt') a.mkt = r3(a.mkt + l.src[lg]); } }); }); });
-  if (!kind) S.moves.forEach(function (m) {
+  if (!kind || kind === 'noext') S.moves.forEach(function (m) {
     if (m.kind !== 'issue' || m.date !== t || !(m.q < 0)) return;
     var a = ens(m.item); a.other = r3(a.other - m.q); var w = (m.note || '').trim(); if (w && a.why.indexOf(w) < 0) a.why.push(w);
   });
@@ -3059,7 +3059,7 @@ function repDoc(k, forceExp) {
   var di = dayInfo(), hol = di.holiday, P = { org: 'مطبخ عهد', date: dlong(today()), sub: '', title: '', tiles: [], secs: [], notes: [], lead: '', foot: 'تلقائي' }, CL = RCOL;
   if (hol) P.notes.push({ t: 'عطلة: ' + hol.reason });
   if (k === 'cook' || k === 'wck') {
-    var priv = k === 'wck', EXT = !priv || SH('extra') /* «خارجي» مخفي = لا أثر للخارجي في أي سطر أو عدد أو قسم */, dc = dayCalc(priv ? 'private' : ''), tb = dc.tb, da = distAgg(tb), nm = dc.order.length, xb = priv ? dayBatches('external') : [], potsExt = xb.length; /* نسخة المراقب ذاتية فقط، ويُذكر الطبخ الخارجي بسطر سفلي في الطبخات */
+    var priv = k === 'wck', EXT = SH('extra') /* «خارجي» مخفي = لا أثر للخارجي في أي سطر أو عدد أو قسم */, dc = dayCalc(priv ? 'private' : EXT ? '' : 'noext'), tb = dc.tb, da = distAgg(tb), nm = dc.order.length, xb = priv ? dayBatches('external') : [], potsExt = xb.length; /* نسخة المراقب ذاتية فقط، ويُذكر الطبخ الخارجي بسطر سفلي في الطبخات */
     P.title = 'الاستهلاك اليومي'; P.sub = priv ? 'المراقب' : '';
     var pd = potsByDish(tb);
     P.lead = tb.length ? 'طُبخ ' + pd.map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + (SH('dist') && da.rows.length ? '، توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') : '') + (SH('dist') && da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : 'لا طبخ اليوم.';
@@ -3088,7 +3088,7 @@ function repDoc(k, forceExp) {
       var mkL = dc.order.filter(function (id) { return dc.agg[id].mkt > 0; });
       if (mkL.length && SH('mkt')) P.secs.push(secK('mkt', psec(TT('من السوق مباشرة', 'mkt'), '1fr 96px', ['المادة', 'الكمية'], mkL.map(function (id) { var it = item(id); return R([C(it.name, { b: 1 }), C(qv(dc.agg[id].mkt, it.unit), { c: 1, b: 1, u: qu(dc.agg[id].mkt, it.unit) })]); }))));
     }
-    if (priv) {
+    { /* «خارجي» و«فروق عن المنيو» خياران في التقريرين معًا: ما يُضاف لأحدهما يُضاف للآخر */
       var ex = dc.order.filter(function (id) { return dc.agg[id].ext > 0; });
       if (ex.length && SH('extra')) P.secs.push(secK('extra', psec(TT('خارجي: من خارج مخزن المطبخ', 'extra'), '1fr 96px', ['المادة', 'الكمية'], ex.map(function (id) { var it = item(id); return R([C(it.name, { b: 1 }), C(qv(dc.agg[id].ext, it.unit), { c: 1, b: 1, u: qu(dc.agg[id].ext, it.unit) })]); }))));
       var dv = []; tb.forEach(function (b) { var pln = plannedOf(b); b.lines.forEach(function (l) { var p = l.planned != null && !l.extra ? l.planned : l.extra ? null : pln[l.item]; if (p == null) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1, sub: 'مضاف خارج الوصفة' }), C(fmt(l.qty), { c: 1 })])); else if (Math.abs(p - l.qty) > 0.001) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1 }), C(fmt(l.qty), { c: 1, u: 'بدل ' + fmt(p) })])); }); });
