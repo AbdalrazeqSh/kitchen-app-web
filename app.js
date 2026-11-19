@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.93';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.94';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3211,7 +3211,7 @@ function repDoc(k, forceExp) {
     }
     { /* «خارجي» و«فروق عن المنيو» خياران في التقريرين معًا: ما يُضاف لأحدهما يُضاف للآخر */
       var ex = dc.order.filter(function (id) { return dc.agg[id].ext > 0; });
-      if (ex.length && SH('extra')) P.secs.push(secK('extra', psec(TT('خارجي: من خارج مخزن المطبخ', 'extra'), '1fr 96px', ['المادة', 'الكمية'], ex.map(function (id) { var it = item(id); return R([C(it.name, { b: 1, fg: CL.ext }), C(qv(dc.agg[id].ext, it.unit), { c: 1, b: 1, fg: CL.ext, u: qu(dc.agg[id].ext, it.unit) })]); }))));
+      if (ex.length && SH('extra')) P.secs.push(secK('extra', psec(TT('خارجي: من خارج المطبخ', 'extra'), '1fr 96px', ['المادة', 'الكمية'], ex.map(function (id) { var it = item(id); return R([C(it.name, { b: 1, fg: CL.ext }), C(qv(dc.agg[id].ext, it.unit), { c: 1, b: 1, fg: CL.ext, u: qu(dc.agg[id].ext, it.unit) })]); }))));
       var dv = []; tb.forEach(function (b) { var pln = plannedOf(b); b.lines.forEach(function (l) { var p = l.planned != null && !l.extra ? l.planned : l.extra ? null : pln[l.item]; if (p == null) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1, sub: 'مضاف خارج الوصفة' }), C(fmt(l.qty), { c: 1 })])); else if (Math.abs(p - l.qty) > 0.001) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1 }), C(fmt(l.qty), { c: 1, u: 'بدل ' + fmt(p) })])); }); });
       if (dv.length && SH('dev')) P.secs.push(secK('dev', psec(TT('فروق عن المنيو', 'dev'), '1fr 96px', ['البند', 'الفعلي'], dv)));
     }
