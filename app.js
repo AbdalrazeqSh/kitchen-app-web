@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.109';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.110';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1789,10 +1789,10 @@ function fundFields() {
   if (f && hasCur(f, 'usd') && (fv('src') || fDefSrc(f)) === 'usd') { if (fv('rate') === '' && lastRate()) A.form.rate = String(lastRate()); fl.push(fText('rate', 'سعر الصرف (شيكل لكل دولار)', '3.2', 'decimal', 'ما يقابل المبلغ يُخصم من الدولار')); }
   return fl;
 }
-function payFund(fid, w, ils, note, kind, rate, wl) {
+function payFund(fid, w, ils, note, kind, rate, wl, date) {
   var f = fund(fid), pl_ = payPlan(f, ils, rate); if (!pl_.ok) return;
   S.settings.lastFund = fid;
-  S.fm.push({ id: mid(S.fm, 'm'), date: today(), h: fid, dir: 'out', cur: pl_.cur, amt: pl_.amt, ils: pl_.ils, rate: pl_.rate, note: (kind || 'راتب') + ' ' + w.name + (note ? ' — ' + note : ''), w: w.id, wl: wl || null, wils: ils });
+  S.fm.push({ id: mid(S.fm, 'm'), date: date || today(), h: fid, dir: 'out', cur: pl_.cur, amt: pl_.amt, ils: pl_.ils, rate: pl_.rate, note: (kind || 'راتب') + ' ' + w.name + (note ? ' — ' + note : ''), w: w.id, wl: wl || null, wils: ils });
 }
 
 
@@ -5484,6 +5484,8 @@ function shDesc() {
       w = wk(sh.wid);
       var type = fv('type') || 'دفعة نقدية', amt = num('amt'), plus = type === 'إضافة' || type === 'شراء للمطبخ' || (type === 'تسوية' && fv('adjd') === 'up'), isV = type === 'مخالفة', sev = fv('sev') || 'warn';
       var bw = wBal(w), after = r2(bw + (plus ? 1 : -1) * ((isV && sev === 'warn') ? 0 : amt)), ef = [];
+      if (!fv('dtxt')) A.form.dtxt = today(); var edt = dateNear(fv('dtxt'));
+      ef.push(fDate('dtxt', 'التاريخ', '', today()));
       ef.push(fChips('type', 'نوع الحركة', [['دفعة نقدية', 'دفعة'], ['سلفة', 'سلفة'], ['إضافة', 'إضافة'], ['شراء للمطبخ', 'شراء للمطبخ'], ['مسحوبات', 'مسحوبات'], ['خصم', 'خصم'], ['مخالفة', 'مخالفة'], ['تسوية', 'تسوية']]));
       if (type === 'تسوية') { if (!fv('adjd')) A.form.adjd = 'down'; ef.push(fSeg('adjd', 'اتجاه التسوية', [['down', 'عليه (نقص)'], ['up', 'له (زيادة)']])); }
       if (isV) {
@@ -5496,23 +5498,24 @@ function shDesc() {
         if (type === 'دفعة نقدية' || type === 'سلفة') ef = ef.concat(fundFields());
       }
       ef.push(fPhoto(isV ? 'صورة توثيق المخالفة (اختياري)' : type === 'دفعة نقدية' || type === 'سلفة' ? 'صورة سند الصرف (اختياري)' : 'صورة توثيق (اختياري)'));
-      var okV = isV ? (sev === 'warn' || amt > 0) : amt > 0, payT = type === 'دفعة نقدية' || type === 'سلفة', pp = payT ? payPlan(fund(fv('fund') || defFund()), amt, num('rate')) : null; if (payT) okV = okV && pp.ok;
+      var okV = isV ? (sev === 'warn' || amt > 0) : amt > 0, payT = type === 'دفعة نقدية' || type === 'سلفة', pp = payT ? payPlan(fund(fv('fund') || defFund()), amt, num('rate')) : null; if (payT) okV = okV && pp.ok; okV = okV && !!edt && edt <= today();
       var HINT = { 'دفعة نقدية': 'مبلغ يُدفع من مستحقاته', 'سلفة': 'مبلغ قبل استحقاقه، يُخصم من حسابه', 'إضافة': 'تُضاف إلى حسابه، واكتب سببها في البيان', 'شراء للمطبخ': 'اشتراه من ماله للمطبخ: يُعوَّض مع راتبه', 'مسحوبات': 'مواد أخذها من المطبخ، تُخصم من حسابه', 'خصم': 'يُخصم من حسابه بسبب تذكره', 'مخالفة': 'تنبيه، مع خصم أو بدونه', 'تسوية': 'تقريب أو فرق صغير: يغيّر الرصيد فقط، ولا يظهر في الكشف ولا الملخص' };
       R = { title: w.name, sub: 'الرصيد الآن: ' + balTxt(bw), fields: ef,
         note: { text: (HINT[type] ? HINT[type] + (amt > 0 || isV ? ' · ' : '') : '') + (isV ? (sev === 'warn' ? 'تُسجَّل في سجله بلا خصم.' : amt > 0 ? 'تُسجَّل في سجله ويُخصم ' + money(amt) + '. الرصيد بعدها: ' + balTxt(after) : '') : amt > 0 ? 'الرصيد بعد الحركة: ' + balTxt(after) + (pp && pp.txt ? ' · ' + pp.txt : '') : ''), tone: isV ? 'warn' : 'info' },
-        ft: { label: isV ? 'تسجيل المخالفة' : 'تسجيل ' + (type === 'دفعة نقدية' ? 'الدفعة' : type), ok: okV, go: function () { doEntry(w, type, amt, (fv('note') || '').trim(), sev, fv('fund') || defFund(), num('rate')); } } };
+        ft: { label: isV ? 'تسجيل المخالفة' : 'تسجيل ' + (type === 'دفعة نقدية' ? 'الدفعة' : type), ok: okV, go: function () { doEntry(w, type, amt, (fv('note') || '').trim(), sev, fv('fund') || defFund(), num('rate'), edt); } } };
       break;
     }
     case 'settle': {
+      if (!fv('dtxt')) A.form.dtxt = today();
       var sel = (fv('sel') || '').split(',').filter(Boolean), owedL = activeW().filter(function (x) { return wBal(x) > 0; }), debtL = activeW().filter(function (x) { return wBal(x) < 0; });
       var picked = owedL.filter(function (x) { return sel.indexOf(x.id) >= 0; }), tot = r2(picked.reduce(function (a, x) { return a + wBal(x); }, 0)), unrec = picked.filter(function (x) { return !wAtt(x); }).length;
       R = { title: 'دفع الأسبوع', sub: S.settings.lastSettle ? 'آخر دفع ' + dlabel(S.settings.lastSettle) : 'لم يُسجَّل دفع بعد',
         rows: owedL.map(function (x) {
           return X({ title: x.name, sub: wAtt(x) ? '' : 'حضور اليوم لم يُسجَّل', tag: money(wBal(x)), tagTone: 'info', sel: sel.indexOf(x.id) >= 0, go: function () { var s2 = sel.indexOf(x.id) >= 0 ? sel.filter(function (i) { return i !== x.id; }) : sel.concat([x.id]); fset('sel', s2.join(',')); } });
         }).concat(debtL.map(function (x) { return X({ title: x.name, sub: 'يُرحَّل ولا يُدفع', tag: 'عليه ' + money(-wBal(x)), tagTone: 'warn' }); })),
-        fields: owedL.length ? fundFields() : [],
+        fields: owedL.length ? [fDate('dtxt', 'تاريخ الدفع', '', today())].concat(fundFields()) : [],
         note: owedL.length ? (unrec ? { text: pl(unrec, 'عامل واحد لم يُسجَّل حضوره', 'عاملان لم يُسجَّل حضورهما', 'عمال لم يُسجَّل حضورهم') + ' اليوم، ومبلغه دون يومية اليوم.', tone: 'warn' } : null) : { text: 'لا مستحقات للعمال الآن.', tone: 'ok' },
-        ft: { label: tot > 0 ? 'صرف ' + money(tot) + ' · ' + pl(picked.length, 'عامل واحد', 'عاملان', 'عمال') : 'اختر عمالًا للصرف', ok: tot > 0 && payPlan(fund(fv('fund') || defFund()), tot, num('rate')).ok, go: function () { doSettle(picked, fv('fund') || defFund(), num('rate')); } } };
+        ft: { label: tot > 0 ? 'صرف ' + money(tot) + ' · ' + pl(picked.length, 'عامل واحد', 'عاملان', 'عمال') : 'اختر عمالًا للصرف', ok: tot > 0 && payPlan(fund(fv('fund') || defFund()), tot, num('rate')).ok && (!fv('dtxt') || (dateNear(fv('dtxt')) && dateNear(fv('dtxt')) <= today())), go: function () { doSettle(picked, fv('fund') || defFund(), num('rate'), dateNear(fv('dtxt'))); } } };
       break;
     }
     case 'carry': {
@@ -5869,20 +5872,21 @@ function doCarry(list, date) {
   audit('نقل حضور ' + dlabel(date) + ' من الرصيد المرحّل إلى الحضور لـ' + pl(n, 'عامل واحد', 'عاملين', 'عمال'));
   shut(); mutated('سُجّل حضور ' + dlabel(date) + ' لـ' + pl(n, 'عامل واحد', 'عاملين', 'عمال') + ' بلا تغيير في الأرصدة');
 }
-function doEntry(w, type, amt, note, sev, fid, rate) {
-  var d = today(), pid = phTake();
+function doEntry(w, type, amt, note, sev, fid, rate, date) {
+  var d = date || today(), pid = phTake();
   if (type === 'مخالفة') phTag(E.wEntry(S, { date: d, w: w.id, kind: 'viol', amt: sev === 'warn' ? 0 : amt, note: note }), pid);
   else if (type === 'إضافة') { var eb = E.wEntry(S, { date: d, w: w.id, kind: 'add', amt: amt, note: note }); eb.cat = 'bonus'; phTag(eb, pid); }
   else if (type === 'تسوية') { var up = fv('adjd') === 'up', ea = E.wEntry(S, { date: d, w: w.id, kind: up ? 'add' : 'deduct', amt: amt, note: note || 'تسوية' }); ea.cat = 'adjw'; audit('تسوية رصيد ' + w.name + ': ' + (up ? '+' : '−') + money(amt) + (note ? ' (' + note + ')' : '')); }
   else if (type === 'شراء للمطبخ') { var ek = E.wEntry(S, { date: d, w: w.id, kind: 'add', amt: amt, note: note }); ek.cat = 'kbuy'; phTag(ek, pid); }
   else if (type === 'مسحوبات') { var ep = E.wEntry(S, { date: d, w: w.id, kind: 'deduct', amt: amt, note: note }); ep.cat = 'buy'; phTag(ep, pid); }
   else if (type === 'خصم') phTag(E.wEntry(S, { date: d, w: w.id, kind: 'deduct', amt: amt, note: note }), pid);
-  else { var we = phTag(E.wEntry(S, { date: d, w: w.id, kind: 'pay', amt: amt, note: (type === 'سلفة' ? 'سلفة' + (note ? ' — ' + note : '') : note) }), pid); if (fid) { payFund(fid, w, amt, note, type === 'سلفة' ? 'سلفة' : 'راتب', rate, we.id); var lm = S.fm[S.fm.length - 1]; if (lm && lm.wl === we.id) phTag(lm, pid); } }
+  else { var we = phTag(E.wEntry(S, { date: d, w: w.id, kind: 'pay', amt: amt, note: (type === 'سلفة' ? 'سلفة' + (note ? ' — ' + note : '') : note) }), pid); if (fid) { payFund(fid, w, amt, note, type === 'سلفة' ? 'سلفة' : 'راتب', rate, we.id, d); var lm = S.fm[S.fm.length - 1]; if (lm && lm.wl === we.id) phTag(lm, pid); } }
   shut(); mutated('سُجّل ' + (type === 'دفعة نقدية' ? 'دفع ' + money(amt) : type + (amt ? ' ' + money(amt) : '')) + ' — ' + w.name);
 }
-function doSettle(picked, fid, rate) {
-  picked.forEach(function (w) { var b = wBal(w); if (b > 0) { var se = E.wEntry(S, { date: today(), w: w.id, kind: 'pay', amt: b, note: 'دفع الأسبوع' }); if (fid) payFund(fid, w, b, 'تسوية الأسبوع', 'راتب', rate, se.id); } });
-  S.settings.lastSettle = today(); shut(); mutated('سُجّل دفع ' + pl(picked.length, 'عامل واحد', 'عاملين', 'عمال'));
+function doSettle(picked, fid, rate, date) {
+  var sd = date || today();
+  picked.forEach(function (w) { var b = wBal(w); if (b > 0) { var se = E.wEntry(S, { date: sd, w: w.id, kind: 'pay', amt: b, note: 'دفع الأسبوع' }); if (fid) payFund(fid, w, b, 'تسوية الأسبوع', 'راتب', rate, se.id, sd); } });
+  S.settings.lastSettle = sd; shut(); mutated('سُجّل دفع ' + pl(picked.length, 'عامل واحد', 'عاملين', 'عمال'));
 }
 function shareStatement(w) { wstOpen(w); }
 
