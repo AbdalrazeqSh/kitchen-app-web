@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.105';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.106';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2358,12 +2358,16 @@ function saSpec(dry) {
     o.q = r2(o.q + Math.abs(m.q));
   });
   var rows = function (bag, p) { return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k]; return { k: 'app:' + p + ':' + k, v: [{ d: o.d }, o.n, o.q, '', ''] }; }); };
+  /* أصناف التطبيق التي ليس لها صف في قائمة المخزون عنده: تُضاف (الرصيد الافتتاحي = رصيد التطبيق قبل حركات الذيل) فلا يظهر #N/A في الوحدة والمتبقي */
+  var net = {}; [use, inn].forEach(function (bag, bi) { Object.keys(bag).forEach(function (k) { var o = bag[k], it = (S.items || []).filter(function (x) { return x.name === o.n; })[0]; if (it) net[it.id] = r2((net[it.id] || 0) + (bi ? o.q : -o.q)); }); });
+  var stk = stockRows(SA_LED).filter(function (r) { return r.q || net[r.it.id]; }).map(function (r) { return { name: r.it.name, unit: r.it.unit || '', open: r2(r.q - (net[r.it.id] || 0)) }; });
   return { tab: SA_TAB, dry: !!dry, peek: 'A3:D400',
+    stock: { c0: 1, n: 4, row0: 3, items: stk },
     blocks: [
       { id: 'use', c0: 7, n: 5, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
       { id: 'in', c0: 14, n: 5, row0: 3, key: 28, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(inn, 'in') }] };
 }
-function saHash() { var s = JSON.stringify(saSpec(false).blocks), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
+function saHash() { var sp = saSpec(false), s = JSON.stringify([sp.blocks, sp.stock]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
 function saOn() { return !!(S.settings.shApp && S.settings.shApp.stock && S.settings.shApp.stock.on); }
 function saDry() {
   if (!gwUrl() || SA_BUSY) return Promise.resolve(); SA_BUSY = true; SA_ERR = ''; SA_PV = null;
@@ -2393,6 +2397,7 @@ function saRows() {
     if (!pv.ok) rows.push(X({ title: 'لا كتابة', sub: pv.err || 'رفضت البوابة', tag: 'خطأ', tagTone: 'bad' }));
     var nmB = { use: 'الاستهلاك اليومي', 'in': 'الوارد للمخزن' };
     (pv.blocks || []).forEach(function (b) { rows.push(X({ title: nmB[b.id] || b.id, sub: 'تحت صفك ' + b.manualLast + (b.dropped ? ' · ' + b.dropped + ' موجودة عندك يدويًا فلا تُكرَّر' : '') + (b.hadApp ? ' · يُعاد كتابة ' + b.hadApp + ' صف للتطبيق' : ''), tag: String(b.want), tagTone: 'ok' })); });
+    if (pv.added && pv.added.length) rows.push(X({ title: 'أصناف تُضاف لقائمة المخزون عندك', sub: pv.added.join('، '), tag: String(pv.added.length), tagTone: 'ok' }));
     if (pv.missing && pv.missing.length) rows.push(X({ title: 'أصناف بلا صف في تبويبك', sub: pv.missing.join('، '), tag: String(pv.missing.length), tagTone: 'warn' }));
   }
   return rows;
