@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.91';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.92';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3118,7 +3118,7 @@ function roShow(k, key, exp) { var v = roV(k, key); return v === 'on' || (v === 
 function roMe(k, key, exp) { return !exp && roV(k, key) === 'me'; }
 function roHasMe(k) { return (RO[k] || []).some(function (a) { return roV(k, a[0]) === 'me'; }); }
 function wfpOn() { var l = led('wfp'); return !!l && !l.arch; }
-var RCOL = { bad: '#B42318', warn: '#B54708', ok: '#14563A', mute: '#5B6660' };
+var RCOL = { ext: '#3B5BDB', bad: '#B42318', warn: '#B54708', ok: '#14563A', mute: '#5B6660' };
 function rptName(k) { return (RPTS.filter(function (a) { return a[0] === k; })[0] || [0, 'التقرير'])[1]; }
 
 /* ما استُهلك اليوم: من الطبخات غير الملغاة + أي صرف خارج الطبخ. kind: '' للكل أو 'private' */
@@ -3198,7 +3198,7 @@ function repDoc(k, forceExp) {
       if (priv) { if (!EXT) { var kb = E.balance(S, 'kitchen', id), ng = kb < 0 ? r3(Math.min(a.kit, -kb)) : 0; if (ng > 0) parts.push('نقص مسجّل في المطبخ ' + qtyU(ng, it.unit)); } }
       else if (a.other && a.why.length) parts.push(a.why.join('، '));
       var left = Math.max(0, E.balance(S, 'kitchen', id)) /* المتبقي = رصيد المخزن الأساسي في كل التقارير */, lst = stStatus(left, id);
-      var cs = [C(it.name, { b: 1, sub: parts.join(' · ')}), C(qv(tot, it.unit), { c: 1, b: 1, u: qu(tot, it.unit) })];
+      var cs = [C(it.name, { b: 1, sub: parts.join(' · ')}), C(qv(tot, it.unit), { c: 1, b: 1, u: qu(tot, it.unit), fg: priv && EXT && a.ext > 0 && SH('extra') ? CL.ext : undefined })];
       if (SH('left')) cs.push(C(qv(left, it.unit), { c: 1, u: qu(left, it.unit), fg: SH('alert') ? (lst.rank <= 1 ? CL.bad : lst.rank === 2 ? CL.warn : CL.mute) : CL.mute, b: SH('alert') && lst.rank < 3 }));
       var rr = R(cs); rr.grp = isSp(id) ? 's' : 'm'; return rr;
     });
@@ -3209,7 +3209,7 @@ function repDoc(k, forceExp) {
     }
     { /* «خارجي» و«فروق عن المنيو» خياران في التقريرين معًا: ما يُضاف لأحدهما يُضاف للآخر */
       var ex = dc.order.filter(function (id) { return dc.agg[id].ext > 0; });
-      if (ex.length && SH('extra')) P.secs.push(secK('extra', psec(TT('خارجي: من خارج مخزن المطبخ', 'extra'), '1fr 96px', ['المادة', 'الكمية'], ex.map(function (id) { var it = item(id); return R([C(it.name, { b: 1 }), C(qv(dc.agg[id].ext, it.unit), { c: 1, b: 1, u: qu(dc.agg[id].ext, it.unit) })]); }))));
+      if (ex.length && SH('extra')) P.secs.push(secK('extra', psec(TT('خارجي: من خارج مخزن المطبخ', 'extra'), '1fr 96px', ['المادة', 'الكمية'], ex.map(function (id) { var it = item(id); return R([C(it.name, { b: 1, fg: CL.ext }), C(qv(dc.agg[id].ext, it.unit), { c: 1, b: 1, fg: CL.ext, u: qu(dc.agg[id].ext, it.unit) })]); }))));
       var dv = []; tb.forEach(function (b) { var pln = plannedOf(b); b.lines.forEach(function (l) { var p = l.planned != null && !l.extra ? l.planned : l.extra ? null : pln[l.item]; if (p == null) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1, sub: 'مضاف خارج الوصفة' }), C(fmt(l.qty), { c: 1 })])); else if (Math.abs(p - l.qty) > 0.001) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1 }), C(fmt(l.qty), { c: 1, u: 'بدل ' + fmt(p) })])); }); });
       if (dv.length && SH('dev')) P.secs.push(secK('dev', psec(TT('فروق عن المنيو', 'dev'), '1fr 96px', ['البند', 'الفعلي'], dv)));
     }
