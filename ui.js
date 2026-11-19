@@ -12,6 +12,7 @@ function X(o) {
   if (o.kid && !o.mini) { o = Object.assign({}, o, { mini: true }); } /* ابن في بطاقة أب: أخف من صف الأب (قاعدة الوزن التصميمي) */
   var tg = T[o.tagTone] || T.mute, ic = T[o.icTone] || T.mute, tn = T[o.tone], on = !!o.on;
   return {
+    isMoreRow: !!o.more,
     title: o.title || '', sub: o.sub || '', hasSub: !!(o.sub || o.subPre), subPre: o.subPre || '', hasSubPre: !!o.subPre, subPreFg: o.subPreFg || '#5B6660', subSep: o.subPre && o.sub ? ' · ' : '',
     tag: o.tag || '', hasTag: !!o.tag, tagBg: tg[0], tagFg: tg[1],
     end: o.end || '', endSub: o.endSub || '', endSub2: o.endSub2 || '', hasEnd: !!(o.end || o.endSub), hasEndSub: !!o.endSub, hasEndSub2: !!o.endSub2, endCap: o.endCap || '', hasEndCap: !!o.endCap, end2: o.end2 || '', end2Sub: o.end2Sub || '', hasEnd2Sub: !!o.end2Sub, end2Cap: o.end2Cap || '', hasEnd2: !!o.end2, end2Fg: o.hdr ? '#14563A' : o.end2Tone === 'bad' ? '#B3261E' : '#1B2421', minH: o.more ? '46px' : o.hdr || o.mini || o.ent || o.tight ? '0' : '58px', pad: o.hdr ? '7px 14px' : o.ent ? (o.entLast ? '3px 14px 12px' : '3px 14px') : o.tight ? '12px 14px 3px' : o.mini ? '6px 14px' : '10px 14px', mt: o.ent ? '-1px' : '0', tAl: o.ent ? 'left' : 'right', tFg: o.more ? '#14563A' : o.hdr ? '#14563A' : o.total ? '#14563A' : o.subt ? '#5A4A1E' : o.ent ? '#5B6660' : '#1B2421', tFs: o.hdr ? '12px' : o.par ? '16px' : o.ent ? '13px' : o.mini ? '13.5px' : '15px', tFw: o.hdr ? 600 : o.par ? 600 : o.total ? 700 : o.subt ? 600 : o.ent ? 400 : o.mini ? 400 : 500, sFs: o.mini ? '11.5px' : '12.5px', eFs: o.hdr ? '12px' : o.mini ? '13.5px' : '15px', eFw: o.hdr ? 600 : o.mini ? 400 : 500, eW: o.colw ? o.colw + 'px' : 'auto', eW2: o.colw ? (o.colw + 13) + 'px' : 'auto', chevOp: o.hdr ? 0 : 1, subFs: o.endEq ? '15px' : '12px', subFg: o.endEq ? (o.endTone ? T[o.endTone][1] : '#1B2421') : '#5B6660', subFw: o.endEq ? 500 : 400,
@@ -34,7 +35,7 @@ function X(o) {
 var ROW_CAP = 5, rowsOpen = {};
 function capRows(o) {
   var it = o.items || [];
-  if (o.all || it.length <= ROW_CAP + 1) return o;
+  if (o.all || it.length <= ROW_CAP + 1 || it.some(function (x) { return x && x.isMoreRow; })) return o; /* قائمة لها صف «عرض N أخرى» خاص بها (ترقيم): لا يُكدَّس عليها اختصار ثانٍ فيضمّها كلما تغيّر طولها (المالك 2026-11-19) */
   var k = (o.title || '') + '|' + it.length, open = !!rowsOpen[k], n = it.length - ROW_CAP, c = Object.assign({}, o);
   c.items = (open ? it : it.slice(0, ROW_CAP)).concat([X({ more: true, chev: true, icon: open ? 'i-minus' : 'i-chevD', icTone: 'mute', title: open ? 'طيّ القائمة' : 'عرض ' + n + ' أخرى', go: function () { rowsOpen[k] = !open; UI.render(); } })]);
   return c;

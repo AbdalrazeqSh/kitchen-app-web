@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.112';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.113';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1817,7 +1817,7 @@ function pgFunds() {
   var all = movesDesc(fmOn(ff)), items = all.slice(0, n).map(function (m) { return moveRowX(m, !ff, true); });
   if (all.length > n) items.push(moreRow(Math.min(25, all.length - n), function () { setState({ fN: n + 25 }); }));
   if (L.length > 1) bl.push(B('seg', { items: [X({ label: 'الكل', on: !ff, go: function () { setState({ fFeed: '', fN: 8 }); } })].concat(L.map(function (f) { return X({ label: f.name, on: ff === f.id, go: function () { setState({ fFeed: f.id, fN: 8 }); } }); })) }));
-  bl.push(B('rows', { title: 'آخر الحركات', items: items, empty: 'لا حركات بعد' }));
+  bl.push(B('rows', { title: 'آخر الحركات', all: true, items: items, empty: 'لا حركات بعد' }));
   bl.push(B('rows', { title: 'الأرصدة', items: L.map(function (f) {
     return X(Object.assign({ icon: f.w ? 'i-users' : 'i-wallet', icTone: f.w ? 'info' : 'ok', title: f.name, sub: fKind(f), chev: true, go: function () { open('fund', { fid: f.id }); } }, fBalEq(f), !fBal(f.id, fMain(f)) && !(f.curs.length > 1 && fBal(f.id, f.curs[1])) ? { endTone: 'mute' } : {}));
   }), empty: 'لا أرصدة بعد' }));
@@ -1847,7 +1847,7 @@ function pgFund() {
   var rows = all.filter(function (m) { return flt === 'all' || m.dir === flt; }), n = A.fN || 25;
   var items = rows.slice(0, n).map(function (m) { return moveRowX(m, false); });
   if (rows.length > n) items.push(moreRow(Math.min(25, rows.length - n), function () { setState({ fN: n + 25 }); }));
-  bl.push(B('rows', { title: 'الحركات (' + rows.length + ')', items: items, empty: 'لا حركات بعد' }));
+  bl.push(B('rows', { title: 'الحركات (' + rows.length + ')', all: true, items: items, empty: 'لا حركات بعد' }));
   var vm = voidedMoves(f.id); if (vm.length) bl.push(B('rows', { title: 'ملغاة (' + vm.length + ')', items: vm.map(voidedRow) }));
   return bl;
 }
