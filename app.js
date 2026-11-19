@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.94';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.95';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3986,24 +3986,19 @@ function paperCanvas(k) {
     return load().then(function (w1) { paint(w1); return new Promise(function (r) { setTimeout(r, 250); }); }).then(load).then(paint);
   });
 }
-/* PDF بسيط: صفحات A4 من صور JPEG للورقة */
+/* PDF بصفحة واحدة مهما طال التقرير: عرض A4 وارتفاع بقدر الورقة، بلا تقطيع (المالك 2026-11-19) */
 function pdfFromCanvas(c) {
-  var PW = 595, PH = 842, M = 24, w = PW - 2 * M, sc = w / c.width, sliceH = Math.floor((PH - 2 * M) / sc), pages = [], y = 0;
-  var cx = c.getContext('2d');
-  function quiet(yy) { var d = cx.getImageData(0, yy, c.width, 1).data, n = 0, t = 0, i, r0 = d[4 * 40], g0 = d[4 * 40 + 1], b0 = d[4 * 40 + 2]; for (i = 40; i < c.width - 40; i += 3) { t++; if (Math.abs(d[4 * i] - r0) < 10 && Math.abs(d[4 * i + 1] - g0) < 10 && Math.abs(d[4 * i + 2] - b0) < 10) n++; } return n / t > 0.97; }
-  while (y < c.height) {
-    var lim = Math.min(sliceH, c.height - y);
-    if (y + lim < c.height) { for (var yy = y + lim; yy > y + lim * 0.7; yy--) { if (quiet(yy)) { lim = yy - y; break; } } }
-    var hh = lim, p = document.createElement('canvas'); p.width = c.width; p.height = hh;
-    var px = p.getContext('2d'); px.fillStyle = '#fff'; px.fillRect(0, 0, p.width, hh); px.drawImage(c, 0, y, c.width, hh, 0, 0, c.width, hh);
-    pages.push({ jpg: atob(p.toDataURL('image/jpeg', 0.95).split(',')[1]), w: p.width, h: hh }); y += hh;
-  }
+  var PW = 595, M = 24, w = PW - 2 * M, sc = w / c.width, PH = Math.round(c.height * sc + 2 * M), pages = [];
+  if (PH > 14000) { sc = sc * (14000 - 2 * M) / (PH - 2 * M); w = c.width * sc; PH = 14000; M = (PW - w) / 2; } /* حد ارتفاع الصفحة في PDF: يُصغَّر عند الطول الشديد فقط */
+  var p = document.createElement('canvas'); p.width = c.width; p.height = c.height;
+  var px = p.getContext('2d'); px.fillStyle = '#fff'; px.fillRect(0, 0, p.width, p.height); px.drawImage(c, 0, 0);
+  pages.push({ jpg: atob(p.toDataURL('image/jpeg', 0.92).split(',')[1]), w: p.width, h: p.height });
   var objs = [], n = pages.length, off = [], out = '%PDF-1.4\n', i;
   function add(s) { objs.push(s); }
   add('<< /Type /Catalog /Pages 2 0 R >>');
   add('<< /Type /Pages /Kids [' + pages.map(function (_, k) { return (3 + k * 3) + ' 0 R'; }).join(' ') + '] /Count ' + n + ' >>');
   pages.forEach(function (pg, k) {
-    var base = 3 + k * 3, dh = pg.h * sc, cs = 'q ' + w.toFixed(2) + ' 0 0 ' + dh.toFixed(2) + ' ' + M + ' ' + (PH - M - dh).toFixed(2) + ' cm /Im Do Q';
+    var base = 3 + k * 3, dh = pg.h * sc, cs = 'q ' + w.toFixed(2) + ' 0 0 ' + dh.toFixed(2) + ' ' + M.toFixed(2) + ' ' + (PH - M - dh).toFixed(2) + ' cm /Im Do Q';
     add('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PW + ' ' + PH + '] /Resources << /XObject << /Im ' + (base + 1) + ' 0 R >> >> /Contents ' + (base + 2) + ' 0 R >>');
     add({ img: pg });
     add('<< /Length ' + cs.length + ' >>\nstream\n' + cs + '\nendstream');
@@ -5942,7 +5937,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { paperCanvas: function (k) { return paperCanvas(k); }, snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { pdfFromCanvas: function (c) { return pdfFromCanvas(c); }, paperCanvas: function (k) { return paperCanvas(k); }, snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
