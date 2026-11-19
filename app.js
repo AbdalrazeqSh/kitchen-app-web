@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.116';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.117';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2388,8 +2388,8 @@ function saSpec(dry) {
   return { tab: SA_TAB, dry: !!dry, peek: 'A3:D400',
     stock: { c0: 1, n: 4, row0: 3, items: stk },
     setup: [{ type: 'hdr', cell: 'L2', from: 'K2', text: 'الوجبة' }], blocks: [
-      { id: 'use', c0: 7, n: 6, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
-      { id: 'in', c0: 14, n: 5, row0: 3, key: 28, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(inn, 'in') }] };
+      { id: 'use', c0: 7, n: 6, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], band: ['#BFE3C6', '#FFD59A'], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
+      { id: 'in', c0: 14, n: 5, row0: 3, key: 28, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], band: ['#BFE3C6', '#FFD59A'], names: { col: 2, idx: 1, row0: 3 }, rows: rows(inn, 'in') }] };
 }
 function saHash() { var sp = saSpec(false), s = JSON.stringify([sp.blocks, sp.stock]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
 function saOn() { return !!(S.settings.shApp && S.settings.shApp.stock && S.settings.shApp.stock.on); }
@@ -2513,8 +2513,8 @@ function wfSpec(dry) {
   return { tab: WF_TAB, dry: !!dry, peek: 'A3:D400',
     stock: { c0: 1, n: 4, row0: 3, items: stk },
     setup: [{ type: 'hdr', cell: 'L2', from: 'K2', text: 'الوجبة' }], blocks: [
-      { id: 'use', c0: 7, n: 6, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
-      { id: 'in', c0: 14, n: 5, row0: 3, key: 28, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(inn, 'in') }] };
+      { id: 'use', c0: 7, n: 6, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], band: ['#BFE3C6', '#FFD59A'], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
+      { id: 'in', c0: 14, n: 5, row0: 3, key: 28, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], band: ['#BFE3C6', '#FFD59A'], names: { col: 2, idx: 1, row0: 3 }, rows: rows(inn, 'in') }] };
 }
 function wfHash() { var sp = wfSpec(false), s = JSON.stringify([sp.blocks, sp.stock]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
 function wfOn() { return !!(S.settings.shApp && S.settings.shApp.wfp && S.settings.shApp.wfp.on); }
