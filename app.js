@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.113';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.114';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2140,6 +2140,7 @@ function gwSheet(sh) {
   if (gwOk() && typeof waRows === 'function') rows = rows.concat(waRows());
   if (gwOk() && typeof saRows === 'function') rows = rows.concat(saRows());
   if (gwOk() && typeof eaRows === 'function') rows = rows.concat(eaRows());
+  if (gwOk() && typeof wfRows === 'function') rows = rows.concat(wfRows());
   if (gwOk() && typeof snapRows === 'function') rows = rows.concat(snapRows());
   var acts = [
     X({ title: 'اختبار الاتصال', icon: 'i-wifi', go: function () { gwSave(); say('جارٍ الاختبار…'); gwPost({ ping: 1 }).then(function () { GW_ERR = ''; say('البوابة تعمل وكلمة السر صحيحة'); render(); }).catch(function (e) { GW_ERR = String((e && e.message) || e); say('تعذّر الاتصال: ' + GW_ERR); render(); }); } }),
@@ -2151,6 +2152,8 @@ function gwSheet(sh) {
   if (gwOk() && SA_PV && SA_PV.ok) acts.push(X({ title: 'كتابة المخزن في تبويبك', icon: 'i-wifi', go: function () { say('جارٍ الكتابة…'); saWrite(); } }));
   if (gwOk()) acts.push(X({ title: 'فحص تبويب طبخ خارجي', icon: 'i-search', go: function () { gwSave(); say('جارٍ قراءة الشيت…'); eaDry(); } }));
   if (gwOk() && EA_PV && EA_PV.ok) acts.push(X({ title: 'كتابة طبخ خارجي في تبويبك', icon: 'i-wifi', go: function () { say('جارٍ الكتابة…'); eaWrite(); } }));
+  if (gwOk()) acts.push(X({ title: 'فحص تبويب WFP', icon: 'i-search', go: function () { gwSave(); say('جارٍ قراءة الشيت…'); wfDry(); } }));
+  if (gwOk() && WF_PV && WF_PV.ok) acts.push(X({ title: 'كتابة WFP في تبويبك', icon: 'i-wifi', go: function () { say('جارٍ الكتابة…'); wfWrite(); } }));
   if (gwOk()) acts.push(X({ title: S.settings.syncGwAuto ? 'إيقاف الإرسال' : 'تشغيل الإرسال', icon: 'i-wifi', go: gwOnOff }));
   if (gwOk()) acts.push(X({ title: 'تحديث تبويبات الشيت', icon: 'i-wifi', go: function () { say('جارٍ تحديث التبويبات…'); gwSnapSend(true).then(function () { say(SNAP_ERR ? 'تعذّر: ' + SNAP_ERR : 'تبويبات الشيت محدَّثة'); }); } }));
   return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط · من ' + dshow(GW_FROM), fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fSecret('gwkey', 'كلمة سر البوابة', '')], rows: rows, acts: acts,
@@ -2268,10 +2271,13 @@ function snapStock(tab, title, pick) {
   mv.forEach(function (m) { var it = item(m.item) || { name: '؟', unit: '' }; snAdd(b, 'row', [snD(m.date), ok[m.led].name || m.led, it.name, snN(m.q), it.unit || '', KIND[m.kind] || m.kind, m.note || '']); });
   return b;
 }
+function snapTabs() { return [['العمال', typeof waOn === 'function' && waOn()], ['طبخ خارجي', typeof eaOn === 'function' && eaOn()], ['المخزن', typeof saOn === 'function' && saOn()], ['WFP', typeof wfOn === 'function' && wfOn()]]; }
+function snapLeft() { var l = snapTabs().filter(function (t) { return !t[1]; }).map(function (t) { return t[0]; }); return l.length ? l.join(' · ') : 'لا لقطات'; }
+function snapDone() { return snapTabs().filter(function (t) { return t[1]; }).map(function (t) { return t[0]; }).join(' · '); }
 function snapList() {
   return [typeof waOn === 'function' && waOn() ? null : snapWorkers(), typeof eaOn === 'function' && eaOn() ? null : snapExt(),
     typeof saOn === 'function' && saOn() ? null : snapStock('المخزن', 'المخزن · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id !== 'wfp'; }),
-    snapStock('WFP', 'مخزن WFP · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id === 'wfp'; })].filter(function (b) { return b && b.rows.length > 3; });
+    typeof wfOn === 'function' && wfOn() ? null : snapStock('WFP', 'مخزن WFP · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id === 'wfp'; })].filter(function (b) { return b && b.rows.length > 3; });
 }
 
 /* إرسال اللقطات التي تغيّرت فقط (واحدة بعد واحدة)، أو كلها عند force */
@@ -2291,7 +2297,7 @@ function gwSnapSend(force) {
 function gwSnapKick() { try { if (typeof waKick === 'function') waKick(); } catch (e) {} clearTimeout(SNAP_T); SNAP_T = setTimeout(function () { gwSnapSend(false); }, 6000); }
 function snapRows() {
   var sh = S.settings.shSnap || {}, n = Object.keys(sh).length;
-  return [X({ title: 'تبويبات الشيت المنعكسة', sub: 'العمال · طبخ خارجي · المخزن · WFP: لقطات كاملة من التطبيق تُكتب في تبويبات «(التطبيق)» ولا تمسّ تبويباتك' + (S.settings.shSnapAt ? ' · آخر تحديث ' + dlabel(new Date(S.settings.shSnapAt).toISOString().slice(0, 10)) : ''), tag: SNAP_ERR ? 'خطأ' : SNAP_BUSY ? 'جارٍ…' : n ? 'متزامنة' : 'لم تُرسَل', tagTone: SNAP_ERR ? 'bad' : n ? 'ok' : 'warn' })].concat(SNAP_ERR ? [X({ title: 'خطأ اللقطات', sub: SNAP_ERR })] : []);
+  return [X({ title: 'تبويبات الشيت المنعكسة', sub: snapLeft() + ': لقطات كاملة من التطبيق تُكتب في تبويبات «(التطبيق)» ولا تمسّ تبويباتك' + (snapDone() ? ' · أما ' + snapDone() + ' فتُكتب في تبويباتك نفسها' : '') + (S.settings.shSnapAt ? ' · آخر تحديث ' + dlabel(new Date(S.settings.shSnapAt).toISOString().slice(0, 10)) : ''), tag: SNAP_ERR ? 'خطأ' : SNAP_BUSY ? 'جارٍ…' : n ? 'متزامنة' : 'لم تُرسَل', tagTone: SNAP_ERR ? 'bad' : n ? 'ok' : 'warn' })].concat(SNAP_ERR ? [X({ title: 'خطأ اللقطات', sub: SNAP_ERR })] : []);
 }
 try { setTimeout(function () { try { gwSnapKick(); } catch (e) {} }, 12000); } catch (e) {}
 
@@ -2478,6 +2484,70 @@ function eaRows() {
   return rows;
 }
 try { setTimeout(function () { try { eaKick(); } catch (e) {} }, 17000); } catch (e) {}
+
+/* ===== 02m7-wfp.js ===== */
+/* ---------- مخزن WFP داخل تبويب المالك نفسه («WFP») بدل تبويب لقطة منفصل (بالطريقة نفسها وبالتنسيق نفسه للمخزن: G:K و N:R) ----------
+   التطبيق يُضيف ذيلًا بعد آخر صف للمالك في جدولي الاستهلاك اليومي (G:K) والوارد (N:R) بأعمدته نفسها؛ عمودا «الوحدة» و«المتبقي» معادلاته تُنسخ من صفه الأخير،
+   وعمود «الكمية الحالية» عنده (معادلة SUMIF على الجدولين) يحسب منهما. الذيل وحده يُعاد كتابته بعمود مفتاح مخفي app:…؛ وصفوف المالك لا تُمس.
+   مخزن WFP وحده، من حدود العمل 2026-11-01. قبل أول كتابة: «فحص» (قراءة فقط) ثم اعتماد؛ وبعدها مطابقة الأرصدة (المالك 2026-11-18). */
+var WF_TAB = 'WFP', WF_LED = 'wfp', WF_PV = null, WF_BUSY = false, WF_ERR = '', WF_CHK = null, WF_T = null;
+function wfSpec(dry) {
+  var from = typeof GW_FROM === 'string' ? GW_FROM : '2026-11-01', use = {}, inn = {};
+  (S.moves || []).forEach(function (m) {
+    if (m.led !== WF_LED || m.date < from || m.rev || { batch: 1, issue: 1, receive: 1, adjust: 1 }[m.kind] !== 1) return;
+    var it = item(m.item); if (!it || !m.q) return;
+    var bag = m.q < 0 ? use : inn, k = m.date + '|' + it.name, o = bag[k] = bag[k] || { d: m.date, n: it.name, q: 0 };
+    o.q = r2(o.q + Math.abs(m.q));
+  });
+  var rows = function (bag, p) { return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k]; return { k: 'app:' + p + ':' + k, v: [{ d: o.d }, o.n, o.q, '', ''] }; }); };
+  /* أصناف التطبيق التي ليس لها صف في قائمة المخزون عنده: تُضاف (الرصيد الافتتاحي = رصيد التطبيق قبل حركات الذيل) فلا يظهر #N/A في الوحدة والمتبقي */
+  var net = {}; [use, inn].forEach(function (bag, bi) { Object.keys(bag).forEach(function (k) { var o = bag[k], it = (S.items || []).filter(function (x) { return x.name === o.n; })[0]; if (it) net[it.id] = r2((net[it.id] || 0) + (bi ? o.q : -o.q)); }); });
+  var qOf = {}; stockRows(WF_LED).forEach(function (r) { qOf[r.it.id] = r.q; });
+  var seen = {}; [use, inn].forEach(function (bag) { Object.keys(bag).forEach(function (k) { seen[bag[k].n] = 1; }); });
+  /* كل صنف له صف في الذيل يلزم أن يوجد في قائمة المخزون ولو رصيده صفر (دخل وخرج بالكمية نفسها)، فلا يظهر #N/A */
+  var stk = (S.items || []).filter(function (it) { return qOf[it.id] || net[it.id] || seen[it.name]; }).map(function (it) { return { name: it.name, unit: it.unit || '', open: r2((qOf[it.id] || 0) - (net[it.id] || 0)) }; });
+  return { tab: WF_TAB, dry: !!dry, peek: 'A3:D400',
+    stock: { c0: 1, n: 4, row0: 3, items: stk },
+    blocks: [
+      { id: 'use', c0: 7, n: 5, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
+      { id: 'in', c0: 14, n: 5, row0: 3, key: 28, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(inn, 'in') }] };
+}
+function wfHash() { var sp = wfSpec(false), s = JSON.stringify([sp.blocks, sp.stock]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
+function wfOn() { return !!(S.settings.shApp && S.settings.shApp.wfp && S.settings.shApp.wfp.on); }
+function wfDry() {
+  if (!gwUrl() || WF_BUSY) return Promise.resolve(); WF_BUSY = true; WF_ERR = ''; WF_PV = null;
+  return gwPost({ app: wfSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); WF_PV = j; WF_BUSY = false; render(); }).catch(function (e) { WF_BUSY = false; WF_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+}
+function wfWrite() {
+  if (!gwUrl() || WF_BUSY) return Promise.resolve(); WF_BUSY = true; WF_ERR = '';
+  return gwPost({ app: wfSpec(false) }).then(function (j) {
+    if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا');
+    WF_BUSY = false; var sa = S.settings.shApp = S.settings.shApp || {}; sa.wfp = { on: 1, hash: wfHash(), at: Date.now() }; WF_PV = null;
+    var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], sh = {};
+    (j.peek || []).forEach(function (r) { if (r[1]) sh[String(r[1]).trim()] = pn(r[2]); });
+    stockRows(WF_LED).forEach(function (r) { var b = sh[r.it.name]; if (b === undefined) return; if (Math.abs(r2(r.q) - b) > 0.011) bad.push({ n: r.it.name, app: r2(r.q), sheet: b }); });
+    WF_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save(); try { render('morph'); } catch (x) {}
+  }).catch(function (e) { WF_BUSY = false; WF_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+}
+function wfKick() {
+  if (!wfOn() || !gwUrl() || !gwOk()) return; clearTimeout(WF_T);
+  WF_T = setTimeout(function () { try { if (S.settings.shApp.wfp.hash !== wfHash()) wfWrite(); } catch (e) {} }, 5000);
+}
+function wfRows() {
+  var rows = [], pv = WF_PV;
+  if (wfOn()) rows.push(X({ title: 'تبويب «WFP» في الشيت', sub: 'التطبيق يُضيف صفوف الاستهلاك والوارد تحت صفوفك ومعادلاتك تحسب' + (WF_CHK && WF_CHK.bad.length ? '' : ' · الأرصدة مطابقة'), tag: WF_ERR ? 'خطأ' : WF_BUSY ? '…' : 'يعمل', tagTone: WF_ERR ? 'bad' : 'ok' }));
+  if (WF_ERR) rows.push(X({ title: 'خطأ WFP', sub: WF_ERR }));
+  if (WF_CHK) { WF_CHK.bad.slice(0, 5).forEach(function (b) { rows.push(X({ title: b.n, sub: 'الرصيد في الشيت يخالف التطبيق', end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (WF_CHK.bad.length > 5) rows.push(X({ more: true, title: 'و ' + (WF_CHK.bad.length - 5) + ' أخرى مخالفة' })); if (WF_CHK.missing.length) rows.push(X({ title: 'أصناف بلا صف في تبويبك', sub: WF_CHK.missing.join('، '), tag: String(WF_CHK.missing.length), tagTone: 'warn' })); }
+  if (pv) {
+    if (!pv.ok) rows.push(X({ title: 'لا كتابة', sub: pv.err || 'رفضت البوابة', tag: 'خطأ', tagTone: 'bad' }));
+    var nmB = { use: 'الاستهلاك اليومي', 'in': 'الوارد للمخزن' };
+    (pv.blocks || []).forEach(function (b) { rows.push(X({ title: nmB[b.id] || b.id, sub: 'تحت صفك ' + b.manualLast + (b.dropped ? ' · ' + b.dropped + ' موجودة عندك يدويًا فلا تُكرَّر' : '') + (b.hadApp ? ' · يُعاد كتابة ' + b.hadApp + ' صف للتطبيق' : ''), tag: String(b.want), tagTone: 'ok' })); });
+    if (pv.added && pv.added.length) rows.push(X({ title: 'أصناف تُضاف لقائمة المخزون عندك', sub: pv.added.join('، '), tag: String(pv.added.length), tagTone: 'ok' }));
+    if (pv.missing && pv.missing.length) rows.push(X({ title: 'أصناف بلا صف في تبويبك', sub: pv.missing.join('، '), tag: String(pv.missing.length), tagTone: 'warn' }));
+  }
+  return rows;
+}
+try { setTimeout(function () { try { wfKick(); } catch (e) {} }, 15000); } catch (e) {}
 
 /* ===== 02n-init.js ===== */
 /* ---------- حساب الجهة (المبادرة): تكلفة الطبخات + إضافات − دفعات = المتبقي ---------- */
@@ -6089,7 +6159,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { eaSpec: function (d) { return eaSpec(d); }, saSpec: function (d) { return saSpec(d); }, saHash: function () { return saHash(); }, pdfFromCanvas: function (c) { return pdfFromCanvas(c); }, paperCanvas: function (k) { return paperCanvas(k); }, snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { wfSpec: function (d) { return wfSpec(d); }, eaSpec: function (d) { return eaSpec(d); }, saSpec: function (d) { return saSpec(d); }, saHash: function () { return saHash(); }, pdfFromCanvas: function (c) { return pdfFromCanvas(c); }, paperCanvas: function (k) { return paperCanvas(k); }, snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
