@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.101';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.102';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4808,7 +4808,7 @@ function moneyCard() {
   var items = [X(Object.assign({ par: true, icon: 'i-wallet', icTone: 'ok', title: 'الأرصدة', sub: pl(funds().length, 'رصيد واحد', 'رصيدان', 'أرصدة'), end: usdK(fTot('usd')), endSub: money(fTot('ils')), endEq: true, chev: true, go: function () { open('funds'); } }))];
   var rm = recentMoves(4); rm.forEach(function (m) { items.push(moveRowX(m, true, true)); });
   if (!rm.length) items.push(X({ icon: 'i-wallet', icTone: 'mute', title: 'لا حركات مالية بعد', sub: 'سجّل أول حركة من الزر أعلاه' }));
-  return [B('btns', { items: [X({ label: 'حركة مالية جديدة', icon: 'i-plus', on: true, go: function () { openMove(); } })] }), B('rows', { title: 'المال', items: items })]; /* الإجراء الأهم زر رئيسي كامل العرض كـ«طبخة جديدة» لا غمامة صغيرة (المالك 2026-11-18) */
+  return [B('rows', { title: 'المال', headBtn: { label: 'حركة مالية جديدة', go: function () { openMove(); } }, items: items })]; /* الإجراء الأهم زر رئيسي كامل العرض كـ«طبخة جديدة» لا غمامة صغيرة (المالك 2026-11-18) */
 }
 function moneyRows() {
   var oi = oweInst(), ow = oweWork();

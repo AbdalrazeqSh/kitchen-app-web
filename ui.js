@@ -50,6 +50,7 @@ function B(t, o) {
     isBig: t === 'big', isBtns: t === 'btns', isActs: t === 'acts', isPre: t === 'pre', isPick: pick, isStepper: t === 'stepper', isInput: t === 'input',
     items: o.items || [],
     hasSort: !!o.sort, sortLabel: o.sort ? o.sort.label : '', sortRot: o.sort && o.sort.asc ? 'rotate(180deg)' : 'none', sortGo: o.sort ? o.sort.go : noop,
+    hasHeadBtn: !!o.headBtn, headLabel: o.headBtn ? o.headBtn.label : '', headGo: o.headBtn ? o.headBtn.go : noop,
     title: o.title || '', hasTitle: !!o.title, actLabel: o.act || '', hasAct: !!o.act, actGo: o.actGo || noop,
     emptyText: o.empty || '', hasEmpty: !!o.empty && !(o.items && o.items.length),
     text: o.text || '', label: o.label || '', value: o.value == null ? '' : String(o.value), value2: o.value2 == null ? '' : String(o.value2), hasV2: o.value2 != null && o.value2 !== '',
