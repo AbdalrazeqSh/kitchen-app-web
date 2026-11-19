@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.96';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.97';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3190,9 +3190,7 @@ function repDoc(k, forceExp) {
     /* التوزيع: مخيمان بجانب بعض لتقصير الورقة؛ وسطر الطبخة يُحذف إن كانت الطبخة واحدة لكل الجهات */
     var one = pd.length <= 1, dcells = da.rows.map(function (r, i) { return { name: r.name, val: fmt(r.pots), sub: one ? '' : r.dishes, hasSub: !one && !!r.dishes, fg: '#1B2421', st: i % 2 ? '' : 'border-inline-end:1px solid #EDEFEA;' }; });
     if (da.und > 0) dcells.push({ name: 'غير موزّع', val: fmt(da.und), sub: '', hasSub: false, fg: CL.warn, st: dcells.length % 2 ? '' : 'border-inline-end:1px solid #EDEFEA;' });
-    var gLong = dcells.some(function (c) { return (c.sub || '').length > 24; }) /* سطر الطبخات الطويل لا ينزل لسطر ثانٍ: عمود واحد بدل عمودين */;
-    if (gLong) dcells.forEach(function (c) { c.st = ''; });
-    if (SH('dist')) P.secs.push(secK('dist', { isGrid: true, gcols: gLong ? '1fr' : '1fr 1fr', isTab: false, isDual: false, title: TT('التوزيع', 'dist'), cells: dcells, hasTotal: dcells.length > 0, totLabel: 'الإجمالي', totVal: fmt(dc.pots), hasEmpty: !dcells.length, empty: 'لا توزيع بعد' }));
+    if (SH('dist')) P.secs.push(secK('dist', { isGrid: true, gcols: '1fr 1fr', isTab: false, isDual: false, title: TT('التوزيع', 'dist'), cells: dcells, hasTotal: dcells.length > 0, totLabel: 'الإجمالي', totVal: fmt(dc.pots), hasEmpty: !dcells.length, empty: 'لا توزيع بعد' }));
     var isSp = function (id) { return (item(id) || {}).grp === 'spice'; }, ordM = dc.order.filter(function (id) { return !isSp(id); }).concat(dc.order.filter(isSp)); /* الأساسية ثم البهارات في جدول واحد بلا فاصل */
     var mr = ordM.map(function (id) {
       var it = item(id), a = dc.agg[id], tot = r3(a.cook + a.other), parts = [];
