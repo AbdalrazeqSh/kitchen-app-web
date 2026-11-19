@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.99';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.100';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3184,9 +3184,10 @@ function repDoc(k, forceExp) {
     var priv = k === 'wck', EXT = SH('extra') /* «خارجي» مخفي = لا أثر للخارجي في أي سطر أو عدد أو قسم */, dc = dayCalc(priv ? 'private' : EXT ? '' : 'noext'), tb = dc.tb, da = distAgg(tb), nm = dc.order.length, xb = priv ? dayBatches('external') : [], potsExt = xb.length; /* نسخة المراقب ذاتية فقط، ويُذكر الطبخ الخارجي بسطر سفلي في الطبخات */
     P.title = 'الاستهلاك اليومي'; P.sub = priv ? 'المراقب' : '';
     var pd = potsByDish(tb);
-    var extLead = potsExt > 0 && EXT ? potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + ' (طبخ خارجي)' : ''; /* الخارجي في الجملة العلوية حين يُخفى جدول الطبخات (الجدول يحمله بسطره السفلي)؛ ولا أثر له إن أُطفئ «خارجي» */
-    P.lead = tb.length || extLead ? 'طُبخ ' + pd.map(function (x) { return potsTxt(x.pots, x.name); }).concat(extLead ? [extLead] : []).join(' + ') + (SH('dist') && da.rows.length ? '، توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') : '') + (SH('dist') && da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : 'لا طبخ اليوم.';
-    if ((tb.length || extLead) && SH('batches')) P.lead = SH('dist') && da.rows.length ? 'توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') + (da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : ''; /* جدول الطبخات يغني عن تكرار أسمائها في الملخص */
+    var extLead = potsExt > 0 && EXT && !SH('batches') ? 'طبخ خارجي: ' + potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') : ''; /* سطر مستقل بعد الجملة العلوية حين يُخفى جدول الطبخات (الجدول يحمله بسطره السفلي)؛ ولا أثر له إن أُطفئ «خارجي» */
+    P.leadX = extLead;
+    P.lead = tb.length ? 'طُبخ ' + pd.map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + (SH('dist') && da.rows.length ? '، توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') : '') + (SH('dist') && da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : extLead || potsExt > 0 && EXT ? '' : 'لا طبخ اليوم.';
+    if (tb.length && SH('batches')) P.lead = SH('dist') && da.rows.length ? 'توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') + (da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : ''; /* جدول الطبخات يغني عن تكرار أسمائها في الملخص */
     if (priv && di.sent && di.sent.ver > 1) P.lead = 'نسخة معدَّلة رقم ' + di.sent.ver + ' — تعديل في: ' + di.sent.ch.join('، ') + '. ' + P.lead;
     P.hasTiles = SH('tiles'); P.tiles = [{ label: 'قدور', value: fmt(dc.pots) }].concat(priv ? (EXT ? [{ label: 'أصناف خارجية', value: String(dc.order.filter(function (id) { return dc.agg[id].ext > 0; }).length) }] : []) : [{ label: 'أصناف', value: String(nm) }]);
     var br = pd.map(function (x) { return R([C(x.name, { b: 1 }), C(KN[x.kind], { c: 1 }), C(fmt(x.pots), { c: 1, b: 1 })]); });
@@ -3263,12 +3264,12 @@ function repDoc(k, forceExp) {
   }
   P.secs.forEach(function (x) { if (x.k === 'mats' && SH('split')) dualSec(x, P.secs.some(function (y) { return y.k === 'extra'; })); /* تفصيل «من المطبخ/خارجي» يغني عنه قسم الخارجي */ }); /* خيار: أحيانًا لا يُراد التقسيم وإن طال الجدول */
   if (SEC[k]) { var od = secOrder(k); P.secs.sort(function (a, b) { return od.indexOf(a.k) - od.indexOf(b.k); }); }
-  P.hasLead = !!P.lead;
+  P.hasLead = !!P.lead || !!P.leadX; P.hasLeadMain = !!P.lead; P.hasLeadX = !!P.leadX; P.leadXfg = '#7A4A12';
   return P;
 }
 function repText(k) { // يُبنى من المستند نفسه: ما يظهر في التقرير هو ما يُرسل، وما كان «لي فقط» لا يُصدَّر
   var d = repDoc(k, true), L = [rptName(k) + (d.sub ? ' — ' + d.sub : '') + ' — ' + d.date, ''];
-  if (d.lead) L.push(d.lead, '');
+  if (d.lead) L.push(d.lead); if (d.leadX) L.push(d.leadX); if (d.lead || d.leadX) L.push('');
   d.secs.forEach(function (s) {
     L.push(s.title + ':');
     if (s.hasEmpty) L.push('• ' + s.empty);
@@ -4070,7 +4071,7 @@ function exportReport(k, how) {
     return saveFile(exName(k, 'png'), c.toDataURL('image/png').split(',')[1], 'image/png', title).then(function (r) { done(); say(savedMsg(r, 'صورة «' + title + '»')); });
   }).catch(function (e) { if (e && /cancel|dismiss/i.test(String(e.message || e))) { done(); return; } fail(); });
 }
-function shortText(k) { var d = repDoc(k, true); return d.title + ' — ' + d.date + (d.lead ? '\n' + d.lead : ''); }
+function shortText(k) { var d = repDoc(k, true); return d.title + ' — ' + d.date + (d.lead ? '\n' + d.lead : '') + (d.leadX ? '\n' + d.leadX : ''); }
 
 /* ===== 02x-kdet.js ===== */
 /* ---------- تفاصيل أسطر الملخص: كل رقم ملخّص يُنقر فيفتح ما وراءه ---------- */
