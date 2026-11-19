@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.115';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.116';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2377,7 +2377,8 @@ function saSpec(dry) {
     var lb = m.q < 0 ? mealLabel(m) : '', bag = m.q < 0 ? use : inn, k = m.date + '|' + lb + '|' + it.name, o = bag[k] = bag[k] || { d: m.date, n: it.name, q: 0, l: lb };
     o.q = r2(o.q + Math.abs(m.q));
   });
-  var rows = function (bag, p) { return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k]; return { k: 'app:' + p + ':' + k, v: [{ d: o.d }, o.n, o.q, '', ''].concat(p === 'use' ? [o.l || ''] : []) }; }); };
+  /* التاريخ يُكتب عند تغيّره فقط، واسم الوجبة عند تغيّر الوجبة فقط، وكل وجبة (بتاريخها) كتلة بلون مغاير للتي قبلها وخط فاصل في أولها (المالك 2026-11-19، كما في تبويب طبخ خارجي) */
+  var rows = function (bag, p) { var pd = '', pl_ = null, gi = -1; return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k], gs = false; if (o.d !== pd || (p === 'use' && o.l !== pl_)) { gi++; gs = true; } var sd = o.d !== pd; pd = o.d; pl_ = o.l; return { k: 'app:' + p + ':' + k, bn: gi % 2, gs: gs, dv: [{ d: o.d }, o.n, o.q], v: [sd ? { d: o.d } : '', o.n, o.q, '', ''].concat(p === 'use' ? [gs ? (o.l || '') : ''] : []) }; }); };
   /* أصناف التطبيق التي ليس لها صف في قائمة المخزون عنده: تُضاف (الرصيد الافتتاحي = رصيد التطبيق قبل حركات الذيل) فلا يظهر #N/A في الوحدة والمتبقي */
   var net = {}; [use, inn].forEach(function (bag, bi) { Object.keys(bag).forEach(function (k) { var o = bag[k], it = (S.items || []).filter(function (x) { return x.name === o.n; })[0]; if (it) net[it.id] = r2((net[it.id] || 0) + (bi ? o.q : -o.q)); }); });
   var qOf = {}; stockRows(SA_LED).forEach(function (r) { qOf[r.it.id] = r.q; });
@@ -2501,7 +2502,8 @@ function wfSpec(dry) {
     var lb = m.q < 0 ? mealLabel(m) : '', bag = m.q < 0 ? use : inn, k = m.date + '|' + lb + '|' + it.name, o = bag[k] = bag[k] || { d: m.date, n: it.name, q: 0, l: lb };
     o.q = r2(o.q + Math.abs(m.q));
   });
-  var rows = function (bag, p) { return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k]; return { k: 'app:' + p + ':' + k, v: [{ d: o.d }, o.n, o.q, '', ''].concat(p === 'use' ? [o.l || ''] : []) }; }); };
+  /* التاريخ يُكتب عند تغيّره فقط، واسم الوجبة عند تغيّر الوجبة فقط، وكل وجبة (بتاريخها) كتلة بلون مغاير للتي قبلها وخط فاصل في أولها (المالك 2026-11-19، كما في تبويب طبخ خارجي) */
+  var rows = function (bag, p) { var pd = '', pl_ = null, gi = -1; return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k], gs = false; if (o.d !== pd || (p === 'use' && o.l !== pl_)) { gi++; gs = true; } var sd = o.d !== pd; pd = o.d; pl_ = o.l; return { k: 'app:' + p + ':' + k, bn: gi % 2, gs: gs, dv: [{ d: o.d }, o.n, o.q], v: [sd ? { d: o.d } : '', o.n, o.q, '', ''].concat(p === 'use' ? [gs ? (o.l || '') : ''] : []) }; }); };
   /* أصناف التطبيق التي ليس لها صف في قائمة المخزون عنده: تُضاف (الرصيد الافتتاحي = رصيد التطبيق قبل حركات الذيل) فلا يظهر #N/A في الوحدة والمتبقي */
   var net = {}; [use, inn].forEach(function (bag, bi) { Object.keys(bag).forEach(function (k) { var o = bag[k], it = (S.items || []).filter(function (x) { return x.name === o.n; })[0]; if (it) net[it.id] = r2((net[it.id] || 0) + (bi ? o.q : -o.q)); }); });
   var qOf = {}; stockRows(WF_LED).forEach(function (r) { qOf[r.it.id] = r.q; });
