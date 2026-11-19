@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.120';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.121';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2393,9 +2393,15 @@ function saSpec(dry) {
 }
 function saHash() { var sp = saSpec(false), s = JSON.stringify([sp.blocks, sp.stock]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
 function saOn() { return !!(S.settings.shApp && S.settings.shApp.stock && S.settings.shApp.stock.on); }
+function saChk(j) {
+  var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], sh = {};
+  (j.peek || []).forEach(function (r) { if (r[1]) sh[String(r[1]).trim()] = pn(r[2]); });
+  stockRows(SA_LED).forEach(function (r) { var b = sh[r.it.name]; if (b === undefined) return; if (Math.abs(r2(r.q) - b) > 0.011) bad.push({ n: r.it.name, app: r2(r.q), sheet: b }); });
+  SA_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save();
+}
 function saDry() {
   if (!gwUrl() || SA_BUSY) return Promise.resolve(); SA_BUSY = true; SA_ERR = ''; SA_PV = null;
-  return gwPost({ app: saSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); SA_PV = j; SA_BUSY = false; render(); }).catch(function (e) { SA_BUSY = false; SA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+  return gwPost({ app: saSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); SA_PV = j; SA_BUSY = false; saChk(j); render(); }).catch(function (e) { SA_BUSY = false; SA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
 }
 function saWrite() {
   if (!gwUrl() || SA_BUSY) return Promise.resolve(); SA_BUSY = true; SA_ERR = '';
@@ -2518,9 +2524,15 @@ function wfSpec(dry) {
 }
 function wfHash() { var sp = wfSpec(false), s = JSON.stringify([sp.blocks, sp.stock]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
 function wfOn() { return !!(S.settings.shApp && S.settings.shApp.wfp && S.settings.shApp.wfp.on); }
+function wfChk(j) {
+  var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], sh = {};
+  (j.peek || []).forEach(function (r) { if (r[1]) sh[String(r[1]).trim()] = pn(r[2]); });
+  stockRows(WF_LED).forEach(function (r) { var b = sh[r.it.name]; if (b === undefined) return; if (Math.abs(r2(r.q) - b) > 0.011) bad.push({ n: r.it.name, app: r2(r.q), sheet: b }); });
+  WF_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save();
+}
 function wfDry() {
   if (!gwUrl() || WF_BUSY) return Promise.resolve(); WF_BUSY = true; WF_ERR = ''; WF_PV = null;
-  return gwPost({ app: wfSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); WF_PV = j; WF_BUSY = false; render(); }).catch(function (e) { WF_BUSY = false; WF_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+  return gwPost({ app: wfSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); WF_PV = j; WF_BUSY = false; wfChk(j); render(); }).catch(function (e) { WF_BUSY = false; WF_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
 }
 function wfWrite() {
   if (!gwUrl() || WF_BUSY) return Promise.resolve(); WF_BUSY = true; WF_ERR = '';
