@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.95';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.96';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3986,10 +3986,10 @@ function paperCanvas(k) {
     return load().then(function (w1) { paint(w1); return new Promise(function (r) { setTimeout(r, 250); }); }).then(load).then(paint);
   });
 }
-/* PDF بصفحة واحدة مهما طال التقرير: عرض A4 وارتفاع بقدر الورقة، بلا تقطيع (المالك 2026-11-19) */
+/* PDF بصفحة واحدة مهما طال التقرير بقياس الورقة نفسها (لا A4 ولا هوامش) (المالك 2026-11-19) */
 function pdfFromCanvas(c) {
-  var PW = 595, M = 24, w = PW - 2 * M, sc = w / c.width, PH = Math.round(c.height * sc + 2 * M), pages = [];
-  if (PH > 14000) { sc = sc * (14000 - 2 * M) / (PH - 2 * M); w = c.width * sc; PH = 14000; M = (PW - w) / 2; } /* حد ارتفاع الصفحة في PDF: يُصغَّر عند الطول الشديد فقط */
+  var M = 0, sc = 1 / EXS, w = c.width * sc, PW = Math.round(w), PH = Math.round(c.height * sc), pages = []; /* الصفحة بقياس الورقة الأصلي (420 عرضًا) بلا هوامش ولا مقاس ثابت */
+  if (PH > 14000) { sc = sc * 14000 / PH; w = c.width * sc; PW = Math.round(w); PH = 14000; } /* حد ارتفاع الصفحة في PDF */
   var p = document.createElement('canvas'); p.width = c.width; p.height = c.height;
   var px = p.getContext('2d'); px.fillStyle = '#fff'; px.fillRect(0, 0, p.width, p.height); px.drawImage(c, 0, 0);
   pages.push({ jpg: atob(p.toDataURL('image/jpeg', 0.92).split(',')[1]), w: p.width, h: p.height });
