@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.107';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.108';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2130,6 +2130,7 @@ function gwSheet(sh) {
   if (pv) rows = rows.concat(gwRowsX(pv));
   if (gwOk() && typeof waRows === 'function') rows = rows.concat(waRows());
   if (gwOk() && typeof saRows === 'function') rows = rows.concat(saRows());
+  if (gwOk() && typeof eaRows === 'function') rows = rows.concat(eaRows());
   if (gwOk() && typeof snapRows === 'function') rows = rows.concat(snapRows());
   var acts = [
     X({ title: 'اختبار الاتصال', icon: 'i-wifi', go: function () { gwSave(); say('جارٍ الاختبار…'); gwPost({ ping: 1 }).then(function () { GW_ERR = ''; say('البوابة تعمل وكلمة السر صحيحة'); render(); }).catch(function (e) { GW_ERR = String((e && e.message) || e); say('تعذّر الاتصال: ' + GW_ERR); render(); }); } }),
@@ -2139,6 +2140,8 @@ function gwSheet(sh) {
   if (gwOk() && WA_PV && WA_PV.ok) acts.push(X({ title: 'كتابة العمال في تبويبك', icon: 'i-wifi', go: function () { say('جارٍ الكتابة…'); waWrite(); } }));
   if (gwOk()) acts.push(X({ title: 'فحص تبويب المخزن', icon: 'i-search', go: function () { gwSave(); say('جارٍ قراءة الشيت…'); saDry(); } }));
   if (gwOk() && SA_PV && SA_PV.ok) acts.push(X({ title: 'كتابة المخزن في تبويبك', icon: 'i-wifi', go: function () { say('جارٍ الكتابة…'); saWrite(); } }));
+  if (gwOk()) acts.push(X({ title: 'فحص تبويب طبخ خارجي', icon: 'i-search', go: function () { gwSave(); say('جارٍ قراءة الشيت…'); eaDry(); } }));
+  if (gwOk() && EA_PV && EA_PV.ok) acts.push(X({ title: 'كتابة طبخ خارجي في تبويبك', icon: 'i-wifi', go: function () { say('جارٍ الكتابة…'); eaWrite(); } }));
   if (gwOk()) acts.push(X({ title: S.settings.syncGwAuto ? 'إيقاف الإرسال' : 'تشغيل الإرسال', icon: 'i-wifi', go: gwOnOff }));
   if (gwOk()) acts.push(X({ title: 'تحديث تبويبات الشيت', icon: 'i-wifi', go: function () { say('جارٍ تحديث التبويبات…'); gwSnapSend(true).then(function () { say(SNAP_ERR ? 'تعذّر: ' + SNAP_ERR : 'تبويبات الشيت محدَّثة'); }); } }));
   return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط · من ' + dshow(GW_FROM), fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fSecret('gwkey', 'كلمة سر البوابة', '')], rows: rows, acts: acts,
@@ -2257,7 +2260,7 @@ function snapStock(tab, title, pick) {
   return b;
 }
 function snapList() {
-  return [typeof waOn === 'function' && waOn() ? null : snapWorkers(), snapExt(),
+  return [typeof waOn === 'function' && waOn() ? null : snapWorkers(), typeof eaOn === 'function' && eaOn() ? null : snapExt(),
     typeof saOn === 'function' && saOn() ? null : snapStock('المخزن', 'المخزن · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id !== 'wfp'; }),
     snapStock('WFP', 'مخزن WFP · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id === 'wfp'; })].filter(function (b) { return b && b.rows.length > 3; });
 }
@@ -2406,6 +2409,66 @@ function saRows() {
   return rows;
 }
 try { setTimeout(function () { try { saKick(); } catch (e) {} }, 15000); } catch (e) {}
+
+/* ===== 02m6-eapp.js ===== */
+/* ---------- طبخ المؤسسات داخل تبويب المالك «طبخ خارجي» نفسه بدل تبويب لقطة ----------
+   التطبيق يُضيف ذيلًا بعد آخر صف للمالك في جدول الطبخات (A:F: التاريخ، المؤسسة، القدور، الطبخة، الصنف، الكمية)؛ أعمدته G:J (الوحدة والسعر والتكلفة وقدور محسوبة) ومجاميع المؤسسات P:R معادلاته تحسبها
+   من قائمة الأسعار L:N (يُضاف إليها ما ينقصها بوحدته وسعره). الذيل وحده يُعاد كتابته بعمود مفتاح مخفي app:…، وصفوفه الأولى تُقارَن بصفوفه اليدوية بالدفعة كلها: الطبخة المكتوبة يدويًا لا تتكرر.
+   الإضافات والدفعات تبقى في التطبيق. بعد الكتابة: مطابقة تكلفة كل مؤسسة بمجموعه. فحص (قراءة فقط) ثم اعتماد (المالك 2026-11-18). */
+var EA_TAB = 'طبخ خارجي', EA_PV = null, EA_BUSY = false, EA_ERR = '', EA_CHK = null, EA_T = null;
+function eaSpec(dry) {
+  var from = typeof GW_FROM === 'string' ? GW_FROM : '2026-11-01', nm = {}, rows = [], pl = {}, plA = [];
+  (S.insts || []).forEach(function (i) { nm[i.id] = i.name; });
+  (S.batches || []).filter(function (b) { return b.inst && nm[b.inst] && !b.void && b.date >= from; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); }).forEach(function (bt) {
+    var first = true;
+    spiceLast(bt.lines || []).forEach(function (ln) {
+      var li = item(ln.item); if (!li || !(ln.qty > 0)) return;
+      rows.push({ k: 'app:bat:' + bt.id + ':' + ln.item, g: bt.id, nd: !first, v: [first ? { d: bt.date } : '', first ? nm[bt.inst] : '', first ? bt.pots || 0 : '', first ? batchName(bt) : '', li.name, r2(ln.qty)] });
+      first = false;
+      if (!pl[li.id]) { pl[li.id] = 1; var c = ln.cost != null ? ln.cost : (ln.qty || 0) * (ln.price || 0); plA.push({ name: li.name, unit: li.unit || '', price: c > 0 && ln.qty > 0 ? r2(c / ln.qty) : null }); }
+    });
+  });
+  return { tab: EA_TAB, dry: !!dry, peek: 'P4:R60',
+    plist: { c0: 12, n: 3, row0: 4, items: plA },
+    blocks: [{ id: 'bat', c0: 1, n: 6, row0: 4, key: 23, dedup: [0, 1, 2, 3], names: { col: 12, idx: 4, row0: 4 }, rows: rows }] };
+}
+function eaHash() { var sp = eaSpec(false), s = JSON.stringify([sp.blocks, sp.plist]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
+function eaOn() { return !!(S.settings.shApp && S.settings.shApp.ext && S.settings.shApp.ext.on); }
+function eaDry() {
+  if (!gwUrl() || EA_BUSY) return Promise.resolve(); EA_BUSY = true; EA_ERR = ''; EA_PV = null;
+  return gwPost({ app: eaSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); EA_PV = j; EA_BUSY = false; render(); }).catch(function (e) { EA_BUSY = false; EA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+}
+function eaWrite() {
+  if (!gwUrl() || EA_BUSY) return Promise.resolve(); EA_BUSY = true; EA_ERR = '';
+  return gwPost({ app: eaSpec(false) }).then(function (j) {
+    if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا');
+    EA_BUSY = false; var sa = S.settings.shApp = S.settings.shApp || {}; sa.ext = { on: 1, hash: eaHash(), at: Date.now() }; EA_PV = null;
+    var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], sh = {};
+    (j.peek || []).forEach(function (r) { if (r[0]) sh[String(r[0]).trim()] = pn(r[2]); });
+    (S.insts || []).forEach(function (i) {
+      var cost = r2((S.batches || []).filter(function (b) { return b.inst === i.id && !b.void && b.date >= GW_FROM; }).reduce(function (t, b) { return t + (b.cost || 0); }, 0)), s0 = sh[i.name];
+      if (s0 !== undefined && Math.abs(cost - s0) > 0.011) bad.push({ n: i.name, app: cost, sheet: s0 });
+    });
+    EA_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save(); try { render('morph'); } catch (x) {}
+  }).catch(function (e) { EA_BUSY = false; EA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+}
+function eaKick() {
+  if (!eaOn() || !gwUrl() || !gwOk()) return; clearTimeout(EA_T);
+  EA_T = setTimeout(function () { try { if (S.settings.shApp.ext.hash !== eaHash()) eaWrite(); } catch (e) {} }, 5000);
+}
+function eaRows() {
+  var rows = [], pv = EA_PV;
+  if (eaOn()) rows.push(X({ title: 'تبويب «طبخ خارجي» في الشيت', sub: 'التطبيق يُضيف طبخات المؤسسات تحت صفوفك ومعادلاتك تحسب التكلفة والمجاميع' + (EA_CHK && EA_CHK.bad.length ? '' : ' · التكاليف مطابقة'), tag: EA_ERR ? 'خطأ' : EA_BUSY ? '…' : 'يعمل', tagTone: EA_ERR ? 'bad' : 'ok' }));
+  if (EA_ERR) rows.push(X({ title: 'خطأ الطبخ الخارجي', sub: EA_ERR }));
+  if (EA_CHK) { EA_CHK.bad.slice(0, 5).forEach(function (b) { rows.push(X({ title: b.n, sub: 'التكلفة في الشيت تخالف التطبيق (سعر قائمتك أو إضافات)', end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (EA_CHK.bad.length > 5) rows.push(X({ more: true, title: 'و ' + (EA_CHK.bad.length - 5) + ' أخرى مخالفة' })); }
+  if (pv) {
+    if (!pv.ok) rows.push(X({ title: 'لا كتابة', sub: pv.err || 'رفضت البوابة', tag: 'خطأ', tagTone: 'bad' }));
+    (pv.blocks || []).forEach(function (b) { rows.push(X({ title: 'الطبخات (صفوف المواد)', sub: 'تحت صفك ' + b.manualLast + (b.dropped ? ' · ' + b.dropped + ' صفًا موجودة عندك يدويًا فلا تُكرَّر' : '') + (b.hadApp ? ' · يُعاد كتابة ' + b.hadApp + ' صف للتطبيق' : ''), tag: String(b.want), tagTone: 'ok' })); });
+    if (pv.addedP && pv.addedP.length) rows.push(X({ title: 'أصناف تُضاف لقائمة الأسعار عندك', sub: pv.addedP.join('، '), tag: String(pv.addedP.length), tagTone: 'ok' }));
+  }
+  return rows;
+}
+try { setTimeout(function () { try { eaKick(); } catch (e) {} }, 17000); } catch (e) {}
 
 /* ===== 02n-init.js ===== */
 /* ---------- حساب الجهة (المبادرة): تكلفة الطبخات + إضافات − دفعات = المتبقي ---------- */
@@ -6010,7 +6073,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { saSpec: function (d) { return saSpec(d); }, saHash: function () { return saHash(); }, pdfFromCanvas: function (c) { return pdfFromCanvas(c); }, paperCanvas: function (k) { return paperCanvas(k); }, snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { eaSpec: function (d) { return eaSpec(d); }, saSpec: function (d) { return saSpec(d); }, saHash: function () { return saHash(); }, pdfFromCanvas: function (c) { return pdfFromCanvas(c); }, paperCanvas: function (k) { return paperCanvas(k); }, snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
