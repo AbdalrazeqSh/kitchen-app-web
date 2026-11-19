@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.90';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.91';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3194,10 +3194,11 @@ function repDoc(k, forceExp) {
     var isSp = function (id) { return (item(id) || {}).grp === 'spice'; }, ordM = dc.order.filter(function (id) { return !isSp(id); }).concat(dc.order.filter(isSp)); /* الأساسية ثم البهارات في جدول واحد بلا فاصل */
     var mr = ordM.map(function (id) {
       var it = item(id), a = dc.agg[id], tot = r3(a.cook + a.other), parts = [];
-      if (priv) { var kb = E.balance(S, 'kitchen', id), ng = kb < 0 ? r3(Math.min(a.kit, -kb)) : 0; if (EXT) { parts.push('من مخزن المطبخ ' + qtyU(a.kit, it.unit)); if (ng > 0) parts.push('منه نقص مسجّل ' + qtyU(ng, it.unit)); if (a.ext > 0) parts.push('خارجي ' + qtyU(a.ext, it.unit)); } else if (ng > 0) parts.push('نقص مسجّل في المطبخ ' + qtyU(ng, it.unit)); }
-      else { if (a.cook) parts.push('طبخ ' + qtyU(a.cook, it.unit)); if (a.other) parts.push('صرف ' + qtyU(a.other, it.unit) + (a.why.length ? ': ' + a.why.join('، ') : '')); }
+      /* خلية المادة بلا سرد: «من المطبخ/خارجي» يعرضه قسم «خارجي» والمتبقي عمود؛ يبقى فقط ما لا يظهر في غيره (نقص مسجّل، أسباب الصرف) */
+      if (priv) { if (!EXT) { var kb = E.balance(S, 'kitchen', id), ng = kb < 0 ? r3(Math.min(a.kit, -kb)) : 0; if (ng > 0) parts.push('نقص مسجّل في المطبخ ' + qtyU(ng, it.unit)); } }
+      else if (a.other && a.why.length) parts.push(a.why.join('، '));
       var left = Math.max(0, E.balance(S, 'kitchen', id)) /* المتبقي = رصيد المخزن الأساسي في كل التقارير */, lst = stStatus(left, id);
-      var cs = [C(it.name, { b: 1, sub: parts.length > 1 || a.other || (priv && (a.ext > 0 || parts.length > 1)) || (priv && !EXT && parts.length) ? parts.join(' · ') : '' }), C(qv(tot, it.unit), { c: 1, b: 1, u: qu(tot, it.unit) })];
+      var cs = [C(it.name, { b: 1, sub: parts.join(' · ')}), C(qv(tot, it.unit), { c: 1, b: 1, u: qu(tot, it.unit) })];
       if (SH('left')) cs.push(C(qv(left, it.unit), { c: 1, u: qu(left, it.unit), fg: SH('alert') ? (lst.rank <= 1 ? CL.bad : lst.rank === 2 ? CL.warn : CL.mute) : CL.mute, b: SH('alert') && lst.rank < 3 }));
       var rr = R(cs); rr.grp = isSp(id) ? 's' : 'm'; return rr;
     });
