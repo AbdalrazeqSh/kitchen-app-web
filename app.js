@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.88';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.89';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3105,8 +3105,8 @@ function searchSheet() {
 var RPTS = [['cook', 'الاستهلاك اليومي'], ['supply', 'التوريد اليومي'], ['wck', 'نسخة المراقب'], ['stock', 'حالة المخزون'], ['wfp', 'مخزون WFP'], ['workers', 'كشف العمال']];
 var RO = {
   supply: [['tiles', 'ملخص الأرقام'], ['mats', 'المواد']],
-  cook: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['mkt', 'من السوق مباشرة'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
-  wck: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
+  cook: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['split', 'تقسيم المواد لعمودين'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['mkt', 'من السوق مباشرة'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
+  wck: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['split', 'تقسيم المواد لعمودين'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
   stock: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['main', 'الأصناف الأساسية'], ['spice', 'البهارات'], ['zero', 'الأصناف برصيد صفر']],
   wfp: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['main', 'الأصناف الأساسية'], ['spice', 'البهارات'], ['zero', 'الأصناف برصيد صفر']]
 };
@@ -3254,7 +3254,7 @@ function repDoc(k, forceExp) {
     P.hasTiles = true; P.tiles = [{ label: 'عمال', value: String(ws.length) }, { label: 'حاضرون', value: String(pres) }, { label: 'بلا تسجيل', value: String(none) }];
     P.secs.push(psec('الحضور والأرصدة', '1fr 70px 100px', ['العامل', 'الحالة', 'الرصيد'], ws.map(function (w) { var a = wAtt(w), bv = wBal(w); return R([C(w.name, { b: 1 }), C(a ? (stat(a.st) || {}).name || '—' : '—', { c: 1 }), C(balTxt(bv), { c: 1, b: 1, fg: bv < 0 ? CL.bad : bv > 0 ? CL.ok : CL.mute })]); }), 'لا عمال'));
   }
-  P.secs.forEach(function (x) { if (x.k === 'mats') dualSec(x); });
+  P.secs.forEach(function (x) { if (x.k === 'mats' && SH('split')) dualSec(x); }); /* خيار: أحيانًا لا يُراد التقسيم وإن طال الجدول */
   if (SEC[k]) { var od = secOrder(k); P.secs.sort(function (a, b) { return od.indexOf(a.k) - od.indexOf(b.k); }); }
   P.hasLead = !!P.lead;
   return P;
