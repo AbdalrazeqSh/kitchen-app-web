@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.110';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.111';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3925,10 +3925,11 @@ function doEditMove(id) {
   if (mLocked(m)) { m.note = note || m.note; if (cat) m.cat = cat; audit('تعديل بيان/تصنيف حركة «' + was + '»'); shut(); mutated('حُفظ التعديل'); return; }
   var n = Object.assign({}, m, { id: mid(S.fm, 'm'), void: false, edFrom: m.id, note: note || m.note, date: d });
   var nd = fv('dir') === 'in' || fv('dir') === 'out' ? fv('dir') : m.dir; n.dir = nd;
+  var nf = fv('fund'); if (nf && nf !== m.h && fund(nf) && hasCur(fund(nf), m.cur)) n.h = nf;
   if (cat && nd === m.dir) n.cat = cat; else delete n.cat;
   if (conv) { n.ils = a; n.amt = r2(a / m.rate); } else { n.amt = a; }
   m.void = true; m.edTo = n.id; S.fm.push(n);
-  audit('تعديل حركة «' + was + '»: ' + fTxt(m.cur, m.amt) + ' ← ' + fTxt(n.cur, n.amt));
+  audit('تعديل حركة «' + was + '»: ' + fTxt(m.cur, m.amt) + ' ← ' + fTxt(n.cur, n.amt) + (n.h !== m.h ? ' · من «' + (fund(m.h) || {}).name + '» إلى «' + (fund(n.h) || {}).name + '»' : ''));
   shut(); mutated('عُدّلت الحركة وبقي سجل الأصل', function () { m.void = false; delete m.edTo; S.fm = S.fm.filter(function (x) { return x.id !== n.id; }); save(); render(); });
 }
 function doCount(fid) {
@@ -4054,9 +4055,10 @@ function finSheet(sh) {
       if (!lk) fl.push(fSeg('dir', '', [['in', 'وارد'], ['out', 'ناقص (صرف)', 'bad']]));
       if (!lk) fl.push(fPair('amt', conv ? 'المبلغ ₪' : m.cur === 'usd' ? 'المبلغ $' : 'المبلغ ₪', 'note', 'البيان', '')); else fl.push(fText('note', 'البيان', ''));
       fl.push(catChips(fv('dir') || m.dir, m)); if ((fv('cat') || '') && (fv('note') || '').trim()) fl.push(fChips('rule', 'تطبيق التصنيف', [['no', 'هذه الحركة فقط'], ['yes', 'كل حركات بنفس البيان']], 'يُصنَّف أيضًا ما تسجّله لاحقًا بالبيان نفسه'));
+      if (!lk) { if (!fv('fund')) A.form.fund = m.h; fl.push(fSelect('fund', 'الرصيد (الحساب)', funds().filter(function (x) { return hasCur(x, m.cur); }).map(function (x) { return [x.id, fName(x) + ' · ' + fBalAll(x)]; }), fv('fund'))); }
       if (!lk) fl = fl.concat(dayFields());
       return { title: 'تعديل الحركة', sub: (fund(m.h) || {}).name + ' · ' + dlong(m.date), fields: fl,
-        note: { text: lk ? 'هذه الحركة مرتبطة بتحويل أو بحساب عامل: يمكن تعديل البيان والتصنيف فقط. لتغيير المبلغ ألغِها وسجّلها من جديد.' : 'الأصل يبقى في السجل ملغى، وتُضاف حركة معدَّلة بدلًا منه.', tone: lk ? 'warn' : 'info' },
+        note: { text: lk ? 'هذه الحركة مرتبطة بتحويل أو بحساب عامل: يمكن تعديل البيان والتصنيف فقط. لتغيير المبلغ ألغِها وسجّلها من جديد.' : 'يُستبدل الخطأ بالجديد: الأصل يخرج من القوائم والأرصدة (أثره في سجل التدقيق فقط) ولا تُضاف حركة عكسية.', tone: lk ? 'warn' : 'info' },
         ft: { label: 'حفظ التعديل', ok: (lk || a > 0) && (fv('note') || '').trim().length > 0 && (lk || dayOk()), go: function () { doEditMove(m.id); } } };
     }
     case 'fCount': {
