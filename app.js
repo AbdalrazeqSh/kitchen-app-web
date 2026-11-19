@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.89';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.90';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3134,7 +3134,7 @@ function dayCalc(kind) {
 }
 function pc(t, o) {
   o = o || {};
-  return { t: t == null ? '' : String(t), u: o.u || '', sub: o.sub || '', hasSub: !!o.sub, sfg: '#5B6660', st: (o.c ? 'text-align:center;' : 'text-align:start;') + (o.b ? 'font-weight:700;' : '') + (o.fg ? 'color:' + o.fg + ';' : '') };
+  return { t: t == null ? '' : String(t), u: o.u || '', sub: o.sub || '', hasSub: !!o.sub, sfg: '#5B6660', st: (o.c ? 'text-align:center;white-space:nowrap;' : 'text-align:start;') + (o.b ? 'font-weight:700;' : '') + (o.fg ? 'color:' + o.fg + ';' : '') };
 }
 /* صف الإجمالي يتميز بخلفية أغمق وخط أخضر غليظ وخط علوي، وصف التنبيه (tone:'ext') بلون كهرماني: يسري على كل جداول التقارير */
 function prow(cells, total, tone) {
@@ -3148,11 +3148,11 @@ function psec(title, cols, head, rows, empty) {
   return { isTab: true, isGrid: false, isDual: false, title: title, cols: cols, head: head.map(function (h, i) { return { t: h, st: i === 0 ? 'text-align:start' : 'text-align:center' }; }), rows: out, hasEmpty: !out.length, empty: empty || '' };
 }
 /* جدول طويل (12 صفًا فأكثر) يُرسم نصفين متجاورين فيقصر التقرير إلى النصف تقريبًا؛ rows تبقى كاملة للنص المنسوخ (المالك 2026-11-19: صورة المراقب طويلة) */
-function dualSec(sec) {
+function dualSec(sec, dropSub) {
   var n = sec.rows.length; if (n < 12 || !sec.isTab) return sec;
-  var three = sec.head.length >= 3, h = Math.ceil(n / 2), cols = three ? '1fr 56px 40px' : '1fr 62px';
+  var three = sec.head.length >= 3, h = Math.ceil(n / 2), cols = three ? '1fr 58px 50px' : '1fr 66px';
   var rows = sec.rows.map(function (r) { /* وحدة المتبقي هي وحدة الكمية نفسها فلا تتكرر: رقم فقط بلونه */
-    var cells = r.cells.map(function (c, k) { return k === 2 ? { t: c.t, u: '', sub: '', hasSub: false, st: c.st, sfg: c.sfg } : c; });
+    var cells = r.cells.map(function (c, k) { return k === 2 ? { t: c.t, u: '', sub: '', hasSub: false, st: c.st + 'font-size:12px;', sfg: c.sfg } : k === 0 ? { t: c.t, u: c.u, sub: dropSub ? '' : c.sub, hasSub: dropSub ? false : c.hasSub, st: c.st + 'white-space:normal;', sfg: c.sfg } : c; });
     return { cells: cells, grp: r.grp, bg: r.bg, bt: r.bt };
   });
   var gm = rows.filter(function (r) { return r.grp === 'm'; }), gs = rows.filter(function (r) { return r.grp === 's'; }), hd = function (t) { return [{ t: t, st: sec.head[0].st }].concat(sec.head.slice(1)); };
@@ -3254,7 +3254,7 @@ function repDoc(k, forceExp) {
     P.hasTiles = true; P.tiles = [{ label: 'عمال', value: String(ws.length) }, { label: 'حاضرون', value: String(pres) }, { label: 'بلا تسجيل', value: String(none) }];
     P.secs.push(psec('الحضور والأرصدة', '1fr 70px 100px', ['العامل', 'الحالة', 'الرصيد'], ws.map(function (w) { var a = wAtt(w), bv = wBal(w); return R([C(w.name, { b: 1 }), C(a ? (stat(a.st) || {}).name || '—' : '—', { c: 1 }), C(balTxt(bv), { c: 1, b: 1, fg: bv < 0 ? CL.bad : bv > 0 ? CL.ok : CL.mute })]); }), 'لا عمال'));
   }
-  P.secs.forEach(function (x) { if (x.k === 'mats' && SH('split')) dualSec(x); }); /* خيار: أحيانًا لا يُراد التقسيم وإن طال الجدول */
+  P.secs.forEach(function (x) { if (x.k === 'mats' && SH('split')) dualSec(x, P.secs.some(function (y) { return y.k === 'extra'; })); /* تفصيل «من المطبخ/خارجي» يغني عنه قسم الخارجي */ }); /* خيار: أحيانًا لا يُراد التقسيم وإن طال الجدول */
   if (SEC[k]) { var od = secOrder(k); P.secs.sort(function (a, b) { return od.indexOf(a.k) - od.indexOf(b.k); }); }
   P.hasLead = !!P.lead;
   return P;
