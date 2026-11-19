@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.108';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.109';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4364,18 +4364,19 @@ function wstSend(w, o, how) {
   };
   if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
 }
-function wstOpen(w) { openSh({ t: 'wst', wid: w.id }, { from: today().slice(0, 8) + '01', to: today(), sum: '1', det: '1' }); }
-function wstOpts() { var f = fv('from') || today().slice(0, 8) + '01', t = fv('to') || today(); if (t > today()) t = today(); if (f > t) f = t; return { from: f, to: t, sum: fv('sum') !== '0', det: fv('det') !== '0' }; }
+function wstWeekFrom() { var d = new Date(today() + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 6); return d.toISOString().slice(0, 10); }
+function wstOpen(w) { openSh({ t: 'wst', wid: w.id }, { from: wstWeekFrom(), to: today(), sum: '0', det: '1' }); }
+function wstOpts() { var f = fv('from') || wstWeekFrom(), t = fv('to') || today(); if (t > today()) t = today(); if (f > t) f = t; return { from: f, to: t, sum: fv('sum') === '1', det: fv('det') !== '0' }; }
 function wstSheet(sh) {
   if (sh.t !== 'wst') return null;
-  var w = wk(sh.wid); if (!fv('from')) A.form.from = today().slice(0, 8) + '01'; if (!fv('to')) A.form.to = today(); if (!fv('sum')) A.form.sum = '1'; if (!fv('det')) A.form.det = '1';
+  var w = wk(sh.wid); if (!fv('from')) A.form.from = wstWeekFrom(); if (!fv('to')) A.form.to = today(); if (!fv('sum')) A.form.sum = '0'; if (!fv('det')) A.form.det = '1';
   var o = wstOpts(), d = wstDoc(w, o.from, o.to, o);
   return { title: 'كشف ' + w.name, sub: 'اختر الفترة وما يظهر في الكشف',
     fields: [fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()),
-      fChips('sum', 'ملخص الإجماليات في الأعلى', [['1', 'إظهار'], ['0', 'إخفاء']]), fChips('det', 'حركات المكافآت والخصومات بتواريخها', [['1', 'إظهار'], ['0', 'إخفاء']])],
+      fTri('sum', 'ملخص الإجماليات في الأعلى', [['1', 'إظهار'], ['0', 'إخفاء']]), fTri('det', 'حركات المكافآت والخصومات بتواريخها', [['1', 'إظهار'], ['0', 'إخفاء']])],
     rows: d.sums.map(function (s) { return X({ title: s.l, end: s.v, endTone: s.tone }); }).concat([X({ title: d.settle ? d.settle.l : d.closeL, end: d.settle ? d.settle.v + ' · ' + d.closeV : d.closeV, endTone: d.closeTone })]),
     acts: [X({ title: 'تنزيل صورة', icon: 'i-download', go: function () { wstSend(w, o, 'png'); } }), X({ title: 'تنزيل PDF', icon: 'i-download', go: function () { wstSend(w, o, 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { wstSend(w, o, 'txt'); } })],
-    ft: { label: 'إرسال (أي تطبيق)', ok: true, go: function () { shut(); wstSend(w, o, 'share'); } } };
+    ft: { label: 'مشاركة', ok: true, go: function () { shut(); wstSend(w, o, 'share'); } } };
 }
 
 /* ===== 02z-sms.js ===== */
