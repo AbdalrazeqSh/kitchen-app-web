@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.102';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.103';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4478,21 +4478,22 @@ function pgToday() {
     X({ label: 'دفعة لعامل', icon: 'i-wallet', icTone: 'mute', go: function () { openSh({ t: 'pickWorker' }); } })
   ] }));
   var att = [];
+  /* تنبيهات المخزون مجمَّعة: صف واحد لكل مخزن بأعداد (نفد · حرج · ينقص قريبًا) والنقر يفتح قائمته، لا صف لكل صنف (اقتراح المالك 2026-11-19: ٦٢ تنبيهًا كثيرة) */
   ledgers().forEach(function (l) {
-    if (l.ext && false) return;
+    var cnt = { 0: 0, 1: 0, 2: 0 }, worst = 3;
     itemsIn(l.id).forEach(function (it) {
       var q = E.balance(S, l.id, it.id), st = stStatus(q, it.id);
-      if (alertable(l, it, q) && st.rank <= 2) att.push({ rank: st.rank, row: X({ icon: 'i-box', icTone: st.tone, title: it.name + ' · ' + l.name,
-        sub: q > 0 ? (st.plan ? planTxt(st.plan) : 'يكفي ' + daysTxt(st.days)) + ' (' + fmt(q) + ' ' + it.unit + ')' : q < 0 ? 'ناقص ' + fmt(-q) + ' ' + it.unit : 'لا يوجد رصيد', tag: st.t, tagTone: st.tone, chev: true,
-        go: function () { A.led = l.id; openSh({ t: 'item', id: it.id }); }, lp: function () { stockQa(it, l.id, q); } }) });
+      if (alertable(l, it, q) && st.rank <= 2) { cnt[st.rank]++; if (st.rank < worst) worst = st.rank; }
     });
+    var n = cnt[0] + cnt[1] + cnt[2]; if (!n) return;
+    var parts = []; if (cnt[0]) parts.push(cnt[0] + ' نفد'); if (cnt[1]) parts.push(cnt[1] + ' حرج'); if (cnt[2]) parts.push(cnt[2] + ' ينقص قريبًا');
+    att.push({ rank: worst, row: X({ icon: 'i-box', icTone: worst <= 1 ? 'bad' : 'warn', title: l.name + ': ' + pl(n, 'صنف واحد', 'صنفان', 'أصناف'), sub: parts.join(' · '), tag: worst === 0 ? 'نفد' : worst === 1 ? 'حرج' : 'ينقص قريبًا', tagTone: worst <= 1 ? 'bad' : 'warn', chev: true, go: function () { A.led = l.id; openSh({ t: 'kWarn' }); } }) });
   });
   if (!hol && wd.none > 0) att.push({ rank: 2.5, row: X({ icon: 'i-users', icTone: 'info', title: 'حضور ' + pl(wd.none, 'عامل واحد', 'عاملين', 'عمال') + ' لم يُسجَّل',
     sub: 'سجّله ليُحسب رصيد اليوم', chev: true, go: function () { setState({ tab: 'workers', wmode: 'att' }); } }) });
-  activeW().forEach(function (w) {
-    var b = wBal(w);
-    if (b < 0) att.push({ rank: 3, row: X({ icon: 'i-wallet', icTone: 'warn', title: w.name + ' ' + balTxt(b), sub: 'دفعات أكثر من المستحق', chev: true, go: function () { open('worker', { wid: w.id }); }, lp: function () { wQa(w); } }) });
-  });
+  var wNeg = activeW().filter(function (w) { return wBal(w) < 0; });
+  if (wNeg.length === 1) { var w1 = wNeg[0]; att.push({ rank: 3, row: X({ icon: 'i-wallet', icTone: 'warn', title: w1.name + ' ' + balTxt(wBal(w1)), sub: 'دفعات أكثر من المستحق', chev: true, go: function () { open('worker', { wid: w1.id }); }, lp: function () { wQa(w1); } }) }); }
+  else if (wNeg.length > 1) att.push({ rank: 3, row: X({ icon: 'i-wallet', icTone: 'warn', title: 'العمال: ' + pl(wNeg.length, 'عامل واحد', 'عاملان', 'عمال') + ' دُفع لهم أكثر من المستحق', sub: wNeg.slice(0, 3).map(function (w) { return w.name; }).join('، ') + (wNeg.length > 3 ? ' و' + (wNeg.length - 3) + ' آخرين' : ''), chev: true, go: function () { setState({ tab: 'workers' }); } }) });
   extAttn(att); syncAttn(att);
   if (!S.settings.openingDone) att.push({ rank: 0.5, row: X({ icon: 'i-box', icTone: 'warn', title: 'الأرصدة الافتتاحية', sub: 'راجع الأرقام المعبّأة من الشيت ثم اعتمدها', tag: 'لم تُعتمد', tagTone: 'warn', chev: true, go: function () { open('opening'); } }) });
   if (hasData() && backupDays() >= 3) att.push({ rank: 0.6, row: X({ icon: 'i-doc', icTone: 'warn', title: 'نسخة احتياطية', sub: S.settings.lastBackup ? 'آخر نسخة قبل ' + pl(backupDays(), 'يوم', 'يومين', 'أيام') : 'لم تُصدَّر نسخة بعد: احفظها خارج الهاتف', tag: 'احفظ نسخة', tagTone: 'warn', chev: true, go: function () { exportBackup(); } }) });
