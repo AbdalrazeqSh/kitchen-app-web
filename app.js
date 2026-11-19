@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.114';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.115';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2367,15 +2367,17 @@ try { setTimeout(function () { try { waKick(); } catch (e) {} }, 13000); } catch
    وعمود «الكمية الحالية» عنده (معادلة SUMIF على الجدولين) يحسب منهما. الذيل وحده يُعاد كتابته بعمود مفتاح مخفي app:…؛ وصفوف المالك لا تُمس.
    مخزن المطبخ وحده (لا مخازن متعددة في تبويبه)، من حدود العمل 2026-11-01. قبل أول كتابة: «فحص» (قراءة فقط) ثم اعتماد؛ وبعدها مطابقة الأرصدة (المالك 2026-11-18). */
 var SA_TAB = 'المخزن', SA_LED = 'kitchen', SA_PV = null, SA_BUSY = false, SA_ERR = '', SA_CHK = null, SA_T = null;
+/* اسم الوجبة لكل صف استهلاك (الطبخة أو سبب الصرف/الجرد): عمود «الوجبة» بجوار «المتبقي» في الجدول (المالك 2026-11-19: «مش لازم نكتب اسم الطبخة؟ في كل مخزن») */
+function mealLabel(m) { if (m.kind === 'batch') { var b = (S.batches || []).filter(function (x) { return x.id === m.ref; })[0]; return b ? batchName(b) : (m.note || ''); } return String(m.note || (m.kind === 'issue' ? 'صرف' : m.kind === 'adjust' ? 'تسوية' : '')).replace(/[\t\r\n]+/g, ' ').trim(); }
 function saSpec(dry) {
   var from = typeof GW_FROM === 'string' ? GW_FROM : '2026-11-01', use = {}, inn = {};
   (S.moves || []).forEach(function (m) {
     if (m.led !== SA_LED || m.date < from || m.rev || { batch: 1, issue: 1, receive: 1, adjust: 1 }[m.kind] !== 1) return;
     var it = item(m.item); if (!it || !m.q) return;
-    var bag = m.q < 0 ? use : inn, k = m.date + '|' + it.name, o = bag[k] = bag[k] || { d: m.date, n: it.name, q: 0 };
+    var lb = m.q < 0 ? mealLabel(m) : '', bag = m.q < 0 ? use : inn, k = m.date + '|' + lb + '|' + it.name, o = bag[k] = bag[k] || { d: m.date, n: it.name, q: 0, l: lb };
     o.q = r2(o.q + Math.abs(m.q));
   });
-  var rows = function (bag, p) { return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k]; return { k: 'app:' + p + ':' + k, v: [{ d: o.d }, o.n, o.q, '', ''] }; }); };
+  var rows = function (bag, p) { return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k]; return { k: 'app:' + p + ':' + k, v: [{ d: o.d }, o.n, o.q, '', ''].concat(p === 'use' ? [o.l || ''] : []) }; }); };
   /* أصناف التطبيق التي ليس لها صف في قائمة المخزون عنده: تُضاف (الرصيد الافتتاحي = رصيد التطبيق قبل حركات الذيل) فلا يظهر #N/A في الوحدة والمتبقي */
   var net = {}; [use, inn].forEach(function (bag, bi) { Object.keys(bag).forEach(function (k) { var o = bag[k], it = (S.items || []).filter(function (x) { return x.name === o.n; })[0]; if (it) net[it.id] = r2((net[it.id] || 0) + (bi ? o.q : -o.q)); }); });
   var qOf = {}; stockRows(SA_LED).forEach(function (r) { qOf[r.it.id] = r.q; });
@@ -2384,8 +2386,8 @@ function saSpec(dry) {
   var stk = (S.items || []).filter(function (it) { return qOf[it.id] || net[it.id] || seen[it.name]; }).map(function (it) { return { name: it.name, unit: it.unit || '', open: r2((qOf[it.id] || 0) - (net[it.id] || 0)) }; });
   return { tab: SA_TAB, dry: !!dry, peek: 'A3:D400',
     stock: { c0: 1, n: 4, row0: 3, items: stk },
-    blocks: [
-      { id: 'use', c0: 7, n: 5, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
+    setup: [{ type: 'hdr', cell: 'L2', from: 'K2', text: 'الوجبة' }], blocks: [
+      { id: 'use', c0: 7, n: 6, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
       { id: 'in', c0: 14, n: 5, row0: 3, key: 28, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(inn, 'in') }] };
 }
 function saHash() { var sp = saSpec(false), s = JSON.stringify([sp.blocks, sp.stock]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
@@ -2496,10 +2498,10 @@ function wfSpec(dry) {
   (S.moves || []).forEach(function (m) {
     if (m.led !== WF_LED || m.date < from || m.rev || { batch: 1, issue: 1, receive: 1, adjust: 1 }[m.kind] !== 1) return;
     var it = item(m.item); if (!it || !m.q) return;
-    var bag = m.q < 0 ? use : inn, k = m.date + '|' + it.name, o = bag[k] = bag[k] || { d: m.date, n: it.name, q: 0 };
+    var lb = m.q < 0 ? mealLabel(m) : '', bag = m.q < 0 ? use : inn, k = m.date + '|' + lb + '|' + it.name, o = bag[k] = bag[k] || { d: m.date, n: it.name, q: 0, l: lb };
     o.q = r2(o.q + Math.abs(m.q));
   });
-  var rows = function (bag, p) { return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k]; return { k: 'app:' + p + ':' + k, v: [{ d: o.d }, o.n, o.q, '', ''] }; }); };
+  var rows = function (bag, p) { return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k]; return { k: 'app:' + p + ':' + k, v: [{ d: o.d }, o.n, o.q, '', ''].concat(p === 'use' ? [o.l || ''] : []) }; }); };
   /* أصناف التطبيق التي ليس لها صف في قائمة المخزون عنده: تُضاف (الرصيد الافتتاحي = رصيد التطبيق قبل حركات الذيل) فلا يظهر #N/A في الوحدة والمتبقي */
   var net = {}; [use, inn].forEach(function (bag, bi) { Object.keys(bag).forEach(function (k) { var o = bag[k], it = (S.items || []).filter(function (x) { return x.name === o.n; })[0]; if (it) net[it.id] = r2((net[it.id] || 0) + (bi ? o.q : -o.q)); }); });
   var qOf = {}; stockRows(WF_LED).forEach(function (r) { qOf[r.it.id] = r.q; });
@@ -2508,8 +2510,8 @@ function wfSpec(dry) {
   var stk = (S.items || []).filter(function (it) { return qOf[it.id] || net[it.id] || seen[it.name]; }).map(function (it) { return { name: it.name, unit: it.unit || '', open: r2((qOf[it.id] || 0) - (net[it.id] || 0)) }; });
   return { tab: WF_TAB, dry: !!dry, peek: 'A3:D400',
     stock: { c0: 1, n: 4, row0: 3, items: stk },
-    blocks: [
-      { id: 'use', c0: 7, n: 5, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
+    setup: [{ type: 'hdr', cell: 'L2', from: 'K2', text: 'الوجبة' }], blocks: [
+      { id: 'use', c0: 7, n: 6, row0: 3, key: 27, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(use, 'use') },
       { id: 'in', c0: 14, n: 5, row0: 3, key: 28, skip: [3, 4], fx: [3, 4], dedup: [0, 1, 2], names: { col: 2, idx: 1, row0: 3 }, rows: rows(inn, 'in') }] };
 }
 function wfHash() { var sp = wfSpec(false), s = JSON.stringify([sp.blocks, sp.stock]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
