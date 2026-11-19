@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.98';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.99';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3184,8 +3184,9 @@ function repDoc(k, forceExp) {
     var priv = k === 'wck', EXT = SH('extra') /* «خارجي» مخفي = لا أثر للخارجي في أي سطر أو عدد أو قسم */, dc = dayCalc(priv ? 'private' : EXT ? '' : 'noext'), tb = dc.tb, da = distAgg(tb), nm = dc.order.length, xb = priv ? dayBatches('external') : [], potsExt = xb.length; /* نسخة المراقب ذاتية فقط، ويُذكر الطبخ الخارجي بسطر سفلي في الطبخات */
     P.title = 'الاستهلاك اليومي'; P.sub = priv ? 'المراقب' : '';
     var pd = potsByDish(tb);
-    P.lead = tb.length ? 'طُبخ ' + pd.map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + (SH('dist') && da.rows.length ? '، توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') : '') + (SH('dist') && da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : 'لا طبخ اليوم.';
-    if (tb.length && SH('batches')) P.lead = SH('dist') && da.rows.length ? 'توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') + (da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : ''; /* جدول الطبخات يغني عن تكرار أسمائها في الملخص */
+    var extLead = potsExt > 0 && EXT ? potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + ' (طبخ خارجي)' : ''; /* الخارجي في الجملة العلوية حين يُخفى جدول الطبخات (الجدول يحمله بسطره السفلي)؛ ولا أثر له إن أُطفئ «خارجي» */
+    P.lead = tb.length || extLead ? 'طُبخ ' + pd.map(function (x) { return potsTxt(x.pots, x.name); }).concat(extLead ? [extLead] : []).join(' + ') + (SH('dist') && da.rows.length ? '، توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') : '') + (SH('dist') && da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : 'لا طبخ اليوم.';
+    if ((tb.length || extLead) && SH('batches')) P.lead = SH('dist') && da.rows.length ? 'توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') + (da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : ''; /* جدول الطبخات يغني عن تكرار أسمائها في الملخص */
     if (priv && di.sent && di.sent.ver > 1) P.lead = 'نسخة معدَّلة رقم ' + di.sent.ver + ' — تعديل في: ' + di.sent.ch.join('، ') + '. ' + P.lead;
     P.hasTiles = SH('tiles'); P.tiles = [{ label: 'قدور', value: fmt(dc.pots) }].concat(priv ? (EXT ? [{ label: 'أصناف خارجية', value: String(dc.order.filter(function (id) { return dc.agg[id].ext > 0; }).length) }] : []) : [{ label: 'أصناف', value: String(nm) }]);
     var br = pd.map(function (x) { return R([C(x.name, { b: 1 }), C(KN[x.kind], { c: 1 }), C(fmt(x.pots), { c: 1, b: 1 })]); });
