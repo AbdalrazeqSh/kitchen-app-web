@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.111';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.112';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1980,7 +1980,7 @@ function moneySheet(sh) {
 
 /* ===== 02m2-sheetgw.js ===== */
 /* ---------- بوابة الشيت: يرسل التطبيق حركات الأرصدة تلقائيًا إلى شيت «المطبخ $» (من التطبيق إلى الشيت فقط) ----------
-   الشيت مرجع يستقبل: لا قراءة منه ولا تعديل لصف قديم. الإلغاء والاسترجاع يُرسَلان صف عكس/استرجاع.
+   الشيت مرجع يستقبل: لا قراءة منه ولا تعديل لصف قديم. الإلغاء/التعديل يحذف الصف الخطأ من الشيت (لا صف عكس)، والاسترجاع يُرسَل صفًا جديدًا.
    رابط البوابة وكلمتها يخصان هذا الجهاز (مفاتيح sync* لا تُدمج مع الأجهزة الأخرى). تتبّع المُرسَل في S.settings.shSent: عدد العمليات المنفَّذة لكل حركة
    (1 = صف الحركة، 2 = صف إلغائها، 3 = استرجاعها، ...) فلا يتكرر إرسال، والبوابة نفسها ترفض التكرار بمعرّف «رقم#عدد». */
 var GW_FROM = '2026-11-01', GW_BUSY = false, GW_T = null, GW_ERR = '', GW_PV = null, GW_PVBUSY = false; /* حدود العمل: من 1/11/2026 فصاعدًا (قرار المالك 2026-11-15): ما قبله لا يُستورد ولا يُرسل */
@@ -1995,12 +1995,19 @@ function gwRow(m, sec, n, rev, pre) {
   var dir = rev ? (m.dir === 'in' ? 'out' : 'in') : m.dir, a = r2(m.amt);
   return { id: m.id + '#' + n, sec: sec, d: n === 1 ? m.date : today(), i: dir === 'in' ? a : null, o: dir === 'out' ? a : null, t: m.ils > 0 ? r2(m.ils) : null, r: m.rate > 0 ? m.rate : null, n: pre + String(m.note || '').replace(/[\t\r\n]+/g, ' ').trim() };
 }
+function gwNote(m) { return String(m.note || '').replace(/[\t\r\n]+/g, ' ').trim(); }
+function gwDel(m, sec, st, id, part) { /* عملية حذف: يطابق الصف المكتوب سابقًا (التاريخ + المبلغ + الاتجاه + البيان) فيزيله من قسمه */
+  var a = r2(m.amt); return { id: typeof id === 'string' ? id : m.id + '#' + id, del: 1, part: part || 'del', mv: m.id, sec: sec, d: st === 1 ? m.date : null, i: m.dir === 'in' ? a : null, o: m.dir === 'out' ? a : null, n: (st > 1 ? 'استرجاع: ' : '') + gwNote(m) };
+}
 function gwOps() {
   var sent = S.settings.shSent = S.settings.shSent || {}, ops = [];
   (S.fm || []).forEach(function (m) {
     var sec = gwSec(m); if (!sec) return;
     var st = +sent[m.id] || 0, odd = st % 2 === 1;
-    if (m.void) { if (odd) ops.push(gwRow(m, sec, st + 1, true, 'إلغاء: ')); }
+    if (m.void) { /* الإلغاء/التعديل = حذف الصف الخطأ من الشيت لا صف عكس (المالك 2026-11-19: «بدي تنحذف») */
+      if (odd) ops.push(gwDel(m, sec, st, st + 1));
+      else if (st === 2 && !m.gwDel && !m.gwIn && m.date >= GW_FROM) { ops.push(gwDel(m, sec, 1, m.id + '#x1', 'x1')); ops.push(Object.assign(gwDel(m, sec, 1, m.id + '#x2', 'x2'), { d: null, n: 'إلغاء: ' + gwNote(m), i: m.dir === 'in' ? null : r2(m.amt), o: m.dir === 'in' ? r2(m.amt) : null })); } /* بقايا صف العكس القديم: يُحذف هو وأصله */
+    }
     else if (!odd && !(st === 0 && m.date < GW_FROM)) ops.push(gwRow(m, sec, st + 1, false, st ? 'استرجاع: ' : ''));
   });
   return ops;
@@ -2028,8 +2035,8 @@ function gwSend2(hamOk) {
   var ops = gwOps().filter(function (o) { return hamOk || o.sec !== 'ham'; }); if (!ops.length) return Promise.resolve();
   var batch = ops.slice(0, 40); GW_BUSY = true;
   return gwPost({ rows: batch }).then(function (j) {
-    var sent = S.settings.shSent, byId = {}; batch.forEach(function (o) { byId[o.id] = 1; });
-    (j.done || []).forEach(function (id) { if (!byId[id]) return; var k = id.lastIndexOf('#'), mid = id.slice(0, k), n = +id.slice(k + 1); if ((+sent[mid] || 0) === n - 1) sent[mid] = n; });
+    var sent = S.settings.shSent, byId = {}; batch.forEach(function (o) { byId[o.id] = o; });
+    (j.done || []).forEach(function (id) { if (!byId[id]) return; var k = id.lastIndexOf('#'), mid = id.slice(0, k), n = +id.slice(k + 1), mm = E.by(S.fm, mid); if (byId[id].del && mm && byId[id].part !== 'x1') mm.gwDel = 1; if (!isNaN(n) && (+sent[mid] || 0) === n - 1) sent[mid] = n; });
     S.settings.syncGwAt = Date.now(); GW_ERR = ''; GW_BUSY = false; save();
     if (ops.length > batch.length) return gwSend2(hamOk);
   }).catch(function (e) { GW_BUSY = false; GW_ERR = String((e && e.message) || e || 'تعذّر الاتصال'); try { render(); } catch (x) {} });
@@ -2046,8 +2053,10 @@ function gwHamPull(force) {
   GW_HB = true; GW_HAT = Date.now();
   return gwPost({ list: { from: GW_FROM } }).then(function (j) {
     GW_HB = false; var L = (j.list || {}).ham; if (!j.list || !L) return false;
-    var f = gwHamFund(), sent = S.settings.shSent = S.settings.shSent || {}, mv = (S.fm || []).filter(function (m) { return m.h === f.id && !m.void && m.date >= GW_FROM; }), imp = [], ch = 0;
+    var f = gwHamFund(), sent = S.settings.shSent = S.settings.shSent || {}, mv = (S.fm || []).filter(function (m) { return m.h === f.id && (!m.void || (+sent[m.id] || 0) % 2 === 1) && m.date >= GW_FROM; }), imp = [], ch = 0;
     L.forEach(function (r) { r.used = false; });
+    var pend = []; /* حركات أُلغيت/عُدّلت وصفوفها (الأصل وصف العكس القديم) ما زالت في الشيت بانتظار الحذف: تحجز صفوفها فلا تُستورد ثانيةً كحركات مكررة (المالك 2026-11-19: ظهرت الحركة مرتين بعد تغيير الحساب) */
+    (S.fm || []).forEach(function (m) { if (m.h !== f.id || !m.void || m.gwIn || m.date < GW_FROM) return; var st = +sent[m.id] || 0; if (st === 2 && !m.gwDel) { var r1 = gwFind(L, m, false); if (r1) r1.used = true; var r2_ = gwFind(L, { dir: m.dir === 'in' ? 'out' : 'in', amt: m.amt }, true); if (r2_) r2_.used = true; } });
     mv.filter(function (m) { return !m.gwIn; }).concat(mv.filter(function (m) { return m.gwIn; })).forEach(function (m) { m._r = gwFind(L, m, false); if (m._r) m._r.used = true; });
     L.forEach(function (r) { if (!r.used) imp.push(r); });
     mv.forEach(function (m) { var hit = !!m._r; delete m._r; if (hit && !m.gwIn && !(+sent[m.id] > 0)) { sent[m.id] = 1; ch++; } /* موجودة في الشيت (كتبتها حميدا): تُعلَّم مُرسَلة فلا تُكتب ثانيةً */ if (!hit && m.gwIn) { m.void = true; sent[m.id] = 2; ch++; } }); /* حذفتها حميدا من الشيت: تُلغى هنا ويبقى سجلها */
