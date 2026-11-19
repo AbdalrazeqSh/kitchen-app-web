@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.100';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.101';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3184,7 +3184,7 @@ function repDoc(k, forceExp) {
     var priv = k === 'wck', EXT = SH('extra') /* «خارجي» مخفي = لا أثر للخارجي في أي سطر أو عدد أو قسم */, dc = dayCalc(priv ? 'private' : EXT ? '' : 'noext'), tb = dc.tb, da = distAgg(tb), nm = dc.order.length, xb = priv ? dayBatches('external') : [], potsExt = xb.length; /* نسخة المراقب ذاتية فقط، ويُذكر الطبخ الخارجي بسطر سفلي في الطبخات */
     P.title = 'الاستهلاك اليومي'; P.sub = priv ? 'المراقب' : '';
     var pd = potsByDish(tb);
-    var extLead = potsExt > 0 && EXT && !SH('batches') ? 'طبخ خارجي: ' + potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') : ''; /* سطر مستقل بعد الجملة العلوية حين يُخفى جدول الطبخات (الجدول يحمله بسطره السفلي)؛ ولا أثر له إن أُطفئ «خارجي» */
+    var extLead = potsExt > 0 && EXT && !SH('batches') ? '+ ' + potsByDish(xb).map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + ' (طبخ خارجي)' : ''; /* سطر مستقل بعد الجملة العلوية حين يُخفى جدول الطبخات (الجدول يحمله بسطره السفلي)؛ ولا أثر له إن أُطفئ «خارجي» */
     P.leadX = extLead;
     P.lead = tb.length ? 'طُبخ ' + pd.map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + (SH('dist') && da.rows.length ? '، توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') : '') + (SH('dist') && da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : extLead || potsExt > 0 && EXT ? '' : 'لا طبخ اليوم.';
     if (tb.length && SH('batches')) P.lead = SH('dist') && da.rows.length ? 'توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') + (da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : ''; /* جدول الطبخات يغني عن تكرار أسمائها في الملخص */
