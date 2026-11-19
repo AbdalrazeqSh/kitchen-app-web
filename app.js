@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.106';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.107';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2360,7 +2360,10 @@ function saSpec(dry) {
   var rows = function (bag, p) { return Object.keys(bag).sort().filter(function (k) { return bag[k].q > 0; }).map(function (k) { var o = bag[k]; return { k: 'app:' + p + ':' + k, v: [{ d: o.d }, o.n, o.q, '', ''] }; }); };
   /* أصناف التطبيق التي ليس لها صف في قائمة المخزون عنده: تُضاف (الرصيد الافتتاحي = رصيد التطبيق قبل حركات الذيل) فلا يظهر #N/A في الوحدة والمتبقي */
   var net = {}; [use, inn].forEach(function (bag, bi) { Object.keys(bag).forEach(function (k) { var o = bag[k], it = (S.items || []).filter(function (x) { return x.name === o.n; })[0]; if (it) net[it.id] = r2((net[it.id] || 0) + (bi ? o.q : -o.q)); }); });
-  var stk = stockRows(SA_LED).filter(function (r) { return r.q || net[r.it.id]; }).map(function (r) { return { name: r.it.name, unit: r.it.unit || '', open: r2(r.q - (net[r.it.id] || 0)) }; });
+  var qOf = {}; stockRows(SA_LED).forEach(function (r) { qOf[r.it.id] = r.q; });
+  var seen = {}; [use, inn].forEach(function (bag) { Object.keys(bag).forEach(function (k) { seen[bag[k].n] = 1; }); });
+  /* كل صنف له صف في الذيل يلزم أن يوجد في قائمة المخزون ولو رصيده صفر (دخل وخرج بالكمية نفسها)، فلا يظهر #N/A */
+  var stk = (S.items || []).filter(function (it) { return qOf[it.id] || net[it.id] || seen[it.name]; }).map(function (it) { return { name: it.name, unit: it.unit || '', open: r2((qOf[it.id] || 0) - (net[it.id] || 0)) }; });
   return { tab: SA_TAB, dry: !!dry, peek: 'A3:D400',
     stock: { c0: 1, n: 4, row0: 3, items: stk },
     blocks: [
