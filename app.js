@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.97';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.98';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -467,6 +467,11 @@ function fSeg(k, label, opts) {
   var f = fChips(k, label, opts); if (!label) f.lbd = 'none'; f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cbg = '#EEF1EC'; f.cpad = '4px'; f.cflex = '1'; f.cjc = 'center';
   f.chips = opts.map(function (o) { var sel = fv(k) === o[0]; return X({ label: o[1], on: sel, selTone: o[2] === 'bad' ? 'bad' : undefined, go: function () { fset(k, o[0]); } }); });
   f.chips.forEach(function (c, i) { var on = fv(k) === opts[i][0], bad = on && opts[i][2] === 'bad'; c.bg = on ? (bad ? '#B3261E' : '#14563A') : 'transparent'; c.fg = on ? '#FFFFFF' : '#5B6660'; c.bd = on ? (bad ? '#B3261E' : '#14563A') : 'transparent'; });
+  return f;
+}
+/* مفتاح ثلاثي مضغوط في صف واحد: الاسم يمينًا والمفتاح يسارًا بقياس موحّد (خيارات التقرير؛ المالك 2026-11-19) */
+function fTri(k, label, opts) {
+  var f = fSeg(k, label, opts); f.fd = 'row'; f.ai = 'center'; f.gp = '10px'; f.lf = '1'; f.cflex = 'none'; f.cpad = '3px'; f.chh = '34px'; f.chmw = '58px'; f.chp = '0 10px'; f.chfs = '13px'; f.cdir = 'row'; f.cdisp = 'tri';
   return f;
 }
 function fQuick(k, label, arr) {
@@ -3310,7 +3315,7 @@ function pgReports() {
 function repSheet(sh) {
   var R = null;
   if (sh.t === 'repOpt') {
-    R = { title: 'خيارات التقرير', sub: 'ما تعلّمه «ظاهر» يصل في التصدير، و«لي فقط» تراه هنا ولا يُصدَّر', fields: RO[sh.k].map(function (a) { return fChips(a[0], a[1], [['on', 'ظاهر'], ['me', 'لي فقط'], ['off', 'مخفي']]); }),
+    R = { title: 'خيارات التقرير', sub: 'ما تعلّمه «ظاهر» يصل في التصدير، و«لي فقط» تراه هنا ولا يُصدَّر', fields: RO[sh.k].map(function (a) { return fTri(a[0], a[1], [['on', 'ظاهر'], ['me', 'لي فقط'], ['off', 'مخفي']]); }),
       rows: SEC[sh.k] ? secOrder(sh.k, fv('order')).map(function (key, i, arr) { return X({ icon: 'i-sliders', icTone: 'mute', title: (i + 1) + '. ' + secLabel(sh.k, key), sub: i ? 'اضغط لرفعه فوق «' + secLabel(sh.k, arr[i - 1]) + '»' : 'الأول في التقرير', tag: i ? '' : 'الأول', tagTone: 'ok', go: function () { if (!i) return; var a2 = arr.slice(); a2.splice(i - 1, 0, a2.splice(i, 1)[0]); fset('order', a2.join(',')); } }); }) : [],
       note: SEC[sh.k] ? { text: 'ترتيب الأقسام: اضغط القسم لرفعه فوق ما قبله. يُطبَّق على الشاشة والتصدير.', tone: 'info' } : null,
       ft: { label: 'حفظ الخيارات', ok: true, go: function () { var v = {}; RO[sh.k].forEach(function (a) { v[a[0]] = fv(a[0]); }); if (SEC[sh.k]) v.order = secOrder(sh.k, fv('order')).join(','); S.ro = S.ro || {}; S.ro[sh.k] = v; audit('تغيير خيارات تقرير «' + rptName(sh.k) + '»'); shut(); mutated('حُفظت خيارات التقرير وتُطبَّق على كل تصدير قادم'); } } };
@@ -5906,7 +5911,7 @@ function shell() {
     shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
-    shFields: (f.fields || []).map(function (x) { return Object.assign({ sideDir: 'rtl', sideMode: 'text', sideFs: '15px', sideTa: 'start', isDD: false, ddOpen: false, ddLabel: '', ddOpts: [], ddToggle: noop, lbd: 'block', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
+    shFields: (f.fields || []).map(function (x) { return Object.assign({ sideDir: 'rtl', sideMode: 'text', sideFs: '15px', sideTa: 'start', isDD: false, ddOpen: false, ddLabel: '', ddOpts: [], ddToggle: noop, lbd: 'block', chh: '44px', chmw: '56px', chp: '0 14px', chfs: '14px', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
     shHasBusy: !!f.busy, shBusyText: f.busy ? f.busy.text : '', shBusyW: f.busy && f.busy.pct >= 0 ? Math.max(4, Math.round(f.busy.pct * 100)) + '%' : '40%', shBusyAnim: f.busy && f.busy.pct >= 0 ? 'none' : 'kind 1.3s ease-in-out infinite', shBusyHint: f.busy ? f.busy.hint || '' : '',
     shHasNote: !!nt, shNote: nt ? nt.text : '', shNoteBg: ntn[0], shNoteFg: ntn[1],
     shHasFooter: !!sft, shFtLabel: sft ? sft.label : '', shFtDisabled: sft ? !sft.ok : false, shFtBg: sft && sft.ok ? '#14563A' : '#D9DDD8', shFtFg: sft && sft.ok ? '#FFFFFF' : '#4A544F',
