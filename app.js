@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.84';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.85';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3106,8 +3106,8 @@ var RO = {
   supply: [['tiles', 'ملخص الأرقام'], ['mats', 'المواد']],
   cook: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['mkt', 'من السوق مباشرة'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
   wck: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
-  stock: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['zero', 'الأصناف برصيد صفر']],
-  wfp: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['zero', 'الأصناف برصيد صفر']]
+  stock: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['main', 'الأصناف الأساسية'], ['spice', 'البهارات'], ['zero', 'الأصناف برصيد صفر']],
+  wfp: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['main', 'الأصناف الأساسية'], ['spice', 'البهارات'], ['zero', 'الأصناف برصيد صفر']]
 };
 var SEC = { cook: ['batches', 'dist', 'mats', 'mkt', 'extra', 'dev'], wck: ['batches', 'dist', 'mats', 'extra', 'dev'] };
 function secLabel(k, key) { var a = (RO[k] || []).filter(function (x) { return x[0] === key; })[0]; return a ? a[1] : key; }
@@ -3133,7 +3133,7 @@ function dayCalc(kind) {
 }
 function pc(t, o) {
   o = o || {};
-  return { t: t == null ? '' : String(t), u: o.u || '', sub: o.sub || '', hasSub: !!o.sub, st: (o.c ? 'text-align:center;' : 'text-align:start;') + (o.b ? 'font-weight:700;' : '') + (o.fg ? 'color:' + o.fg + ';' : '') };
+  return { t: t == null ? '' : String(t), u: o.u || '', sub: o.sub || '', hasSub: !!o.sub, sfg: '#5B6660', st: (o.c ? 'text-align:center;' : 'text-align:start;') + (o.b ? 'font-weight:700;' : '') + (o.fg ? 'color:' + o.fg + ';' : '') };
 }
 /* صف الإجمالي يتميز بخلفية أغمق وخط أخضر غليظ وخط علوي، وصف التنبيه (tone:'ext') بلون كهرماني: يسري على كل جداول التقارير */
 function prow(cells, total, tone) {
@@ -3144,7 +3144,18 @@ function prow(cells, total, tone) {
 function secK(k, sec) { sec.k = k; return sec; }
 function psec(title, cols, head, rows, empty) {
   var out = rows.map(function (r, i) { return { cells: r.cells, bg: r.bg || (i % 2 ? '#F8FAF7' : '#FFFFFF'), bt: r.bt || '1px solid #EDEFEA' }; });
-  return { isTab: true, isGrid: false, title: title, cols: cols, head: head.map(function (h, i) { return { t: h, st: i === 0 ? 'text-align:start' : 'text-align:center' }; }), rows: out, hasEmpty: !out.length, empty: empty || '' };
+  return { isTab: true, isGrid: false, isDual: false, title: title, cols: cols, head: head.map(function (h, i) { return { t: h, st: i === 0 ? 'text-align:start' : 'text-align:center' }; }), rows: out, hasEmpty: !out.length, empty: empty || '' };
+}
+/* جدول طويل (12 صفًا فأكثر) يُرسم نصفين متجاورين فيقصر التقرير إلى النصف تقريبًا؛ rows تبقى كاملة للنص المنسوخ (المالك 2026-11-19: صورة المراقب طويلة) */
+function dualSec(sec) {
+  var n = sec.rows.length; if (n < 12 || !sec.isTab) return sec;
+  var three = sec.head.length >= 3, h = Math.ceil(n / 2), cols = three ? '1fr 56px 40px' : '1fr 62px';
+  var rows = sec.rows.map(function (r) { /* وحدة المتبقي هي وحدة الكمية نفسها فلا تتكرر: رقم فقط بلونه */
+    var cells = r.cells.map(function (c, k) { return k === 2 ? { t: c.t, u: '', sub: '', hasSub: false, st: c.st, sfg: c.sfg } : c; });
+    return { cells: cells, bg: r.bg, bt: r.bt };
+  });
+  sec.halves = [{ cols: cols, head: sec.head, rows: rows.slice(0, h), bs: '0' }, { cols: cols, head: sec.head, rows: rows.slice(h), bs: '1px solid #D9DDD7' }];
+  sec.isTab = false; sec.isDual = true; return sec;
 }
 function stockAsOf() { var d = A.rdate; return d && d !== 'w7' && d < today() ? d : null; }
 function stockRows(lid, asOf) { // أصناف مخزن واحد، الأحرج أولًا
@@ -3165,6 +3176,7 @@ function repDoc(k, forceExp) {
     P.title = 'الاستهلاك اليومي'; P.sub = priv ? 'المراقب' : '';
     var pd = potsByDish(tb);
     P.lead = tb.length ? 'طُبخ ' + pd.map(function (x) { return potsTxt(x.pots, x.name); }).join(' + ') + (SH('dist') && da.rows.length ? '، توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') : '') + (SH('dist') && da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : 'لا طبخ اليوم.';
+    if (tb.length && SH('batches')) P.lead = SH('dist') && da.rows.length ? 'توزّعت على ' + pl(da.rows.length, 'جهة', 'جهتين', 'جهات') + (da.und > 0 ? '، ويبقى ' + fmt(da.und) + ' غير موزّع' : '') + '.' : ''; /* جدول الطبخات يغني عن تكرار أسمائها في الملخص */
     if (priv && di.sent && di.sent.ver > 1) P.lead = 'نسخة معدَّلة رقم ' + di.sent.ver + ' — تعديل في: ' + di.sent.ch.join('، ') + '. ' + P.lead;
     P.hasTiles = SH('tiles'); P.tiles = [{ label: 'قدور', value: fmt(dc.pots) }].concat(priv ? (EXT ? [{ label: 'أصناف خارجية', value: String(dc.order.filter(function (id) { return dc.agg[id].ext > 0; }).length) }] : []) : [{ label: 'أصناف', value: String(nm) }]);
     var br = pd.map(function (x) { return R([C(x.name, { b: 1 }), C(KN[x.kind], { c: 1 }), C(fmt(x.pots), { c: 1, b: 1 })]); });
@@ -3174,7 +3186,7 @@ function repDoc(k, forceExp) {
     /* التوزيع: مخيمان بجانب بعض لتقصير الورقة؛ وسطر الطبخة يُحذف إن كانت الطبخة واحدة لكل الجهات */
     var one = pd.length <= 1, dcells = da.rows.map(function (r, i) { return { name: r.name, val: fmt(r.pots), sub: one ? '' : r.dishes, hasSub: !one && !!r.dishes, fg: '#1B2421', st: i % 2 ? '' : 'border-inline-end:1px solid #EDEFEA;' }; });
     if (da.und > 0) dcells.push({ name: 'غير موزّع', val: fmt(da.und), sub: '', hasSub: false, fg: CL.warn, st: dcells.length % 2 ? '' : 'border-inline-end:1px solid #EDEFEA;' });
-    if (SH('dist')) P.secs.push(secK('dist', { isGrid: true, isTab: false, title: TT('التوزيع', 'dist'), cells: dcells, hasTotal: dcells.length > 0, totLabel: 'الإجمالي', totVal: fmt(dc.pots), hasEmpty: !dcells.length, empty: 'لا توزيع بعد' }));
+    if (SH('dist')) P.secs.push(secK('dist', { isGrid: true, isTab: false, isDual: false, title: TT('التوزيع', 'dist'), cells: dcells, hasTotal: dcells.length > 0, totLabel: 'الإجمالي', totVal: fmt(dc.pots), hasEmpty: !dcells.length, empty: 'لا توزيع بعد' }));
     var isSp = function (id) { return (item(id) || {}).grp === 'spice'; }, ordM = dc.order.filter(function (id) { return !isSp(id); }).concat(dc.order.filter(isSp)); /* الأساسية ثم البهارات في جدول واحد بلا فاصل */
     var mr = ordM.map(function (id) {
       var it = item(id), a = dc.agg[id], tot = r3(a.cook + a.other), parts = [];
@@ -3197,8 +3209,8 @@ function repDoc(k, forceExp) {
       if (dv.length && SH('dev')) P.secs.push(secK('dev', psec(TT('فروق عن المنيو', 'dev'), '1fr 96px', ['البند', 'الفعلي'], dv)));
     }
   } else if (k === 'stock' || k === 'wfp') {
-    var lid = k === 'wfp' ? 'wfp' : 'kitchen', asOf = stockAsOf(), SHs = SH('status') && !asOf, rs = stockRows(lid, asOf), mn = rs.filter(function (r) { return r.it.grp !== 'spice'; }), sp = rs.filter(function (r) { return r.it.grp === 'spice'; }), warnR = rs.filter(function (r) { return r.st.rank < 3; });
-    P.title = asOf ? 'حالة المخزون بتاريخ ' + dshow(asOf) : 'حالة المخزون'; P.sub = lid === 'wfp' ? 'مخزن WFP' : 'مخزن المطبخ'; if (asOf) P.date = dlong(asOf);
+    var lid = k === 'wfp' ? 'wfp' : 'kitchen', asOf = stockAsOf(), SHs = SH('status') && !asOf, rs = stockRows(lid, asOf).filter(function (r) { return r.it.grp === 'spice' ? SH('spice') : SH('main'); }), mn = rs.filter(function (r) { return r.it.grp !== 'spice'; }), sp = rs.filter(function (r) { return r.it.grp === 'spice'; }), warnR = rs.filter(function (r) { return r.st.rank < 3; });
+    P.title = asOf ? 'حالة المخزون بتاريخ ' + dshow(asOf) : 'حالة المخزون'; P.sub = (lid === 'wfp' ? 'مخزن WFP' : 'مخزن المطبخ') + (SH('main') && !SH('spice') ? ' · بدون البهارات' : !SH('main') && SH('spice') ? ' · البهارات فقط' : ''); if (asOf) P.date = dlong(asOf);
     if (!asOf) P.notes.push({ t: 'يُرسل كل ' + ((S.settings.stockEvery || 3) === 2 ? 'يومين' : pl(S.settings.stockEvery || 3, 'يوم', 'يومين', 'أيام')) + (S.settings.stockLast ? ' · آخر إرسال: ' + dshow(S.settings.stockLast) : '') });
     P.lead = asOf ? 'الأرصدة في نهاية ذلك اليوم.' : warnR.length ? 'يحتاج انتباهًا: ' + warnR.slice(0, 4).map(function (r) { return r.it.name; }).join('، ') + (warnR.length > 4 ? ' و' + (warnR.length - 4) + ' أخرى' : '') + '.' : 'كل الأصناف كافية.';
     P.hasTiles = SH('tiles'); P.tiles = [{ label: 'أصناف', value: String(rs.length) }].concat(SHs ? [{ label: 'تحتاج انتباه', value: String(warnR.length) }, { label: 'كافية', value: String(rs.length - warnR.length) }] : []);
@@ -3209,7 +3221,7 @@ function repDoc(k, forceExp) {
       return R(cs);
     }); };
     var sg = SHs ? '1fr 150px 74px' : '1fr 150px', shd = SHs ? ['المادة', 'الرصيد', 'الحالة' + (roMe(k, 'status', exp) ? ' (لي)' : '')] : ['المادة', 'الرصيد'];
-    P.secs.push(psec('الأرصدة', sg, shd, rowsOf(mn.concat(sp)), 'لا أصناف'));
+    P.secs.push(psec(!SH('main') && SH('spice') ? 'البهارات' : 'الأرصدة', sg, shd, rowsOf(mn.concat(sp)), 'لا أصناف'));
   } else if (k === 'supply') {
     var wk = A.rdate === 'w7', sd = wk ? today() : (A.rdate || today()), rcv = S.moves.filter(function (m) { return m.kind === 'receive' && m.q > 0; });
     var days = wk ? [0, 1, 2, 3, 4, 5, 6].map(function (n) { return dayOff(-n); }) : [sd];
@@ -3239,6 +3251,7 @@ function repDoc(k, forceExp) {
     P.hasTiles = true; P.tiles = [{ label: 'عمال', value: String(ws.length) }, { label: 'حاضرون', value: String(pres) }, { label: 'بلا تسجيل', value: String(none) }];
     P.secs.push(psec('الحضور والأرصدة', '1fr 70px 100px', ['العامل', 'الحالة', 'الرصيد'], ws.map(function (w) { var a = wAtt(w), bv = wBal(w); return R([C(w.name, { b: 1 }), C(a ? (stat(a.st) || {}).name || '—' : '—', { c: 1 }), C(balTxt(bv), { c: 1, b: 1, fg: bv < 0 ? CL.bad : bv > 0 ? CL.ok : CL.mute })]); }), 'لا عمال'));
   }
+  P.secs.forEach(function (x) { if (x.k === 'mats') dualSec(x); });
   if (SEC[k]) { var od = secOrder(k); P.secs.sort(function (a, b) { return od.indexOf(a.k) - od.indexOf(b.k); }); }
   P.hasLead = !!P.lead;
   return P;
