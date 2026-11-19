@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.117';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.118';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3734,6 +3734,8 @@ function stLate(i, ym, a) {
   var sent = (S.settings.stmtSent || {})[stKey(i, ym)]; if (!sent) return 0;
   return a.bs.filter(function (b) { return (b.fixTs || 0) > sent; }).length;
 }
+/* عنوان فرعي موحّد لكل أسطح كشف الحساب (الشاشة، الصورة، المفصّل): المناسبة (عزاء، عرس…) ثم الشهر؛ تظهر في القائمة فتظهر في كل تفصيلها (المالك 2026-11-19) */
+function stmtSub(i, ym) { return (i && i.occ ? i.occ + ' · ' : '') + (ym === 'all' ? 'كل الأشهر' : monthLabel(ym)); }
 function stmtSheet(sh) {
   var i = inst(sh.id), ym = stCurM(i); if (!fv('sv')) A.form.sv = 'full'; var stActs = [X({ title: 'دفعة', icon: 'i-wallet', go: function () { A.stM = ym; openSh({ t: 'iniPay', id: i.id }, { fund: '', amt: '', note: '', rate: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { A.stM = ym; openSh({ t: 'iniChg', id: i.id }, { amt: '', note: '' }); } }), X({ title: 'طبخة جديدة', icon: 'i-pot', go: function () { startIniBatch(i.id); } })], a = stAcct(i, ym), sent = (S.settings.stmtSent || {})[stKey(i, ym)], late = stLate(i, ym, a);
   var ms = stMonths(i), rows = [];
@@ -3754,7 +3756,7 @@ function stmtSheet(sh) {
   var nt = late ? { text: 'عُدّل ' + pl(late, 'طبخة واحدة', 'طبختان', 'طبخات') + ' بعد إرسال الكشف (' + dlabel(new Date(sent).toISOString().slice(0, 10)) + '): أرسل نسخة جديدة.', tone: 'warn' }
     : sent ? { text: 'أُرسل هذا الكشف في ' + dlabel(new Date(sent).toISOString().slice(0, 10)) + '.', tone: 'info' }
     : { text: 'قبل الإرسال: اضغط أي طبخة لتعديل أصنافها وكمياتها وأسعارها، ثم شارك الكشف.', tone: 'info' };
-  return { acts: stActs, title: 'كشف حساب ' + i.name, sub: ym === 'all' ? 'كل الأشهر' : monthLabel(ym), fields: [fChips('m', 'الشهر', ms.map(function (m) { return [m, monthLabel(m)]; }).concat([['all', 'الكل']])), fSeg('sv', 'شكل الكشف عند المشاركة', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر']])],
+  return { acts: stActs, title: 'كشف حساب ' + i.name, sub: stmtSub(i, ym), fields: [fChips('m', 'الشهر', ms.map(function (m) { return [m, monthLabel(m)]; }).concat([['all', 'الكل']])), fSeg('sv', 'شكل الكشف عند المشاركة', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر']])],
     rows: rows, note: nt,
     ft: { label: 'مشاركة الكشف', ok: true, go: function () { shareStmt(i, ym, fv('sv')); } },
     ft2: { label: sent && !late ? 'إلغاء علامة الإرسال' : 'تعليم الكشف كمُرسَل', go: function () {
@@ -3770,7 +3772,7 @@ function stmtCanvas(i, ym) {
   a.pay.forEach(function (c) { L.push(['دفعة' + (c.note ? ': ' + c.note : ''), c.date ? dlabel(c.date) : '', '− ' + money(c.amt), 1]); });
   var hdr = 130, H = hdr + 30 + L.length * RH + 110, c = document.createElement('canvas'); c.width = W; c.height = H;
   var x = c.getContext('2d'); x.direction = 'rtl'; x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H); x.fillStyle = '#14563A'; x.fillRect(0, 0, W, hdr);
-  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 40px ' + F; x.fillText('كشف حساب ' + i.name, W - PAD, 62); x.font = '500 25px ' + F; x.fillText(ym === 'all' ? 'كل الأشهر' : monthLabel(ym), W - PAD, 104);
+  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 40px ' + F; x.fillText('كشف حساب ' + i.name, W - PAD, 62); x.font = '500 25px ' + F; x.fillText(stmtSub(i, ym), W - PAD, 104);
   var y = hdr + 30;
   L.forEach(function (r, k) {
     if (k % 2 === 0) { x.fillStyle = '#F4F6F2'; x.fillRect(0, y, W, RH); }
@@ -3883,7 +3885,7 @@ function stmtDetailCanvas(i, ym) {
   var hdr = 130, H = hdr + 24 + L.reduce(function (t, r) { return t + r.h; }, 0) + 30 + sum.length * 46 + 110;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
   var x = c.getContext('2d'); x.direction = 'rtl'; x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H); x.fillStyle = '#14563A'; x.fillRect(0, 0, W, hdr);
-  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 40px ' + F; x.fillText('كشف حساب ' + i.name, W - PAD, 62); x.font = '500 25px ' + F; x.fillText((ym === 'all' ? 'كل الأشهر' : monthLabel(ym)) + ' · مفصّل بالمواد', W - PAD, 104);
+  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 40px ' + F; x.fillText('كشف حساب ' + i.name, W - PAD, 62); x.font = '500 25px ' + F; x.fillText(stmtSub(i, ym) + ' · مفصّل بالمواد', W - PAD, 104);
   var ell = function (t, mw) { t = String(t); while (t.length > 1 && x.measureText(t).width > mw) t = t.slice(0, -1); return x.measureText(t).width > mw ? t : t; };
   var fit = function (t, mw) { t = String(t); if (x.measureText(t).width <= mw) return t; while (t.length > 1 && x.measureText(t + '…').width > mw) t = t.slice(0, -1); return t + '…'; };
   var y = hdr + 24;
