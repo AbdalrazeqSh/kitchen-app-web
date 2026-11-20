@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.124';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.126';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2447,27 +2447,32 @@ function eaSpec(dry) {
   var from = typeof GW_FROM === 'string' ? GW_FROM : '2026-11-01', nm = {}, rows = [], pl = {}, plA = [];
   (S.insts || []).forEach(function (i) { nm[i.id] = i.name; });
   (S.batches || []).filter(function (b) { return b.inst && nm[b.inst] && !b.void && b.date >= from; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); }).forEach(function (bt) {
-    var first = true;
+    var first = true, sum = 0, put = function (kk, name, qty, price, unit) { /* صف واحد: الصنف والكمية وسعر الوحدة قيمةً (فتطابق التكلفة التطبيق ولو تغيّر سعر القائمة) */
+      rows.push({ k: kk, g: bt.id, nd: !first, v: [first ? { d: bt.date } : '', first ? nm[bt.inst] : '', first ? bt.pots || 0 : '', first ? batchName(bt) : '', name, qty, '', price] });
+      first = false; sum = r2(sum + r2(qty * price));
+    };
     spiceLast(bt.lines || []).forEach(function (ln) {
       var li = item(ln.item); if (!li || !(ln.qty > 0)) return;
-      rows.push({ k: 'app:bat:' + bt.id + ':' + ln.item, g: bt.id, nd: !first, v: [first ? { d: bt.date } : '', first ? nm[bt.inst] : '', first ? bt.pots || 0 : '', first ? batchName(bt) : '', li.name, r2(ln.qty)] });
-      first = false;
-      var c = ln.cost != null ? ln.cost : (ln.qty || 0) * (ln.price || 0), up = c > 0 && ln.qty > 0 ? r2(c / ln.qty) : null;
+      var c = ln.cost != null ? ln.cost : (ln.qty || 0) * (ln.price || 0), up = c > 0 && ln.qty > 0 ? r2(c / ln.qty) : null, q = r2(ln.qty), hp = c > 0 && q > 0 ? Math.round(c / q * 10000) / 10000 : 0;
+      put('app:bat:' + bt.id + ':' + ln.item, li.name, q, hp);
       if (!pl[li.id]) { pl[li.id] = { name: li.name, unit: li.unit || '', price: up }; plA.push(pl[li.id]); } else if (up) pl[li.id].price = up; /* آخر سعر للصنف؛ ويُكمَل به سعر قائمتك الفارغ فقط (لا يُبدَّل سعر كتبته) */
     });
+    /* بنود التكلفة غير المواد (عمال، تغليف، رشة...) صفوف ظاهرة بمبلغها، ثم صف «تسوية» لأي فرق متبقٍ: مجموع الطبخة في الشيت = مجموعها في التطبيق دائمًا */
+    (bt.xl || []).forEach(function (x, xi) { if (!(x.amt > 0) || !x.k) return; put('app:bat:' + bt.id + ':x' + xi, x.k, 1, r2(x.amt)); if (!pl['x:' + x.k]) { pl['x:' + x.k] = { name: x.k, unit: 'بند', price: null }; plA.push(pl['x:' + x.k]); } });
+    var rest = r2((bt.cost || 0) - sum); if (Math.abs(rest) >= 0.01 && !first) { put('app:bat:' + bt.id + ':adj', 'تسوية', 1, rest); if (!pl['x:تسوية']) { pl['x:تسوية'] = { name: 'تسوية', unit: 'بند', price: null }; plA.push(pl['x:تسوية']); } }
   });
   return { tab: EA_TAB, dry: !!dry, peek: 'P4:R60',
     plist: { c0: 12, n: 3, row0: 4, items: plA },
-    blocks: [{ id: 'bat', c0: 1, n: 6, row0: 4, key: 23, dedup: [0, 1, 2, 3], names: { col: 12, idx: 4, row0: 4 }, rows: rows }] };
+    blocks: [{ id: 'bat', c0: 1, n: 8, row0: 4, key: 23, skip: [6], dedup: [0, 1, 2, 3], names: { col: 12, idx: 4, row0: 4 }, rows: rows }] };
 }
 function eaHash() { var sp = eaSpec(false), s = JSON.stringify([sp.blocks, sp.plist]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
 function eaOn() { return !!(S.settings.shApp && S.settings.shApp.ext && S.settings.shApp.ext.on); }
 function eaChk(j) {
-    var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], sh = {};
+    var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], sh = {}, man = ((j.blocks || [])[0] || {}).manual || [];
     (j.peek || []).forEach(function (r) { if (r[0]) sh[String(r[0]).trim()] = pn(r[2]); });
     (S.insts || []).forEach(function (i) {
       var cost = r2((S.batches || []).filter(function (b) { return b.inst === i.id && !b.void && b.date >= GW_FROM; }).reduce(function (t, b) { return t + (b.cost || 0); }, 0)), s0 = sh[i.name];
-      if (s0 !== undefined && Math.abs(cost - s0) > 0.011) bad.push({ n: i.name, app: cost, sheet: s0 });
+      if (s0 !== undefined && Math.abs(cost - s0) > 0.011) { var mb = (S.batches || []).filter(function (b) { return b.inst === i.id && !b.void && man.indexOf(b.id) >= 0; }); bad.push({ n: i.name, app: cost, sheet: s0, why: mb.length ? 'الفرق من طبخة ' + mb.map(function (b) { return b.date; }).join('، ') + ' المكتوبة يدويًا في تبويبك: لا يكررها التطبيق، وأرقامها غير أرقامه' : '' }); }
     });
     EA_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save();
 }
@@ -2491,7 +2496,7 @@ function eaRows() {
   var rows = [], pv = EA_PV;
   if (eaOn()) rows.push(X({ title: 'تبويب «طبخ خارجي» في الشيت', sub: 'التطبيق يُضيف طبخات المؤسسات تحت صفوفك ومعادلاتك تحسب التكلفة والمجاميع' + (EA_CHK ? (EA_CHK.bad.length ? '' : ' · التكاليف مطابقة') : ''), tag: EA_ERR ? 'خطأ' : EA_BUSY ? '…' : 'يعمل', tagTone: EA_ERR ? 'bad' : 'ok' }));
   if (EA_ERR) rows.push(X({ title: 'خطأ الطبخ الخارجي', sub: EA_ERR }));
-  if (EA_CHK) { EA_CHK.bad.slice(0, 5).forEach(function (b) { rows.push(X({ title: b.n, sub: 'التكلفة في الشيت تخالف التطبيق (سعر قائمتك أو إضافات)', end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (EA_CHK.bad.length > 5) rows.push(X({ more: true, title: 'و ' + (EA_CHK.bad.length - 5) + ' أخرى مخالفة' })); }
+  if (EA_CHK) { EA_CHK.bad.slice(0, 5).forEach(function (b) { rows.push(X({ title: b.n, sub: b.why || 'التكلفة في الشيت تخالف التطبيق', end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (EA_CHK.bad.length > 5) rows.push(X({ more: true, title: 'و ' + (EA_CHK.bad.length - 5) + ' أخرى مخالفة' })); }
   if (pv) {
     if (!pv.ok) rows.push(X({ title: 'لا كتابة', sub: pv.err || 'رفضت البوابة', tag: 'خطأ', tagTone: 'bad' }));
     (pv.blocks || []).forEach(function (b) { rows.push(X({ title: 'الطبخات (صفوف المواد)', sub: 'تحت صفك ' + b.manualLast + (b.dropped ? ' · ' + b.dropped + ' صفًا موجودة عندك يدويًا فلا تُكرَّر' : '') + (b.hadApp ? ' · يُعاد كتابة ' + b.hadApp + ' صف للتطبيق' : ''), tag: String(b.want), tagTone: 'ok' })); });
