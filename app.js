@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.122';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.123';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2328,18 +2328,21 @@ function waSpec(dry) {
 }
 function waHash() { var s = JSON.stringify(waSpec(false).blocks), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
 function waOn() { return !!(S.settings.shApp && S.settings.shApp.workers && S.settings.shApp.workers.on); }
+function waChk(j) {
+    var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], p = j.peek || [];
+    if (p[0] && p[4]) p[0].forEach(function (h, i) { var w = (S.workers || []).filter(function (x) { return x.name === String(h).trim(); })[0]; if (!w) return; var a = E.wBalance(S, w.id), b = pn(p[4][i]); if (Math.abs(a - b) > 0.011) bad.push({ n: w.name, app: a, sheet: b }); });
+    WA_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save();
+}
 function waDry() {
   if (!gwUrl() || WA_BUSY) return Promise.resolve(); WA_BUSY = true; WA_ERR = ''; WA_PV = null;
-  return gwPost({ app: waSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); WA_PV = j; WA_BUSY = false; render(); }).catch(function (e) { WA_BUSY = false; WA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+  return gwPost({ app: waSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); WA_PV = j; WA_BUSY = false; waChk(j); render(); }).catch(function (e) { WA_BUSY = false; WA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
 }
 function waWrite() {
   if (!gwUrl() || WA_BUSY) return Promise.resolve(); WA_BUSY = true; WA_ERR = '';
   return gwPost({ app: waSpec(false) }).then(function (j) {
     if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا');
     WA_BUSY = false; var sa = S.settings.shApp = S.settings.shApp || {}; sa.workers = { on: 1, hash: waHash(), at: Date.now() }; WA_PV = null;
-    var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], p = j.peek || [];
-    if (p[0] && p[4]) p[0].forEach(function (h, i) { var w = (S.workers || []).filter(function (x) { return x.name === String(h).trim(); })[0]; if (!w) return; var a = E.wBalance(S, w.id), b = pn(p[4][i]); if (Math.abs(a - b) > 0.011) bad.push({ n: w.name, app: a, sheet: b }); });
-    WA_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save(); try { render('morph'); } catch (x) {}
+    waChk(j); try { render('morph'); } catch (x) {}
   }).catch(function (e) { WA_BUSY = false; WA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
 }
 function waKick() {
@@ -2459,22 +2462,25 @@ function eaSpec(dry) {
 }
 function eaHash() { var sp = eaSpec(false), s = JSON.stringify([sp.blocks, sp.plist]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
 function eaOn() { return !!(S.settings.shApp && S.settings.shApp.ext && S.settings.shApp.ext.on); }
-function eaDry() {
-  if (!gwUrl() || EA_BUSY) return Promise.resolve(); EA_BUSY = true; EA_ERR = ''; EA_PV = null;
-  return gwPost({ app: eaSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); EA_PV = j; EA_BUSY = false; render(); }).catch(function (e) { EA_BUSY = false; EA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
-}
-function eaWrite() {
-  if (!gwUrl() || EA_BUSY) return Promise.resolve(); EA_BUSY = true; EA_ERR = '';
-  return gwPost({ app: eaSpec(false) }).then(function (j) {
-    if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا');
-    EA_BUSY = false; var sa = S.settings.shApp = S.settings.shApp || {}; sa.ext = { on: 1, hash: eaHash(), at: Date.now() }; EA_PV = null;
+function eaChk(j) {
     var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], sh = {};
     (j.peek || []).forEach(function (r) { if (r[0]) sh[String(r[0]).trim()] = pn(r[2]); });
     (S.insts || []).forEach(function (i) {
       var cost = r2((S.batches || []).filter(function (b) { return b.inst === i.id && !b.void && b.date >= GW_FROM; }).reduce(function (t, b) { return t + (b.cost || 0); }, 0)), s0 = sh[i.name];
       if (s0 !== undefined && Math.abs(cost - s0) > 0.011) bad.push({ n: i.name, app: cost, sheet: s0 });
     });
-    EA_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save(); try { render('morph'); } catch (x) {}
+    EA_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save();
+}
+function eaDry() {
+  if (!gwUrl() || EA_BUSY) return Promise.resolve(); EA_BUSY = true; EA_ERR = ''; EA_PV = null;
+  return gwPost({ app: eaSpec(true) }).then(function (j) { if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا'); EA_PV = j; EA_BUSY = false; eaChk(j); render(); }).catch(function (e) { EA_BUSY = false; EA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
+}
+function eaWrite() {
+  if (!gwUrl() || EA_BUSY) return Promise.resolve(); EA_BUSY = true; EA_ERR = '';
+  return gwPost({ app: eaSpec(false) }).then(function (j) {
+    if (!j.blocks) throw new Error('كود البوابة قديم: الصق الكود الجديد وانشر إصدارًا جديدًا');
+    EA_BUSY = false; var sa = S.settings.shApp = S.settings.shApp || {}; sa.ext = { on: 1, hash: eaHash(), at: Date.now() }; EA_PV = null;
+    eaChk(j); try { render('morph'); } catch (x) {}
   }).catch(function (e) { EA_BUSY = false; EA_ERR = String((e && e.message) || e); try { render(); } catch (x) {} });
 }
 function eaKick() {
