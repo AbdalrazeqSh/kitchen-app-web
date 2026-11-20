@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.126';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.127';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2044,7 +2044,7 @@ function gwSend2(hamOk) {
 function gwKick() {
   if (!gwUrl() || !S.settings.syncGwAuto || !gwOk()) return;
   clearTimeout(GW_T); GW_T = setTimeout(function () { gwSend(); }, 2500);
-  if (typeof gwSnapKick === 'function') gwSnapKick();
+  try { if (typeof waKick === 'function') waKick(); } catch (e) {}
 }
 /* رصيد حميدا تلقائيًا: كل ما يضيفه تطبيق حميدا في الشيت يدخل رصيد حميدا هنا، وما تحذفه من الشيت يُلغى هنا (الحركات المستوردة فقط، وسجلها يبقى) */
 var GW_HB = false, GW_HAT = 0;
@@ -2141,7 +2141,6 @@ function gwSheet(sh) {
   if (gwOk() && typeof saRows === 'function') rows = rows.concat(saRows());
   if (gwOk() && typeof eaRows === 'function') rows = rows.concat(eaRows());
   if (gwOk() && typeof wfRows === 'function') rows = rows.concat(wfRows());
-  if (gwOk() && typeof snapRows === 'function') rows = rows.concat(snapRows());
   var acts = [
     X({ title: 'اختبار الاتصال', icon: 'i-wifi', go: function () { gwSave(); say('جارٍ الاختبار…'); gwPost({ ping: 1 }).then(function () { GW_ERR = ''; say('البوابة تعمل وكلمة السر صحيحة'); render(); }).catch(function (e) { GW_ERR = String((e && e.message) || e); say('تعذّر الاتصال: ' + GW_ERR); render(); }); } }),
     X({ title: 'فحص قبل الإرسال', icon: 'i-search', go: function () { gwSave(); GW_PV = null; say('جارٍ قراءة الشيت…'); gwPreview(); } })
@@ -2155,151 +2154,10 @@ function gwSheet(sh) {
   if (gwOk()) acts.push(X({ title: 'فحص تبويب WFP', icon: 'i-search', go: function () { gwSave(); say('جارٍ قراءة الشيت…'); wfDry(); } }));
   if (gwOk() && WF_PV && WF_PV.ok) acts.push(X({ title: 'كتابة WFP في تبويبك', icon: 'i-wifi', go: function () { say('جارٍ الكتابة…'); wfWrite(); } }));
   if (gwOk()) acts.push(X({ title: S.settings.syncGwAuto ? 'إيقاف الإرسال' : 'تشغيل الإرسال', icon: 'i-wifi', go: gwOnOff }));
-  if (gwOk()) acts.push(X({ title: 'تحديث تبويبات الشيت', icon: 'i-wifi', go: function () { say('جارٍ تحديث التبويبات…'); gwSnapSend(true).then(function () { say(SNAP_ERR ? 'تعذّر: ' + SNAP_ERR : 'تبويبات الشيت محدَّثة'); }); } }));
   return { title: 'مزامنة الشيت', sub: 'من التطبيق إلى شيت «المطبخ $» فقط · من ' + dshow(GW_FROM), fields: [fText('gwurl', 'رابط البوابة (Apps Script)', 'https://script.google.com/macros/s/…/exec'), fSecret('gwkey', 'كلمة سر البوابة', '')], rows: rows, acts: acts,
     note: { text: 'حدود العمل من ' + dshow(GW_FROM) + ' فصاعدًا. قبل أول إرسال يقرأ التطبيق الشيت (قراءة فقط) ويطابق حركاته بصفوفه: ما وُجد فيه لا يُرسَل ثانيةً، وما ليس فيه يُرسَل بعد اعتمادك. التعديل والإلغاء يُضيفان صف فرق ولا يمسّان القديم.', tone: 'info' },
     ft: pv ? { label: 'اعتماد وإرسال ' + pv.send.length + (pv.imp && pv.imp.length ? ' واستيراد ' + pv.imp.length : ''), ok: !!url, go: function () { shut(); say('جارٍ الإرسال إلى الشيت…'); Promise.resolve(gwApprove()).then(function () { say(GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : 'الشيت محدَّث'); }); } } : { label: 'حفظ', ok: !!url, go: function () { gwSave(); shut(); } } };
 }
-
-/* ===== 02m3-snap.js ===== */
-/* ---------- مرآة الشيت: تبويبات منظمة يبنيها التطبيق كاملة وتنعكس على الشيت (من التطبيق إلى الشيت فقط) ----------
-   التطبيق هو الأساس والشيت صورة كاملة واضحة له: كل تبويب لقطة تُعاد كتابتها كلها عند أي تغيير (فلا تكرار ولا فروق ولا صفوف يتيمة).
-   تُكتب حصرًا في تبويبات اسمها ينتهي بـ «(التطبيق)»؛ تبويبات المالك القديمة لا تُمَس أبدًا. اللقطات من أول بيانات التطبيق (لا تتقيد بحد GW_FROM).
-   كل لقطة: { tab, cols, widths, freeze, rows:[[خلايا]], kinds:['title'|'sec'|'hdr'|'row'|'sub'|'tot'|'note'|'gap'] }.
-   البصمة تُقارَن بآخر ما أُرسل (S.settings.shSnap) فلا يُعاد إرسال لقطة لم تتغير. */
-var SNAP_FROM = '0000-00-00' /* اللقطات تعرض كل بيانات التطبيق منذ البداية؛ حد 1/11 للإرسال والمطابقة فقط (المالك 2026-11-18) */, SNAP_ON = true, SNAP_SFX = ' (التطبيق)', SNAP_BUSY = false, SNAP_T = null, SNAP_ERR = '';
-function snD(d) { return d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : ''; }
-function snDay(d) { return ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][new Date(d + 'T12:00:00').getDay()]; }
-function snN(v) { return v === null || v === undefined || v === '' ? '' : r2(+v); }
-function snB(tab, title, cols, widths) { var b = { tab: tab + SNAP_SFX, cols: cols, widths: widths, freeze: 1, rows: [], kinds: [] }; snAdd(b, 'title', [title]); return b; }
-function snAdd(b, kind, cells) { b.rows.push(cells); b.kinds.push(kind); }
-function snHash(b) { var s = JSON.stringify([b.rows, b.kinds, b.widths]), h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return h + ':' + s.length; }
-
-/* ---------- العمال: الأرصدة، الحضور اليومي، حركات الحساب ---------- */
-function snapWorkers() {
-  var ws = (S.workers || []).filter(function (w) { return !w.arch; }), nc = Math.max(8, 2 + ws.length), b = snB('العمال', 'العمال · الحضور والحسابات (يُحدَّث تلقائيًا من التطبيق)', nc, [95, 95].concat(ws.map(function () { return 90; })));
-  snAdd(b, 'note', ['كل بيانات التطبيق منذ البداية · الرصيد موجب = للعامل على المطبخ · لا تعدّل هنا: التعديل من التطبيق']);
-  snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['أ. الأرصدة الحالية']);
-  snAdd(b, 'hdr', ['العامل', 'اليومية', 'رصيد افتتاحي', 'مستحق الحضور', 'إضافات ومكافآت', 'خصومات ومخالفات', 'الدفعات والسلف', 'الرصيد الحالي']);
-  var T = [0, 0, 0, 0, 0, 0];
-  ws.forEach(function (w) {
-    var v = [E.wSum(S, w.id, ['open']), E.wDue(S, w.id), E.wSum(S, w.id, ['add']), r2(E.wSum(S, w.id, ['deduct', 'viol'])), E.wSum(S, w.id, ['pay']), E.wBalance(S, w.id)];
-    v.forEach(function (x, k) { T[k] = r2(T[k] + x); });
-    snAdd(b, 'row', [w.name, snN(w.daily), snN(v[0]), snN(v[1]), snN(v[2]), snN(v[3]), snN(v[4]), snN(v[5])]);
-  });
-  snAdd(b, 'tot', ['الإجمالي', ''].concat(T.map(snN)));
-  snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ب. الحضور اليومي (من البداية)']);
-  snAdd(b, 'hdr', ['التاريخ', 'اليوم'].concat(ws.map(function (w) { return w.name; })));
-  var days = {}; (S.att || []).forEach(function (a) { if (a.date >= SNAP_FROM) (days[a.date] = days[a.date] || {})[a.w] = a; });
-  Object.keys(days).sort().forEach(function (d) {
-    snAdd(b, 'row', [snD(d), snDay(d)].concat(ws.map(function (w) { var a = days[d][w.id], s = a && stat(a.st); return a ? (s ? s.name : a.st) : ''; })));
-  });
-  snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ج. حركات العمال (من البداية)']);
-  snAdd(b, 'hdr', ['التاريخ', 'العامل', 'النوع', 'البيان', 'المبلغ', 'أثره على الرصيد', 'الحالة']);
-  var neg = { viol: 1, buy: 1, ded: 1, pay: 1, adv: 1 }, nm = {}; ws.forEach(function (w) { nm[w.id] = w.name; });
-  (S.wl || []).filter(function (e) { return e.kind !== 'open' && e.date >= SNAP_FROM && nm[e.w]; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); }).forEach(function (e) {
-    var c = wCat(e), n = !!neg[c], t = (WCAT[c] || [c])[0];
-    snAdd(b, 'row', [snD(e.date), nm[e.w], t, e.note && e.note !== t ? e.note : '', snN(e.amt), e.void ? '' : e.amt ? (n ? '−' : '+') + snN(e.amt) : 'تنبيه فقط', e.void ? 'ملغاة' : 'سارية']);
-  });
-  return b;
-}
-
-/* ---------- الطبخ الخارجي: ملخص المؤسسات، الطبخات بموادها، الإضافات والدفعات ---------- */
-function snapExt() {
-  var b = snB('طبخ خارجي', 'طبخ المؤسسات والمبادرات (يُحدَّث تلقائيًا من التطبيق)', 9, [95, 130, 140, 70, 120, 80, 70, 95, 95]);
-  snAdd(b, 'note', ['كل بيانات التطبيق منذ البداية · المبالغ بالشيكل']);
-  snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['أ. ملخص المؤسسات']);
-  snAdd(b, 'hdr', ['المؤسسة', 'النوع', 'الرصيد السابق', 'القدور', 'تكلفة الطبخات', 'إضافات', 'الدفعات', 'المستحق']);
-  var sum = function (a) { return r2(a.reduce(function (t, x) { return t + (x.cost != null ? x.cost : x.amt || 0); }, 0)); }, ins = (S.insts || []).filter(function (i) { return !i.arch; }), T = [0, 0, 0, 0, 0, 0];
-  var acct = function (i) {
-    var all = S.batches.filter(function (x) { return x.inst === i.id && !x.void; }).sort(function (p, q) { return p.date < q.date ? -1 : p.date > q.date ? 1 : 0; });
-    var pre = function (d) { return (d || '') < SNAP_FROM; }, nw = function (d) { return (d || '') >= SNAP_FROM; };
-    var prev = r2(sum(all.filter(function (x) { return pre(x.date); })) + sum((i.chg || []).filter(function (x) { return pre(x.date); })) - sum((i.pay || []).filter(function (x) { return pre(x.date); })));
-    var bs = all.filter(function (x) { return nw(x.date); }), chg = (i.chg || []).filter(function (x) { return nw(x.date); }), pay = (i.pay || []).filter(function (x) { return nw(x.date); });
-    var cost = sum(bs), ch = sum(chg), pd = sum(pay);
-    return { prev: prev, bs: bs, chg: chg, pay: pay, cost: cost, ch: ch, pd: pd, pots: bs.reduce(function (t, x) { return t + (x.pots || 0); }, 0), due: r2(prev + cost + ch - pd) };
-  };
-  var A_ = ins.map(function (i) { return { i: i, a: acct(i) }; });
-  A_.forEach(function (x) {
-    var a = x.a, v = [a.prev, a.pots, a.cost, a.ch, a.pd, a.due]; v.forEach(function (n, k) { T[k] = r2(T[k] + n); });
-    snAdd(b, 'row', [x.i.name, x.i.init ? 'مبادرة' : 'مؤسسة'].concat(v.map(snN)));
-  });
-  snAdd(b, 'tot', ['الإجمالي', ''].concat(T.map(snN)));
-  snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ب. الطبخات بموادها (من البداية)']);
-  snAdd(b, 'hdr', ['التاريخ', 'المؤسسة', 'الطبخة', 'القدور', 'الصنف', 'الكمية', 'الوحدة', 'سعر الوحدة', 'التكلفة']);
-  var bl = []; A_.forEach(function (x) { x.a.bs.forEach(function (bt) { bl.push({ b: bt, i: x.i }); }); });
-  bl.sort(function (p, q) { return p.b.date < q.b.date ? -1 : p.b.date > q.b.date ? 1 : (p.b.ts || 0) - (q.b.ts || 0); }).forEach(function (x) {
-    var bt = x.b, free = !!(bt.order && bt.order[0]) && E.isFree(led(bt.order[0])), lump = bt.pm === 'lump', first = true;
-    spiceLast(bt.lines || []).forEach(function (ln) {
-      var li = item(ln.item) || { name: '؟', unit: '' }, c = ln.cost != null ? ln.cost : r2((ln.qty || 0) * (ln.price || 0)), eff = ln.qty > 0 ? r2(c / ln.qty) : 0;
-      snAdd(b, 'row', [first ? snD(bt.date) : '', first ? x.i.name : '', first ? batchName(bt) : '', first ? snN(bt.pots || 0) : '', li.name, snN(ln.qty), li.unit, free || lump || !(c > 0) ? '' : snN(eff), free || lump || !(c > 0) ? '' : snN(c)]); first = false;
-    });
-    if (!lump) (bt.xl || []).forEach(function (xx) { snAdd(b, 'row', ['', '', '', '', xx.k || xx.name || xx.note || 'رسوم إضافية', '', '', '', snN(xx.amt || 0)]); });
-    if (lump) snAdd(b, 'row', ['', '', '', '', 'سعر القدر المقطوع', snN(bt.pots || 0), 'قدر', snN(bt.lump || 0), snN((bt.pots || 0) * (bt.lump || 0))]);
-    snAdd(b, 'sub', [first ? snD(bt.date) : '', x.i.name, 'إجمالي ' + batchName(bt), snN(bt.pots || 0), '', '', '', '', free && !(bt.cost > 0) ? 'عيني' : snN(bt.cost || 0)]);
-  });
-  snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ج. الإضافات والدفعات (من البداية)']);
-  snAdd(b, 'hdr', ['التاريخ', 'المؤسسة', 'النوع', 'البيان', 'المبلغ']);
-  var mv = []; A_.forEach(function (x) { x.a.chg.forEach(function (c) { mv.push([c.date || '', x.i.name, 'إضافة', c.note || '', snN(c.amt)]); }); x.a.pay.forEach(function (c) { mv.push([c.date || '', x.i.name, 'دفعة', c.note || '', snN(c.amt)]); }); });
-  mv.sort(function (p, q) { return p[0] < q[0] ? -1 : p[0] > q[0] ? 1 : 0; }).forEach(function (r) { r[0] = snD(r[0]); snAdd(b, 'row', r); });
-  return b;
-}
-
-/* ---------- المخزن وWFP: الأرصدة الحالية لكل مخزن + حركات المخزن من حدود العمل ---------- */
-function snapStock(tab, title, pick) {
-  var b = snB(tab, title, 7, [95, 150, 150, 80, 90, 110, 160]), ls = (S.ledgers || []).filter(function (l) { return !l.arch && pick(l); });
-  snAdd(b, 'note', ['كل بيانات التطبيق منذ البداية · الحالة بحسب المعتاد في يوم الطبخ · الرصيد السالب = نقص مسجّل للمطالبة']);
-  snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['أ. المخزون الحالي']);
-  ls.forEach(function (l) {
-    snAdd(b, 'sub', [l.name || LSHORT[l.id] || l.id, '', '', '', '', '', '']);
-    snAdd(b, 'hdr', ['#', 'الصنف', 'الرصيد', 'الوحدة', 'الحالة']);
-    stockRows(l.id).forEach(function (r, k) { snAdd(b, 'row', [k + 1, r.it.name, snN(r.q), r.it.unit || '', r.st.t]); });
-  });
-  snAdd(b, 'gap', []);
-  snAdd(b, 'sec', ['ب. حركات المخزن (من البداية)']);
-  snAdd(b, 'hdr', ['التاريخ', 'المخزن', 'الصنف', 'الكمية', 'الوحدة', 'النوع', 'البيان']);
-  var ok = {}; ls.forEach(function (l) { ok[l.id] = l; });
-  var mv = (S.moves || []).filter(function (m) { return ok[m.led] && m.kind !== 'hist' && m.date >= SNAP_FROM; }).sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : (x.ts || 0) - (y.ts || 0); });
-  if (mv.length > 4000) mv = mv.slice(mv.length - 4000);
-  mv.forEach(function (m) { var it = item(m.item) || { name: '؟', unit: '' }; snAdd(b, 'row', [snD(m.date), ok[m.led].name || m.led, it.name, snN(m.q), it.unit || '', KIND[m.kind] || m.kind, m.note || '']); });
-  return b;
-}
-function snapTabs() { return [['العمال', typeof waOn === 'function' && waOn()], ['طبخ خارجي', typeof eaOn === 'function' && eaOn()], ['المخزن', typeof saOn === 'function' && saOn()], ['WFP', typeof wfOn === 'function' && wfOn()]]; }
-function snapLeft() { var l = snapTabs().filter(function (t) { return !t[1]; }).map(function (t) { return t[0]; }); return l.length ? l.join(' · ') : 'لا لقطات'; }
-function snapDone() { return snapTabs().filter(function (t) { return t[1]; }).map(function (t) { return t[0]; }).join(' · '); }
-function snapList() {
-  return [typeof waOn === 'function' && waOn() ? null : snapWorkers(), typeof eaOn === 'function' && eaOn() ? null : snapExt(),
-    typeof saOn === 'function' && saOn() ? null : snapStock('المخزن', 'المخزن · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id !== 'wfp'; }),
-    typeof wfOn === 'function' && wfOn() ? null : snapStock('WFP', 'مخزن WFP · الأرصدة والحركات (يُحدَّث تلقائيًا من التطبيق)', function (l) { return l.id === 'wfp'; })].filter(function (b) { return b && b.rows.length > 3; });
-}
-
-/* إرسال اللقطات التي تغيّرت فقط (واحدة بعد واحدة)، أو كلها عند force */
-function gwSnapSend(force) {
-  if (!gwUrl() || !gwOk() || SNAP_BUSY || !SNAP_ON) return Promise.resolve(); /* لا تُفعَّل حتى تُنشر البوابة الجديدة وتُفحص اللقطات */
-  var sh = S.settings.shSnap = S.settings.shSnap || {}, list;
-  try { list = snapList(); } catch (e) { SNAP_ERR = 'تعذّر بناء اللقطة: ' + String((e && e.message) || e); return Promise.resolve(); }
-  var todo = list.filter(function (b) { return force || sh[b.tab] !== snHash(b); }); if (!todo.length) return Promise.resolve();
-  SNAP_BUSY = true;
-  var next = function (k) {
-    if (k >= todo.length) { SNAP_BUSY = false; SNAP_ERR = ''; S.settings.shSnapAt = Date.now(); try { localStorage.setItem('kitchen_snap_at', String(S.settings.shSnapAt)); } catch (e) {} return; }
-    var b = todo[k];
-    return gwPost({ snap: { tab: b.tab, cols: b.cols, widths: b.widths, freeze: b.freeze, rows: b.rows, kinds: b.kinds } }).then(function () { sh[b.tab] = snHash(b); return next(k + 1); });
-  };
-  return Promise.resolve(next(0)).then(function () { save(); try { render('morph'); } catch (e) {} }).catch(function (e) { SNAP_BUSY = false; SNAP_ERR = String((e && e.message) || e || 'تعذّر الإرسال'); try { render('morph'); } catch (x) {} });
-}
-function gwSnapKick() { try { if (typeof waKick === 'function') waKick(); } catch (e) {} clearTimeout(SNAP_T); SNAP_T = setTimeout(function () { gwSnapSend(false); }, 6000); }
-function snapRows() {
-  var sh = S.settings.shSnap || {}, n = Object.keys(sh).length;
-  return [X({ title: 'تبويبات الشيت المنعكسة', sub: snapLeft() + ': لقطات كاملة من التطبيق تُكتب في تبويبات «(التطبيق)» ولا تمسّ تبويباتك' + (snapDone() ? ' · أما ' + snapDone() + ' فتُكتب في تبويباتك نفسها' : '') + (S.settings.shSnapAt ? ' · آخر تحديث ' + dlabel(new Date(S.settings.shSnapAt).toISOString().slice(0, 10)) : ''), tag: SNAP_ERR ? 'خطأ' : SNAP_BUSY ? 'جارٍ…' : n ? 'متزامنة' : 'لم تُرسَل', tagTone: SNAP_ERR ? 'bad' : n ? 'ok' : 'warn' })].concat(SNAP_ERR ? [X({ title: 'خطأ اللقطات', sub: SNAP_ERR })] : []);
-}
-try { setTimeout(function () { try { gwSnapKick(); } catch (e) {} }, 12000); } catch (e) {}
 
 /* ===== 02m4-wapp.js ===== */
 /* ---------- العمال داخل تبويب المالك نفسه («العمال») بدل تبويب لقطة منفصل ----------
@@ -6190,7 +6048,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { wfSpec: function (d) { return wfSpec(d); }, eaSpec: function (d) { return eaSpec(d); }, saSpec: function (d) { return saSpec(d); }, saHash: function () { return saHash(); }, pdfFromCanvas: function (c) { return pdfFromCanvas(c); }, paperCanvas: function (k) { return paperCanvas(k); }, snapList: function () { return snapList(); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { wfSpec: function (d) { return wfSpec(d); }, eaSpec: function (d) { return eaSpec(d); }, saSpec: function (d) { return saSpec(d); }, saHash: function () { return saHash(); }, pdfFromCanvas: function (c) { return pdfFromCanvas(c); }, paperCanvas: function (k) { return paperCanvas(k); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
