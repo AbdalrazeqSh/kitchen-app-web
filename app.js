@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.121';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.122';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2449,7 +2449,8 @@ function eaSpec(dry) {
       var li = item(ln.item); if (!li || !(ln.qty > 0)) return;
       rows.push({ k: 'app:bat:' + bt.id + ':' + ln.item, g: bt.id, nd: !first, v: [first ? { d: bt.date } : '', first ? nm[bt.inst] : '', first ? bt.pots || 0 : '', first ? batchName(bt) : '', li.name, r2(ln.qty)] });
       first = false;
-      if (!pl[li.id]) { pl[li.id] = 1; var c = ln.cost != null ? ln.cost : (ln.qty || 0) * (ln.price || 0); plA.push({ name: li.name, unit: li.unit || '', price: c > 0 && ln.qty > 0 ? r2(c / ln.qty) : null }); }
+      var c = ln.cost != null ? ln.cost : (ln.qty || 0) * (ln.price || 0), up = c > 0 && ln.qty > 0 ? r2(c / ln.qty) : null;
+      if (!pl[li.id]) { pl[li.id] = { name: li.name, unit: li.unit || '', price: up }; plA.push(pl[li.id]); } else if (up) pl[li.id].price = up; /* آخر سعر للصنف؛ ويُكمَل به سعر قائمتك الفارغ فقط (لا يُبدَّل سعر كتبته) */
     });
   });
   return { tab: EA_TAB, dry: !!dry, peek: 'P4:R60',
@@ -2488,6 +2489,7 @@ function eaRows() {
   if (pv) {
     if (!pv.ok) rows.push(X({ title: 'لا كتابة', sub: pv.err || 'رفضت البوابة', tag: 'خطأ', tagTone: 'bad' }));
     (pv.blocks || []).forEach(function (b) { rows.push(X({ title: 'الطبخات (صفوف المواد)', sub: 'تحت صفك ' + b.manualLast + (b.dropped ? ' · ' + b.dropped + ' صفًا موجودة عندك يدويًا فلا تُكرَّر' : '') + (b.hadApp ? ' · يُعاد كتابة ' + b.hadApp + ' صف للتطبيق' : ''), tag: String(b.want), tagTone: 'ok' })); });
+    if (pv.filledP && pv.filledP.length) rows.push(X({ title: 'أسعار تُكمَل في قائمتك (كانت فارغة)', sub: pv.filledP.join('، '), tag: String(pv.filledP.length), tagTone: 'ok' }));
     if (pv.addedP && pv.addedP.length) rows.push(X({ title: 'أصناف تُضاف لقائمة الأسعار عندك', sub: pv.addedP.join('، '), tag: String(pv.addedP.length), tagTone: 'ok' }));
   }
   return rows;
