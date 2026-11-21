@@ -3,7 +3,9 @@
 (function () {
 'use strict';
 var T = { ok: ['#DFF1E7', '#14563A'], warn: ['#FFF1D6', '#6B3F00'], bad: ['#FDE7E4', '#8E1B10'], info: ['#E6EBFA', '#243C8F'], mute: ['#ECEEEA', '#46504B'] };
-var SOL = { ok: '#14563A', bad: '#B3261E', warn: '#8A5A00', info: '#243C8F' }; /* لون الزر الأساسي/المحدّد حسب وظيفته: أخضر الهوية افتراضيًا، أحمر للصرف، إلخ */
+var SOL = { ok: '#14563A', bad: '#B3261E', warn: '#8A5A00', info: '#243C8F', ext: '#8A4E12' };
+/* هوية نوع الطبخ: طبخ (أخضر) وطبخ خارجي (بني) في كل مبدّل نوع، يُمرَّر `kind` إلى X (المالك 2026-11-21) */
+var KIND_ID = { 'private': { bg: '#DCEFE3', fg: '#14563A', ln: '#14563A' }, external: { bg: '#F7E6CF', fg: '#7A4208', ln: '#8A4E12' } }; /* لون الزر الأساسي/المحدّد حسب وظيفته: أخضر الهوية افتراضيًا، أحمر للصرف، إلخ */
 var noop = function () {};
 
 /* ---- عنصر عام وكتلة (نفس مفاتيح التصميم) ---- */
@@ -26,7 +28,7 @@ function X(o) {
     rbg: o.hdr ? '#EAF1EC' : o.total ? '#D5E8DC' : o.subt ? '#F6EFDD' : o.rbg || (o.sel ? '#EAF5EE' : '#FFFFFF'), rbt: o.total ? '2px solid #14563A' : o.subt ? '1px solid #E2D6B4' : '0 solid transparent', sel: !!o.sel,
     label: o.label || '', value: o.value == null ? '' : String(o.value),
     on: on, count: o.count == null ? '' : String(o.count), hasCount: o.count != null && o.count !== 0,
-    segBg: on ? '#FFFFFF' : 'transparent', segFg: on ? '#14563A' : '#46504B', segSh: on ? '0 1px 3px rgba(0,0,0,.14)' : 'none',
+    segBg: on ? (KIND_ID[o.kind] ? KIND_ID[o.kind].bg : '#FFFFFF') : 'transparent', segFg: on ? (KIND_ID[o.kind] ? KIND_ID[o.kind].fg : '#14563A') : '#46504B', segSh: on ? (KIND_ID[o.kind] ? '0 1px 3px rgba(0,0,0,.14), inset 0 -3px 0 ' + KIND_ID[o.kind].ln : '0 1px 3px rgba(0,0,0,.14)') : 'none',
     bg: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[0] : '#FFFFFF'), fg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
     bd: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[1] : 'rgba(27,36,33,.22)')
   };
