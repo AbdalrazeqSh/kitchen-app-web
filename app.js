@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.142';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.143';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4007,7 +4007,7 @@ function pgFinSum() {
   bl.push(B('rows', { title: 'الوارد حسب المصدر', items: ins.map(rowOf), empty: 'لا وارد في هذه الفترة' }));
   if (adj.length) bl.push(B('rows', { title: 'تسويات الجرد', items: adj.map(rowOf) }));
   bl.push(B('rows', { title: 'أكثر الجهات صرفًا', items: D.parties.slice(0, 8).map(function (p) { return X({ title: p.k, sub: pl(p.v.n, 'حركة واحدة', 'حركتان', 'حركات'), end: p.v.ils ? money(p.v.ils) : usdTxt(p.v.usd) }); }), empty: 'لا صرف' }));
-  bl.push(B('rows', { title: 'المستحقات الآن', items: [X({ icon: 'i-truck', icTone: 'info', title: 'مستحق لك من المؤسسات', sub: 'بحسب كشوف الحساب', end: money(oweInst()) }), X({ icon: 'i-users', icTone: 'warn', title: 'عليك للعمال', sub: 'أرصدة العمال المستحقة', end: money(oweWork()) })] }));
+  bl.push(B('rows', { title: 'المستحقات الآن', items: [X({ icon: 'i-truck', icTone: 'info', title: 'مستحق لك من المؤسسات', sub: 'بحسب كشوف الحساب', end: money(oweInst()), chev: true, go: kGo({ t: 'kOweI' }) }), X({ icon: 'i-users', icTone: 'warn', title: 'عليك للعمال', sub: 'أرصدة العمال المستحقة', end: money(oweWork()), chev: true, go: kGo({ t: 'kOweW' }) })] }));
   bl.push(B('note', { tone: 'info', icon: 'i-shield', text: 'التحويلات بين الأرصدة لا تُحسب واردًا ولا صرفًا؛ «الفرق» لكل عملة على حدة بلا أي تحويل بينها، وهو يطابق رصيد تلك العملة. أما «صرف» بالشيكل فكل حركة دولار فيه بسعرها هي. ما صُرف بالشيكل من رصيد الدولار يُحسب بالشيكل. التصنيف يُخمَّن من البيان، وتعدّله من الحركة نفسها.' }));
   return bl;
 }
@@ -5102,8 +5102,8 @@ function moneyRows() {
   var oi = oweInst(), ow = oweWork();
   return [
     X({ icon: 'i-doc', icTone: 'info', title: 'الملخص المالي', sub: 'أين ذهب المال هذا الشهر: وارد وصرف وتصنيف', chev: true, go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } }),
-    X({ icon: 'i-plus', icTone: oi > 0 ? 'ok' : 'mute', title: 'مستحق لك من المؤسسات', sub: 'كشف حساب كل جهة', end: money(oi), chev: true, go: function () { open('funds'); } }),
-    X({ icon: 'i-minus', icTone: ow > 0 ? 'warn' : 'mute', title: 'عليك للعمال', sub: 'رواتب وأجور غير مدفوعة', end: money(ow), chev: true, go: function () { open('funds'); } })
+    X({ icon: 'i-plus', icTone: oi > 0 ? 'ok' : 'mute', title: 'مستحق لك من المؤسسات', sub: 'كشف حساب كل جهة', end: money(oi), chev: true, go: kGo({ t: 'kOweI' }) }),
+    X({ icon: 'i-minus', icTone: ow > 0 ? 'warn' : 'mute', title: 'عليك للعمال', sub: 'رواتب وأجور غير مدفوعة', end: money(ow), chev: true, go: kGo({ t: 'kOweW' }) })
   ];
 }
 function pgMore() {
