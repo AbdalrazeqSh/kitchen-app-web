@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.138';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.139';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3704,6 +3704,7 @@ function stmtAllSheet(sh) {
   return { title: 'كشف حساب كل الجهات', sub: stmtSub(ALLI, ym), fields: [fChips('m', 'الشهر', ms.map(function (m) { return [m, monthLabel(m)]; }).concat([['all', 'الكل']])), fSeg('sv', 'شكل الكشف عند المشاركة', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر (جهة بسطر)']])],
     rows: rows, note: { text: 'يجمع كشوف الجهات في ورقة واحدة بأرقامها نفسها. اضغط جهة لفتح كشفها، أو شارك الكشف المجمّع.', tone: 'info' },
     ft: { label: 'مشاركة الكشف', ok: true, go: function () { stOptsOpen(ALLI, ym, fv('sv')); } },
+    ft3: { label: 'PDF للطباعة', go: function () { stPrintPdf(ALLI, ym, fv('sv')); } },
     ft2: { label: 'خيارات الكشف', go: function () { stOptsOpen(ALLI, ym, fv('sv')); } } };
 }
 function stmtSheet(sh) {
@@ -3729,7 +3730,13 @@ function stmtSheet(sh) {
   return { acts: stActs, title: 'كشف حساب ' + i.name, sub: stmtSub(i, ym), fields: [fChips('m', 'الشهر', ms.map(function (m) { return [m, monthLabel(m)]; }).concat([['all', 'الكل']])), fSeg('sv', 'شكل الكشف عند المشاركة', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر']])],
     rows: rows, note: nt,
     ft: { label: 'مشاركة الكشف', ok: true, go: function () { stOptsOpen(i, ym, fv('sv')); } },
-    ft2: { label: 'خيارات الكشف', go: function () { stOptsOpen(i, ym, fv('sv')); } } };
+    ft2: { label: 'خيارات الكشف', go: function () { stOptsOpen(i, ym, fv('sv')); } },
+    ft3: { label: 'PDF للطباعة', go: function () { stPrintPdf(i, ym, fv('sv')); } } };
+}
+/* PDF للطباعة (A4، تُقطع عند حدود الكتل) من نافذة الكشف مباشرة لكل جهة وللكشف المجمّع، بالخيارات المحفوظة */
+function stPrintPdf(i, ym, sv) {
+  var full = sv !== 'sum', cv = i.all ? stAllCanvas(ym, full) : full ? stmtDetailCanvas(i, ym) : stmtCanvas(i, ym), nm = 'كشف-' + i.name + '-' + ym + (full ? '-مفصل' : '') + '-A4.pdf';
+  deliverFile(nm, u8b64(pdfA4Pages(cv)), 'application/pdf', 'كشف حساب ' + i.name, '').catch(function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); });
 }
 function stmtCanvas(i, ym) {
   var o = stOpt(i), a = stAcct(i, ym), W = 840, PAD = 36, F = "'IBM Plex Sans Arabic', sans-serif", RH = 56, L = [], tail = stTail(i, o, W, PAD, F);
@@ -6196,7 +6203,7 @@ function shell() {
     shHasNote: !!nt, shNote: nt ? nt.text : '', shNoteBg: ntn[0], shNoteFg: ntn[1],
     shHasFooter: !!sft, shFtLabel: sft ? sft.label : '', shFtDisabled: sft ? !sft.ok : false, shFtBg: sft && sft.ok ? (tn ? tn.line : (DESTR.test(sft.label) ? '#B3261E' : '#14563A')) : '#D9DDD8', shFtFg: sft && sft.ok ? '#FFFFFF' : '#4A544F',
     shFtGo: sft ? (sft.ok ? sft.go : function () { say(req); }) : noop,
-    shHasFt2: !!f.ft2, shFt2Label: f.ft2 ? f.ft2.label : '', shFt2Go: f.ft2 ? f.ft2.go : noop,
+    shHasFt3: !!f.ft3, shFt3Label: f.ft3 ? f.ft3.label : '', shFt3Go: f.ft3 ? f.ft3.go : noop, shHasFt2: !!f.ft2, shFt2Label: f.ft2 ? f.ft2.label : '', shFt2Go: f.ft2 ? f.ft2.go : noop,
     toastOn: !!s.toast, toast: s.toast, hasUndo: !!s.hasUndo, doUndo: doUndo, toastBottom: pg === 'main' ? 84 : ft ? 92 : 20
   };
 }
