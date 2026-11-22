@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.152';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.153';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2597,7 +2597,7 @@ function dNeeds(d) { return d.lines.filter(function (l) { return l.flag || !l.it
 function dValue(d) { return d.lines.reduce(function (a, l) { return a + (l.price > 0 && l.qty > 0 ? l.qty * l.price : 0); }, 0); }
 function dLineRow(d, l) {
   var it = l.item ? item(l.item) : null, bad = l.flag || !it || !(l.qty > 0);
-  return X({ title: it ? it.name : (l.ocr ? (l.ocr.code ? 'كود ' + l.ocr.code : 'سطر من الصورة') : l.raw), sub: (it && norm(it.name) !== norm(l.raw) ? (l.ocr ? 'من الصورة: ' : 'من النص: ') + l.raw : (!it && l.ocr ? l.ocr.packs + ' عبوة · ' + fmt(l.ocr.w) + ' كغ' : '')) + (l.price > 0 && !E.isFree(led(d.led)) ? (it && norm(it.name) !== norm(l.raw) ? ' · ' : '') + 'سعر ' + fmt(l.price) : ''),
+  return X({ title: it ? it.name : (l.ocr ? (l.ocr.code ? 'كود ' + l.ocr.code : l.ocr.name || 'سطر من الصورة') : l.raw), sub: (it && norm(it.name) !== norm(l.raw) ? (l.ocr ? 'من الصورة: ' : 'من النص: ') + l.raw : (!it && l.ocr ? l.ocr.packs + ' عبوة · ' + fmt(l.ocr.w) + ' كغ' : '')) + (l.price > 0 && !E.isFree(led(d.led)) ? (it && norm(it.name) !== norm(l.raw) ? ' · ' : '') + 'سعر ' + fmt(l.price) : ''),
     tag: bad ? (DFLAG[l.flag] || 'راجع') : 'جاهز', tagTone: bad ? 'warn' : 'ok', end: l.qty > 0 ? fmt(l.qty) : '', endSub: it ? it.unit : '', chev: true,
     go: function () { openDLine(d, l); }, lp: function () { dLineQa(d, l); } });
 }
@@ -2854,9 +2854,9 @@ function ocrProgSheet() {
     ft: { label: 'إلغاء', ok: true, go: ocrCancel } };
 }
 var OCR_ST = { 'loading tesseract core': 'تحميل أداة القراءة (مرة واحدة)', 'loading language traineddata': 'تحميل بيانات القراءة (مرة واحدة)', 'initializing tesseract': 'تهيئة أداة القراءة', 'initializing api': 'تهيئة أداة القراءة', 'recognizing text': 'قراءة الصورة' };
-function ocrWorker(kill) {
+function ocrWorker(kill, langs) {
   return ocrLib().then(function (T) {
-    return T.createWorker('eng', 1, { workerPath: ocrBase() + 'worker.min.js', corePath: ocrBase(), langPath: ocrBase(), gzip: true,
+    return T.createWorker(langs || 'eng', 1, { workerPath: ocrBase() + 'worker.min.js', corePath: ocrBase(), langPath: ocrBase(), gzip: true,
       errorHandler: function (e) { kill(e instanceof Error ? e : new Error(String(e))); },
       logger: function (m) { var t = OCR_ST[m.status]; if (t) ocrStage('جارٍ ' + t + (m.progress >= 0 && m.progress < 1 ? ' ' + Math.round(m.progress * 100) + '%' : '…'), m.progress >= 0 && m.progress < 1 ? m.progress : null); else OCR_T = Date.now(); } });
   }).then(function (w) { return w.setParameters({ tessedit_pageseg_mode: '6', preserve_interword_spaces: '1' }).then(function () { return w; }); });
@@ -2885,13 +2885,38 @@ function ocrPrep(file) {
 }
 function ocrKnownCodes() { return Object.keys((S.settings && S.settings.itemCodes) || {}); }
 function ocrLev1(a, b) { if (a === b) return true; if (Math.abs(a.length - b.length) > 1) return false; var i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return a.slice(i + 1) === b.slice(i + 1) || a.slice(i) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i); }
+/* ---- جدول بلا أكواد (اسم عربي + كمية + وزن): تُقرأ الأسماء بلغة العربية وتُطابَق بالأصناف تقريبيًا، وكل مطابقة تقريبية «تأكد من الصنف» ---- */
+var OCR_NOISE = { 'كع': 1, 'كغ': 1, 'كم': 1, 'كجم': 1, 'خع': 1, 'كيلو': 1 };
+function ocrNameOf(rest) { return (String(rest).match(/[؀-ۿ]+/g) || []).filter(function (x) { return x.length > 1 && !OCR_NOISE[x]; }).join(' '); }
+function ocrNw(x) { return norm(String(x).replace(/\([^)]*\)/g, ' ')).replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[^؀-ۿ\s]/g, ' ').split(/\s+/).filter(Boolean).map(function (w) { return w.replace(/^ال/, ''); }).filter(function (w) { return w.length > 1; }); }
+var OCR_GEN = { 'معلب': 1, 'معلبه': 1, 'علب': 1, 'علبه': 1, 'طازج': 1, 'مطحون': 1, 'مطحونه': 1, 'قطع': 1, 'شرائح': 1 };
+function ocrWordEq(a, b) { if (a === b) return true; if (a.length >= 3 && b.length >= 3 && (a.indexOf(b) >= 0 || b.indexOf(a) >= 0)) return true; return a.length >= 4 && b.length >= 4 && ocrLev1(a, b); }
+function ocrNameMatch(name) {
+  var ex = matchItem(name); if (ex && ex.sure) return { it: ex.it, sure: true };
+  var ow = ocrNw(name), best = null, bs = 0, bn = 0, tie = false; if (!ow.length) return null;
+  S.items.filter(function (i) { return !i.arch; }).forEach(function (i) {
+    [i.name].concat(i.alias || []).forEach(function (nm) {
+      var cw = ocrNw(nm); if (!cw.length) return;
+      var hit = cw.filter(function (c) { return ow.some(function (o) { return ocrWordEq(c, o); }); }), core = hit.filter(function (c) { return !OCR_GEN[c]; }).length;
+      if (!core) return;
+      var sc = hit.length / cw.length; if (sc < 0.5) return;
+      var key = sc * 10 + hit.length; if (key > bs) { bs = key; best = i; bn = hit.length; tie = false; } else if (key === bs && best && best.id !== i.id) tie = true;
+    });
+  });
+  return best ? { it: best, sure: false, tie: tie } : null;
+}
+function nameKg(n) { var m = /علبة\s*([\d.]+)\s*كجم/.exec(String(n || '')); return m ? parseFloat(m[1]) : 0; }
 /* نص التعرّف ← أسطر {code, packs, w}: السطر الذي فيه «pack» وكود (حرف + 4 أرقام) ووزن بخانتين عشريتين */
-function ocrRows(text) {
+function ocrRows(text, byName) {
   var rows = [], total = null, rq = (/RQ\d{4,}/.exec(text) || [''])[0], wck = /WCK/i.test(text), known = ocrKnownCodes();
   String(text || '').split('\n').forEach(function (ln) {
     var pk = /(\d+)\s*pack/i.exec(ln), w = /(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})(?!\d)/.exec(ln);
-    if (!pk) { var tm = /^\s*(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2})\s*\S{0,5}\s*$/.exec(ln); if (tm) total = parseFloat((tm[1] + '.' + tm[2]).replace(/,/g, '')); return; }
+    if (!pk) { var tm = /^\s*(\d{1,3}(?:,\d{3})*|\d+)\.(\d{2})\s*\S{0,5}\s*$/.exec(ln) || (byName ? /^\s*(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})\s+\d{3,}/.exec(ln) : null); if (tm) total = parseFloat((tm[1] + '.' + tm[2]).replace(/,/g, '')); return; }
     /* الكود آخر رمز في السطر قبل رقم الصف: حرف + 4 أرقام، وقد يُقرأ الصفر «O/o» والحرف E «£» وصفر زائد */
+    if (byName) { /* الوزن الكلي = العبوات × وزن العبوة: يُصحَّح به رقم فقدت نقطته العشرية («200» بدل 2.00) */
+      var nn = (ln.slice(0, pk.index).match(/\d[\d,]*(?:\.\d+)?/g) || []).map(function (x) { var v = parseFloat(x.replace(/,/g, '')); return /\./.test(x) || !(v >= 100 && v % 100 === 0) ? v : v / 100; }), pks = parseInt(pk[1], 10), uw = nn.length > 1 ? nn[nn.length - 1] : 0, tw = nn.length ? nn[0] : 0;
+      if (uw > 0 && pks > 0 && Math.abs(pks * uw - tw) > 0.011) tw = r2(pks * uw);
+      if (tw > 0) rows.push({ code: '', codeOk: false, name: ocrNameOf(ln.slice(pk.index + pk[0].length)), packs: pks, w: tw }); return; }
     var cms = ln.match(/[A-Za-z£][0-9OoQD]{3,5}(?![0-9A-Za-z])/g), cr = cms ? cms[cms.length - 1] : '', code = '', okc = false;
     if (!w) return;
     if (cr) {
@@ -2907,15 +2932,16 @@ function ocrRows(text) {
 function ocrQty(it, m, r) {
   if (m && m.per > 0) return { qty: r3(r.packs * m.per), flag: '' };
   if (norm(it.unit) === 'كيلو') return { qty: r.w, flag: '' };
-  if (it.kgPer > 0) return { qty: r3(r.w / it.kgPer), flag: '' }; /* وزن الوحدة معروف: 672 كغ ÷ 0.8 = 840 علبة */
+  var kp = it.kgPer > 0 ? it.kgPer : nameKg(it.name); if (kp > 0) return { qty: r3(r.w / kp), flag: '' }; /* وزن الوحدة معروف: 672 كغ ÷ 0.8 = 840 علبة */
   return { qty: 0, flag: 'kg' }; /* وزن الوحدة مجهول: لا نكتب الكيلوغرامات كأنها وحدات، نسأل مرة واحدة */
 }
 function ocrDraft(pr, ctx) {
   ctx = ctx || {};
   var map = (S.settings && S.settings.itemCodes) || {}, sum = 0, lines = pr.rows.map(function (r, i) {
     sum = r2(sum + r.w);
-    var m = map[r.code], it = m && item(m.item) && !item(m.item).arch ? item(m.item) : null, l = { id: 'l' + (i + 1), raw: (r.code ? r.code + ' · ' : '') + r.packs + ' عبوة · ' + fmt(r.w) + ' كغ', item: null, qty: r.w, price: 0, flag: 'item', ocr: { code: r.code, packs: r.packs, w: r.w, ok: r.codeOk } };
-    if (it) { var q = ocrQty(it, m, r); l.item = it.id; l.qty = q.qty; l.flag = q.flag; }
+    var m = map[r.code], it = m && item(m.item) && !item(m.item).arch ? item(m.item) : null, nmt = !r.code && r.name ? ocrNameMatch(r.name) : null, l = { id: 'l' + (i + 1), raw: (r.code ? r.code + ' · ' : r.name ? r.name + ' · ' : '') + r.packs + ' عبوة · ' + fmt(r.w) + ' كغ', item: null, qty: r.w, price: 0, flag: 'item', ocr: { code: r.code, name: r.name || '', packs: r.packs, w: r.w, ok: r.codeOk } };
+    if (nmt) { var qn = ocrQty(nmt.it, null, r); l.item = nmt.it.id; l.qty = qn.qty; l.flag = qn.flag || (nmt.sure ? '' : 'guess'); l.ocr.fz = !nmt.sure; }
+    else if (it) { var q = ocrQty(it, m, r); l.item = it.id; l.qty = q.qty; l.flag = q.flag; }
     return l;
   });
   var lid = ctx.led || fv('led') || 'kitchen', d = { id: newId('d', S.drafts || []), date: ctx.date || rcvDate() || today(), led: lid, src: pr.rq ? (pr.wck ? 'WCK ' : '') + pr.rq : 'صورة', created: today(), lines: lines,
@@ -2931,10 +2957,12 @@ function ocrRun(file) {
   ocrStage('جارٍ تجهيز الصورة…');
   var chain = ocrPrep(file).then(function (pp) {
     OCR_IMG = { url: pp.thumb, did: '' }; ocrStage('جارٍ تحميل أداة القراءة…');
-    return ocrWorker(kill).then(function (w) { ocrStage('جارٍ قراءة الصورة…'); return w.recognize(pp.cv).then(function (r) { return w.terminate().then(function () { return r.data.text; }); }); });
+    var pass = function (langs) { return ocrWorker(kill, langs).then(function (w) { ocrStage('جارٍ قراءة الصورة…'); return w.recognize(pp.cv).then(function (r) { return w.terminate().then(function () { return r.data.text; }); }); }); };
+    /* القراءة الأولى للأكواد؛ وإن لم تجد كودًا واحدًا فالجدول بأسماء عربية: قراءة ثانية بالعربية (تُحمَّل مرة واحدة) */
+    return pass('eng').then(function (t1) { return ocrRows(t1).rows.some(function (r) { return r.codeOk; }) ? { text: t1, names: false } : pass(['ara', 'eng']).then(function (t2) { return { text: t2, names: true }; }); });
   });
   return ocrRace(chain, dead).then(function (text) {
-    var pr = ocrRows(text);
+    var pr = ocrRows(text.text, text.names);
     ocrEnd(); OCR_KILL = null;
     if (!pr.rows.length) { say('لم أجد أسطر طلبية في الصورة: صوّر الجدول كاملًا ومستقيمًا'); return null; }
     return ocrDraft(pr, ctx);
@@ -2953,11 +2981,11 @@ function ocrPick() {
 /* ما يُتعلَّم عند الاعتماد: كود الطلبية ← الصنف ووزن العبوة بوحدته (فيُربط الطلب القادم تلقائيًا) */
 /* وحدة الصنف الأساسية (لتر، علبة...) هي المرجع: الأصل «كم وحدة في العبوة» مضروبًا بعدد عبوات الصورة؛ والكيلو بديل اختياري (وزن الوحدة) يُحفظ في الصنف */
 function ocrSetPer(d, it, code, per) {
-  (d.lines || []).forEach(function (l) { if (l.ocr && l.item === it.id && l.ocr.code === code && l.ocr.packs > 0) { l.qty = r3(l.ocr.packs * per); l.flag = ''; } });
+  (d.lines || []).forEach(function (l) { if (l.ocr && l.item === it.id && l.ocr.code === code && l.ocr.packs > 0) { l.qty = r3(l.ocr.packs * per); l.flag = l.ocr.fz ? 'guess' : ''; } });
 }
 function ocrSetKg(d, it, kg) {
   it.kgPer = r3(kg);
-  (d.lines || []).forEach(function (l) { if (l.ocr && l.item === it.id) { var q = ocrQty(it, null, l.ocr); l.qty = q.qty; l.flag = q.flag; } });
+  (d.lines || []).forEach(function (l) { if (l.ocr && l.item === it.id) { var q = ocrQty(it, null, l.ocr); l.qty = q.qty; l.flag = q.flag || (l.ocr.fz ? 'guess' : ''); } });
 }
 function ocrKgSheet(sh) {
   var d = draftOf(sh.did), l = d && E.by(d.lines, sh.lid), it = l && l.item ? item(l.item) : null;
@@ -2971,6 +2999,7 @@ function ocrKgSheet(sh) {
 }
 function ocrLearn(d) {
   (d.lines || []).forEach(function (l) {
+    if (l.ocr && l.item && !l.ocr.code && l.ocr.name && l.ocr.name.length >= 3) { var li = item(l.item); if (li && li.name !== l.ocr.name && (li.alias || []).indexOf(l.ocr.name) < 0) { li.alias = (li.alias || []).concat([l.ocr.name]); } return; } /* الاسم المقروء يصير اسمًا بديلًا للصنف فيُربط تلقائيًا في الطلب القادم */
     if (!l.ocr || !l.item || !l.ocr.ok || !/^[A-Z]\d{4}$/.test(l.ocr.code)) return;
     S.settings.itemCodes = S.settings.itemCodes || {};
     S.settings.itemCodes[l.ocr.code] = { item: l.item, per: l.ocr.packs > 0 ? r3(l.qty / l.ocr.packs) : 0 };
