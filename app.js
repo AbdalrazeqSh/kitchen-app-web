@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.137';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.138';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4791,7 +4791,7 @@ function pgToday() {
       lp: function () { var g = E.by(S.bens || [], x.ben); if (g) benQa(g); } })); });
     bl.push(B('rows', { title: 'توزيع القدور', act: 'توزيع', actGo: function () { openSh({ t: 'distDay' }, { ben: '', pots: '', dish: distDish0() }); }, items: drows }));
   }
-  if (f !== 'external' && campsToday().length) bl.push(B('acts', { items: [X({ title: 'رسائل المخيمات', icon: 'i-send', go: function () { openSh({ t: 'campSms' }, {}); } })] }));
+  if (f !== 'external' && campsToday().length) bl.push(B('acts', { items: [X({ title: 'رسائل الصباح للمخيمات', icon: 'i-chat', go: function () { openSh({ t: 'campSms' }, {}); } })] }));
   var tmw = iso(new Date(Date.now() + 864e5));
   if (f !== 'external') planDistBlocks(plans().filter(function (p) { return p.date <= tmw; })).forEach(function (b) { bl.push(b); });
   /* المال والعطلة وإغلاق اليوم على مستوى اليوم لا النوع: تظهر في «الكل» وحده فلا تبقى ثابتة بين تبويبي النوع (المالك 2026-11-21) */
@@ -4909,6 +4909,7 @@ function pgKitchen() {
     return X({ label: a[1], on: k === a[0], kind: a[0], count: batchesOf(a[0]).filter(function (b) { return !b.void; }).length, go: function () { setState({ kk: a[0] }); } });
   }) }));
   bl.push(B('btns', { items: [X({ label: KNF[k] + ' جديدة', icon: 'i-plus', on: true, selTone: k === 'external' ? 'ext' : 'ok', go: function () { startBatch(k); } })] }));
+  if (k === 'external') bl.push(B('acts', { items: [X({ title: 'كشف حساب كل الجهات', icon: 'i-ledger', tone: 'ext', go: function () { openSh({ t: 'stAll', id: '__all' }, { m: '', sv: 'full' }); } })] })); /* تحت الزر الرئيسي مباشرة: تقرير مهم لا يُدفن آخر الصفحة */
   var kp = plansOf(k);
   bl.push(B('rows', { title: 'الطبخات القادمة' + (kp.length ? ' (' + kp.length + ')' : ''), act: 'تخطيط', actGo: function () { openSh({ t: 'planAdd', rec: null }, { day: '1', pots: '3', kind: k }); },
     items: kp.map(function (p) {
@@ -4922,7 +4923,6 @@ function pgKitchen() {
   bl.push(B('rows', { title: 'طبخات اليوم', items: sortedBatches(todayB).map(function (b) { return batchRow(b, true); }), empty: 'لا طبخات اليوم' }));
   if (allB.length) bl.push(B('rows', { title: 'الطبخات السابقة', items: [X({ more: true, chev: true, icon: 'i-calendar', icTone: 'info', title: 'كل الطبخات (' + allB.length + ')', sub: 'مجمّعة حسب اليوم', go: function () { open('batches', { bk: k }); } })] }));
   if (k === 'external') {
-    bl.push(B('acts', { items: [X({ title: 'كشف كل الجهات', icon: 'i-doc', go: function () { openSh({ t: 'stAll', id: '__all' }, { m: '', sv: 'full' }); } })] }));
     bl.push(B('rows', { title: 'المؤسسات', act: 'مؤسسة', actGo: function () { openSh({ t: 'addInst' }, { name: '', src: 'own' }); },
       items: instsOf(false).map(function (i) {
         var l = led(i.led);
@@ -5044,7 +5044,7 @@ function pgWorkers() {
   bl.push(B('acts', { items: [
     X({ title: 'عامل جديد', icon: 'i-userPlus', on: true, go: function () { openSh({ t: 'addWorker' }, { name: '', wage: '' }); } }),
     X({ title: 'حضور الباقين', icon: 'i-check', go: function () { allPresent(); } }),
-    X({ title: 'رسالة للعمال', icon: 'i-send', go: function () { WSMS.sel = null; openSh({ t: 'wSms' }, { msg: '' }); } }),
+    X({ title: 'رسالة للعمال', icon: 'i-chat', go: function () { WSMS.sel = null; openSh({ t: 'wSms' }, { msg: '' }); } }),
     X({ title: 'دفع الأسبوع', icon: 'i-wallet', go: function () { openSh({ t: 'settle' }, { sel: W.filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); } })] }));
   if (m === 'wk') { bl.push(weekBlock(W)); return bl; }
   var wl = (S.workers || []).filter(function (w) { return !w.arch || A.showArch; }), wm = A.sort.workers;

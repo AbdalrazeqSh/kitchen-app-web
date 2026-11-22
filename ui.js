@@ -24,7 +24,7 @@ function X(o) {
     chev: !!o.chev, hasGo: !!o.go, cur: o.go ? 'pointer' : 'default', go: o.go || noop, lp: o.lp ? function (e) { if (e && e.preventDefault) e.preventDefault(); o.lp(); } : noop, isBtn: !o.step, isStep: !!o.step, ph: !!o.ph,
     minus: o.minus || noop, plus: o.plus || noop, edit: o.edit || noop, val: o.val == null ? '' : String(o.val), unit: o.unit || '',
     sub2: o.sub2 || '', hasSub2: !!o.sub2, badge: o.badge || '', hasBadge: !!o.badge, warn: o.warn || '', hasWarn: !!o.warn, hasHintGo: !!o.hintGo, hintTxt: o.hintTxt || '', hintGo: o.hintGo || noop, hasUndo: !!o.undo, undoGo: o.undo ? function (e) { if (e && e.stopPropagation) e.stopPropagation(); o.undo(); } : noop, opc: o.dim ? '.5' : '1', hasX: !!o.x, xGo: o.x ? function (e) { if (e && e.stopPropagation) e.stopPropagation(); o.x(); } : noop,
-    abg: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[0] : '#E9ECE7'), afg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
+    toneSet: !!o.tone, abg: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[0] : '#E9ECE7'), afg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
     rbg: o.hdr ? '#EAF1EC' : o.total ? '#D5E8DC' : o.subt ? '#F6EFDD' : o.rbg || (o.sel ? '#EAF5EE' : '#FFFFFF'), rbt: o.total ? '2px solid #14563A' : o.subt ? '1px solid #E2D6B4' : '0 solid transparent', sel: !!o.sel,
     label: o.label || '', value: o.value == null ? '' : String(o.value),
     on: on, count: o.count == null ? '' : String(o.count), hasCount: o.count != null && o.count !== 0,
@@ -42,15 +42,18 @@ function capRows(o) {
   c.items = (open ? it : it.slice(0, ROW_CAP)).concat([X({ more: true, chev: true, icon: open ? 'i-minus' : 'i-chevD', icTone: 'mute', title: open ? 'طيّ القائمة' : 'عرض ' + n + ' أخرى', go: function () { rowsOpen[k] = !open; UI.render(); } })]);
   return c;
 }
+/* لون الإجراء بمعناه (الإضافة والدفع والاستلام أخضر، الرسائل والتحويل والتقارير أزرق، الصرف والخصم كهرماني، المخالفة أحمر، غير ذلك رمادي): كل إجراء في `acts` يأخذ لونًا من أيقونته ما لم يحدّد `tone` بنفسه، فلا بلاطة رمادية بلا هوية في أي شاشة */
+var ACT_TONE = { 'i-plus': 'ok', 'i-userPlus': 'ok', 'i-check': 'ok', 'i-wallet': 'ok', 'i-truck': 'ok', 'i-send': 'info', 'i-chat': 'info', 'i-doc': 'info', 'i-ledger': 'info', 'i-minus': 'warn', 'i-box': 'warn', 'i-alert': 'bad' };
 function B(t, o) {
   o = o || {};
+  if (t === 'acts') o = Object.assign({}, o, { items: (o.items || []).map(function (it) { var tn0 = it.toneSet || it.on ? null : T[ACT_TONE[it.icon]]; return tn0 ? Object.assign({}, it, { abg: tn0[0], afg: tn0[1] }) : it; }) });
   if (t === 'rows') o = capRows(o);
   var tn = T[o.tone] || T.info, pick = t === 'pick', unfilled = o.filled === false;
   return {
     isKpi: t === 'kpi', isSeg: t === 'seg', isChips: t === 'chips', isRows: t === 'rows', isGrid: t === 'grid', isNote: t === 'note',
     isPaper: t === 'paper', pap: o.pap || { org: '', title: '', date: '', sub: '', lead: '', hasLead: false, hasTiles: false, tiles: [], secs: [], notes: [], foot: '' },
     isMonth: t === 'month', isWeek: t === 'week', wk: o.wk || { title: '', prev: noop, next: noop, days: [], rows: [], legend: [] }, mon: o.mon || { title: '', prev: noop, next: noop, head: [], cells: [] },
-    isBig: t === 'big', isBtns: t === 'btns', isActs: t === 'acts', isPre: t === 'pre', isPick: pick, isStepper: t === 'stepper', isInput: t === 'input',
+    isBig: t === 'big', isBtns: t === 'btns', isActs: t === 'acts' && (o.items || []).length !== 1, isAct1: t === 'acts' && (o.items || []).length === 1, isPre: t === 'pre', isPick: pick, isStepper: t === 'stepper', isInput: t === 'input',
     items: o.items || [],
     hasSort: !!o.sort, sortLabel: o.sort ? o.sort.label : '', sortRot: o.sort && o.sort.asc ? 'rotate(180deg)' : 'none', sortGo: o.sort ? o.sort.go : noop,
     hasHeadBtn: !!o.headBtn, headLabel: o.headBtn ? o.headBtn.label : '', headGo: o.headBtn ? o.headBtn.go : noop,
