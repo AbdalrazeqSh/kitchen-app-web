@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.139';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.140';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4552,25 +4552,32 @@ function smsSendOne(c) {
   if (smsNative()) return Capacitor.Plugins.KitchenSms.send({ to: n, body: tx }).then(function () { smsMark(c.g.id); return true; }).catch(function (e) { say('تعذّر الإرسال لـ ' + c.g.name + (e && e.message === 'denied' ? ': لم يُمنح إذن الرسائل' : '')); return false; });
   window.location.href = 'sms:' + n + '?body=' + encodeURIComponent(tx); smsMark(c.g.id); return Promise.resolve(true);
 }
-function smsSendAll() {
-  var todo = campsToday().filter(function (c) { return smsNum(c.g.phone) && !smsSent(c.g.id); }), ok = 0, bad = 0;
-  if (!todo.length) { say('لا مخيمات بانتظار الإرسال'); return; }
+var CSMS = { sel: null };
+/* المحدَّدون: الافتراضي كل مخيم له رقم ولم تُرسَل له رسالة اليوم؛ الضغط على صف يبدّل تحديده، فيمكن الإرسال لمخيم واحد أو اثنين (المالك 2026-11-22: «كيف بدي أرسل لواحد فيهم أو اثنين») */
+function smsPicked() { var cs = campsToday().filter(function (c) { return smsNum(c.g.phone); }); return CSMS.sel == null ? cs.filter(function (c) { return !smsSent(c.g.id); }) : cs.filter(function (c) { return CSMS.sel.indexOf(c.g.id) >= 0; }); }
+function smsSendList(todo) {
+  var ok = 0, bad = 0;
+  if (!todo.length) { say('اختر مخيمًا واحدًا على الأقل'); return; }
   shut(); say('جارٍ إرسال ' + pl(todo.length, 'رسالة واحدة', '2 رسالة', 'رسائل') + '…');
   var i = 0, step = function () {
     if (i >= todo.length) { say('أُرسلت ' + ok + (bad ? ' · تعذّرت ' + bad : '')); render(); return; }
     var c = todo[i++]; smsSendOne(c).then(function (r) { if (r) ok++; else bad++; setTimeout(step, 1200); });
   }; step();
 }
+function smsSendAll() { smsSendList(smsPicked()); }
 function smsSheet(sh) {
   if (sh.t === 'campSms') {
-    var cs = campsToday(), nat = smsNative(), pend = cs.filter(function (c) { return smsNum(c.g.phone) && !smsSent(c.g.id); }).length;
-    return { title: 'رسائل المخيمات', sub: cs.length ? pl(cs.length, 'مخيم واحد له طعام اليوم', '2 مخيم لهما طعام اليوم', 'مخيمات لها طعام اليوم') : 'لا مخيمات لها طعام اليوم',
-      acts: [X({ title: 'نص الرسالة', icon: 'i-pencil', go: function () { var c = smsCfg(); openSh({ t: 'campTpl' }, { tpl: c.tpl, time: c.time, place: c.place }); } })],
-      rows: cs.map(function (c) { var n = smsNum(c.g.phone), sent = smsSent(c.g.id);
-        return X({ icon: 'i-users', icTone: sent ? 'ok' : n ? 'info' : 'warn', title: c.g.name, sub: (c.g.rep ? c.g.rep + ' · ' : '') + (n ? c.g.phone : 'بلا رقم') + ' · ' + c.dishes, tag: sent ? 'أُرسلت' : n ? '' : 'بلا رقم', tagTone: sent ? 'ok' : 'warn', chev: true, go: function () { openSh({ t: 'campOne', id: c.g.id }); } }); }),
+    var cs = campsToday(), nat = smsNative(), picked = smsPicked(), withNum = cs.filter(function (c) { return smsNum(c.g.phone); }), allOn = withNum.length > 0 && picked.length === withNum.length;
+    var setSel = function (a) { CSMS.sel = a; render(); };
+    return { title: 'رسائل المخيمات', sub: cs.length ? pl(cs.length, 'مخيم واحد له طعام اليوم', '2 مخيم لهما طعام اليوم', 'مخيمات لها طعام اليوم') + ' · اضغط مخيمًا لتحديده أو إلغائه' : 'لا مخيمات لها طعام اليوم',
+      acts: [X({ title: allOn ? 'إلغاء التحديد' : 'تحديد الكل', icon: 'i-check', go: function () { setSel(allOn ? [] : withNum.map(function (c) { return c.g.id; })); } }), X({ title: 'نص الرسالة', icon: 'i-pencil', go: function () { var c = smsCfg(); openSh({ t: 'campTpl' }, { tpl: c.tpl, time: c.time, place: c.place }); } })],
+      rows: cs.map(function (c) { var n = smsNum(c.g.phone), sent = smsSent(c.g.id), on = picked.some(function (p) { return p.g.id === c.g.id; });
+        return X({ icon: 'i-users', icTone: sent ? 'ok' : n ? 'info' : 'warn', title: c.g.name, sub: (c.g.rep ? c.g.rep + ' · ' : '') + (n ? c.g.phone : 'بلا رقم') + ' · ' + c.dishes, tag: sent ? 'أُرسلت' : n ? '' : 'بلا رقم', tagTone: sent ? 'ok' : 'warn', sel: !!n && on,
+          go: function () { if (!n) { openSh({ t: 'campOne', id: c.g.id }); return; } var base = CSMS.sel == null ? picked.map(function (p) { return p.g.id; }) : CSMS.sel.slice(); setSel(on ? base.filter(function (x) { return x !== c.g.id; }) : base.concat([c.g.id])); },
+          lp: function () { openSh({ t: 'campOne', id: c.g.id }); } }); }),
       empty: 'وزّع القدور على المخيمات أو خطّط لها أولًا',
-      note: nat ? null : { text: 'الإرسال التلقائي يحتاج النسخة الجديدة من التطبيق (APK). حتى ذلك الحين يفتح كل مخيم تطبيق الرسائل بالنص جاهزًا.', tone: 'info' },
-      ft: { label: pend ? (nat ? 'إرسال للكل (' + pend + ')' : 'الإرسال التلقائي يحتاج APK') : 'لا شيء بانتظار الإرسال', ok: nat && pend > 0, go: smsSendAll } };
+      note: nat ? { text: 'الضغطة المطوّلة على مخيم تعرض رسالته وحده.', tone: 'info' } : { text: 'الإرسال التلقائي يحتاج النسخة الجديدة من التطبيق (APK). حتى ذلك الحين يفتح كل مخيم تطبيق الرسائل بالنص جاهزًا.', tone: 'info' },
+      ft: { label: picked.length ? (nat ? 'إرسال للمحدد (' + picked.length + ')' : 'الإرسال التلقائي يحتاج APK') : 'اختر مخيمًا', ok: nat && picked.length > 0, go: smsSendAll } };
   }
   if (sh.t === 'campOne') {
     var c = campsToday().filter(function (x) { return x.g.id === sh.id; })[0]; if (!c) return { title: 'رسالة المخيم', rows: [], empty: 'لا طعام لهذا المخيم اليوم' };
@@ -4798,7 +4805,7 @@ function pgToday() {
       lp: function () { var g = E.by(S.bens || [], x.ben); if (g) benQa(g); } })); });
     bl.push(B('rows', { title: 'توزيع القدور', act: 'توزيع', actGo: function () { openSh({ t: 'distDay' }, { ben: '', pots: '', dish: distDish0() }); }, items: drows }));
   }
-  if (f !== 'external' && campsToday().length) bl.push(B('acts', { items: [X({ title: 'رسائل الصباح للمخيمات', icon: 'i-chat', go: function () { openSh({ t: 'campSms' }, {}); } })] }));
+  if (f !== 'external' && campsToday().length) bl.push(B('acts', { items: [X({ title: 'رسائل الصباح للمخيمات', icon: 'i-chat', go: function () { CSMS.sel = null; openSh({ t: 'campSms' }, {}); } })] }));
   var tmw = iso(new Date(Date.now() + 864e5));
   if (f !== 'external') planDistBlocks(plans().filter(function (p) { return p.date <= tmw; })).forEach(function (b) { bl.push(b); });
   /* المال والعطلة وإغلاق اليوم على مستوى اليوم لا النوع: تظهر في «الكل» وحده فلا تبقى ثابتة بين تبويبي النوع (المالك 2026-11-21) */
