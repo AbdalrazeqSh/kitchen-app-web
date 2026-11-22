@@ -59,7 +59,7 @@ function B(t, o) {
     hasHeadBtn: !!o.headBtn, headLabel: o.headBtn ? o.headBtn.label : '', headGo: o.headBtn ? o.headBtn.go : noop,
     title: o.title || '', hasTitle: !!o.title, actLabel: o.act || '', hasAct: !!o.act, actGo: o.actGo || noop,
     emptyText: o.empty || '', hasEmpty: !!o.empty && !(o.items && o.items.length),
-    text: o.text || '', label: o.label || '', value: o.value == null ? '' : String(o.value), value2: o.value2 == null ? '' : String(o.value2), hasV2: o.value2 != null && o.value2 !== '',
+    text: o.text || '', label: o.label || '', value: o.value == null ? '' : String(o.value), value2: o.value2 == null ? '' : String(o.value2), hasV2: o.value2 != null && o.value2 !== '', hasSide: !!o.side, sideLabel: o.side ? o.side.label : '', sideValue: o.side ? o.side.value : '', sideGo: o.side ? o.side.go : function () {},
     bg: tn[0], fg: pick ? (unfilled ? '#5B6660' : '#1B2421') : tn[1], icon: o.icon || 'i-alert',
     go: o.go || noop, minus: o.minus || noop, plus: o.plus || noop, edit: o.edit || noop, onInput: o.onInput || noop, ph: o.ph || '', mode: o.mode || 'text',
     bd: unfilled ? 'rgba(27,36,33,.35)' : 'rgba(27,36,33,.12)'

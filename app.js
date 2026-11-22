@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.140';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.142';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1751,7 +1751,7 @@ function fName(f) { return (S.workers || []).some(function (w) { return !w.arch 
 /* الرصيد كاملًا بكل عملاته (الدولار والشيكل معًا) حيث يُختار رصيد أو يُعرض */
 function fBalAll(f) { return f.curs.map(function (c) { return fTxt(c, fBal(f.id, c)); }).join(' · '); }
 function fBalTxt(f) { return fTxt(fMain(f), fBal(f.id, fMain(f))); }
-function fKind(f) { var w = f.w ? wk(f.w) : null; return f.w || f.curs.length === 1 && fMain(f) === 'ils' ? (w ? 'عند العامل · شيكل' : 'شيكل') : f.curs.length > 1 ? 'دولار وشيكل' : 'دولار'; }
+function fKind(f) { var w = f.w ? wk(f.w) : null; return f.w || f.curs.length === 1 && fMain(f) === 'ils' ? (w ? 'عند ' + w.name + ' · شيكل' : 'شيكل') : f.curs.length > 1 ? 'دولار وشيكل' : 'دولار'; }
 function lastRate() { var l = movesDesc((S.fm || []).filter(function (m) { return m.rate > 0 && !m.void; }))[0]; return l ? l.rate : 0; }
 function openMove(fid, dir) { openSh({ t: 'fMove' }, { fund: fid || defFund(), dir: dir || 'out', dlock: dir ? '1' : '', mode: '', amt: '', rate: '', note: '', cat: '', dtxt: today() }); }
 /* صف حركة موحَّد في كل مكان؛ withFund يُظهر من أي رصيد */
@@ -5275,7 +5275,8 @@ function pgWorker() {
   var w = wk(A.wid), a = wAtt(w), st = a ? stat(a.st) : null, b = wBal(w), bl = [];
   var ent = function (type) { return wEnt(w, type); }, ym0 = monthKeys(1)[0], ms = monthStmt(w, ym0), mc = { bonus: 0, ded: 0, pay: 0 };
   ms.es.forEach(function (e) { var c = wCat(e); if (wPlusC(c)) mc.bonus += e.amt; else if (c === 'kbuy') mc.kb = (mc.kb || 0) + e.amt; else if (c === 'viol' || c === 'buy' || c === 'ded') mc.ded += e.amt; else if (c === 'pay' || c === 'adv') mc.pay += e.amt; });
-  bl.push(B('big', { label: 'الرصيد الحالي', value: balTxt(b),
+  var wf = funds().filter(function (f) { return f.w === w.id; })[0];
+  bl.push(B('big', { label: 'الرصيد الحالي', value: balTxt(b), side: wf ? { label: 'مال المطبخ', value: money(fBal(wf.id, 'ils')), go: function () { open('fund', { fid: wf.id }); } } : null,
     text: 'آخر دفعة: ' + wLastPay(w) + '\n' + (st ? 'حضور اليوم: ' + st.name + ' (' + money(E.attAmt(a)) + ')' : 'حضور اليوم لم يُسجَّل بعد') }));
   bl.push(B('acts', { items: [
     X({ title: 'دفعة', icon: 'i-wallet', on: true, go: ent('دفعة نقدية') }),
@@ -5290,8 +5291,6 @@ function pgWorker() {
     X({ label: 'خصومات', value: money(mc.ded), endTone: mc.ded ? 'bad' : undefined, sub: 'مخالفات ومسحوبات' }),
     X({ label: 'دفعات', value: money(mc.pay), sub: 'نقدية وسلف' })
   ] }));
-  var wf = funds().filter(function (f) { return f.w === w.id; })[0];
-  if (wf) bl.push(B('rows', { items: [X({ icon: 'i-wallet', icTone: 'info', title: 'عهدة المطبخ بحوزته', sub: 'مال المطبخ، لا يدخل في مستحقاته ولا في كشفه', end: money(fBal(wf.id, 'ils')), chev: true, go: function () { open('fund', { fid: wf.id }); } })] }));
   /* سجل واحد: اليوم أولًا (حضوره وحركاته) ثم الأيام السابقة، والرصيد أعلاه هو الإجمالي */
   /* السجل: لكل يوم بطاقة واحدة: صف الحضور ثم حركات ذلك اليوم تحته في البطاقة نفسها (مكافأة، خصم، دفعة، مخالفة). الملغاة تبقى تحت يومها بخط باهت وزر «استرجاع» */
   var d0 = today(), ents = (S.wl || []).filter(function (e) { return e.w === w.id && e.kind !== 'open' && !(e.void && e.edTo) && e.date >= dayOff(-30); }), dts = {}, hist = wHist(w, 40), items = [];
