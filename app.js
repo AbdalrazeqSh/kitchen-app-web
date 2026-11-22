@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.151';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.152';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2682,7 +2682,7 @@ function orderSheet(sh) {
   var R, d, l, it;
   switch (sh.t) {
     case 'draftNew': {
-      var lid = fv('led') || (led(A.led) && !led(A.led).arch ? A.led : 'kitchen'), ps = parseOrder(fv('otxt')), bad = ps.filter(function (x) { return x.flag || !x.item || !(x.qty > 0); }).length, rw = rcvWhen(), rdt = rcvDate();
+      var lid = fv('led') || (led(A.led) && !led(A.led).arch ? A.led : 'kitchen'), ps = parseOrder(fv('otxt')), bad = ps.filter(function (x) { return x.flag || !x.item || !(x.qty > 0); }).length, rw = rcvWhen(true), rdt = rcvDate();
       R = { title: 'مسودة توريد', sub: 'الصق نص الطلبية الواردة: سطر لكل صنف', acts: [X({ title: 'من صورة', icon: 'i-image', go: function () { ocrPick(); } })],
         fields: [fText('dsrc', 'المصدر ورقم الطلبية (اختياري)', 'مثال: WCK RQ24574'), fArea('otxt', 'نص الطلبية', 'رز | 25 | كيلو | 4.5\nسكر 10 كيلو\nزيت 8 لتر 12'), fChips('led', 'تُسجَّل في', ledgers().map(function (x) { return [x.id, x.name]; })), rw[0]],
         note: { text: ps.length ? 'فُهم ' + pl(ps.length, 'سطر واحد', 'سطران', 'أسطر') + (bad ? '، منها ' + bad + ' تحتاج مراجعتك.' : ' وكلها جاهزة للمراجعة.') : 'اكتب الصنف ثم الكمية والوحدة، والسعر اختياريًا. صيغ مقبولة: «رز | 25 | كيلو | 4.5» أو «رز 25 كيلو» أو «25 كيلو رز». ما لم يُفهم تختاره بنفسك في الخطوة التالية.', tone: ps.length && !bad ? 'ok' : 'info' },
@@ -2723,7 +2723,7 @@ function orderSheet(sh) {
       break;
     }
     case 'dmeta': {
-      d = draftOf(sh.did); var rw2 = rcvWhen(), dd = rcvDate();
+      d = draftOf(sh.did); var rw2 = rcvWhen(true), dd = rcvDate();
       R = { title: 'مكان وتاريخ التوريد', sub: 'يُطبَّقان على كل أسطر المسودة', fields: [fChips('led', 'المخزن', ledgers().map(function (x) { return [x.id, x.name]; })), rw2[0], fSeg('hold', 'حالة التوريد', [['0', 'يصل في تاريخه'], ['1', 'لم يصل بعد: أدخله بيدي']])], note: rcvNote(dd),
         ft: { label: 'حفظ', ok: !!dd, go: function () { d.led = fv('led') || d.led; d.date = dd; if (fv('hold') === '1') d.hold = 1; else delete d.hold; shut(); mutated('حُدّث مكان المسودة وتاريخها'); setTimeout(function () { supArrive(); }, 0); } } };
       break;
@@ -6140,9 +6140,9 @@ function rcvDate() {
   var d = fv('day'); return dayOff(d === '' ? 0 : (+d || 0));
 }
 function rcvOk(d) { return !!d && d <= today() && (d === today() || !((S.days || {})[d] || {}).closed); }
-function rcvWhen() {
+function rcvWhen(future) {
   if (!fv('dtxt')) A.form.dtxt = fv('day') !== '' && fv('day') !== undefined && fv('day') !== null ? dayOff(+fv('day') || 0) : today();
-  return [fDate('dtxt', 'تاريخ الحركة', '', today())];
+  return [fDate('dtxt', 'تاريخ الحركة', '', future ? '' : today())];
 }
 function rcvNote(d) { return !d ? null : d > today() ? { text: 'توريد قادم: لا يدخل المخزن قبل ' + dlabel(d) + ' ويُسجَّل تلقائيًا في ذلك اليوم.', tone: 'info' } : !rcvOk(d) ? { text: 'هذا اليوم مُغلق.', tone: 'warn' } : d !== today() ? { text: 'سيُسجَّل بتاريخ ' + dlabel(d) + '.', tone: 'info' } : null; }
 function doRecv(it, l) {
