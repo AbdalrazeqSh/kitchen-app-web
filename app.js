@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.150';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.151';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -723,7 +723,7 @@ function pgAssets() {
   var bl = [], act = AA(), cat = A.acat || 'all', tot = act.reduce(function (t, a) { return t + aTot(a); }, 0), good = act.reduce(function (t, a) { return t + (a.qty || 0); }, 0), warn = assetAttention().length;
   bl.push(B('kpi', { items: [X({ label: 'أنواع', value: act.length, sub: 'مسجّلة', go: function () { openSh({ t: 'kAstT' }); } }), X({ label: 'قطع', value: tot, sub: 'سليم ' + good, go: function () { openSh({ t: 'kAstP' }); } }), X({ label: 'تحتاج انتباه', value: warn, sub: 'معطّل أو يلزم جرد', endTone: warn ? 'bad' : 'ok', go: function () { openSh({ t: 'kAst' }); } })] }));
   bl.push(B('chips', { items: [X({ label: 'الكل', on: cat === 'all', go: function () { setState({ acat: 'all' }); } })].concat(acats().filter(function (c) { return act.some(function (a) { return a.cat === c; }); }).map(function (c) { return X({ label: c, on: cat === c, go: function () { setState({ acat: c }); } }); })) }));
-  bl.push(B('btns', { items: [X({ label: 'موجود جديد', icon: 'i-plus', on: true, go: function () { openSh({ t: 'addAsset' }, { name: '', cat: acats()[0], catNew: '', qty: '', loc: alocs()[0], locNew: '', note: '' }); } }), X({ label: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'stocktake' }); } })] }));
+  bl.push(B('acts', { items: [X({ title: 'موجود جديد', icon: 'i-plus', go: function () { openSh({ t: 'addAsset' }, { name: '', cat: acats()[0], catNew: '', qty: '', loc: alocs()[0], locNew: '', note: '' }); } }), X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'stocktake' }); } })] }));
   var cats = acats().filter(function (c) { return (cat === 'all' || cat === c) && act.some(function (a) { return a.cat === c; }); });
   cats.forEach(function (c) {
     var rs = act.filter(function (a) { return a.cat === c; });
@@ -4894,9 +4894,9 @@ function pgRecipes() {
   var fw = function (r) { return String(r.name).split(/\s+/)[0]; }, cnt = {}; ok.forEach(function (r) { cnt[fw(r)] = (cnt[fw(r)] || 0) + 1; });
   var order = [], map = {}; ok.forEach(function (r) { var g = cnt[fw(r)] > 1 ? fw(r) : 'أخرى'; if (!map[g]) { map[g] = []; order.push(g); } map[g].push(r); });
   order.sort(function (x, y) { return x === 'أخرى' ? 1 : y === 'أخرى' ? -1 : map[y].length - map[x].length; });
-  var bl = [B('kpi', { items: [X({ label: 'معتمدة', value: ok.length, sub: 'جاهزة للطبخ' }), X({ label: 'مبدئية/تجريبية', value: dr.length, sub: 'تحتاج مراجعة' })] })];
-  order.forEach(function (g, i) { bl.push(B('rows', { title: g + ' (' + map[g].length + ')', act: i ? undefined : 'وصفة', actGo: i ? undefined : function () { openSh({ t: 'addRecipe' }, { name: '', kinds: k }); }, items: map[g].map(function (r) { return recipeRow(r, k); }) })); });
-  if (!order.length) bl.push(B('rows', { title: 'معتمدة', act: 'وصفة', actGo: function () { openSh({ t: 'addRecipe' }, { name: '', kinds: k }); }, items: [], empty: 'لا وصفات معتمدة' }));
+  var bl = [B('kpi', { items: [X({ label: 'معتمدة', value: ok.length, sub: 'جاهزة للطبخ' }), X({ label: 'مبدئية/تجريبية', value: dr.length, sub: 'تحتاج مراجعة' })] }), B('acts', { items: [X({ title: 'وصفة جديدة', icon: 'i-plus', go: function () { openSh({ t: 'addRecipe' }, { name: '', kinds: k }); } })] })];
+  order.forEach(function (g, i) { bl.push(B('rows', { title: g + ' (' + map[g].length + ')', items: map[g].map(function (r) { return recipeRow(r, k); }) })); });
+  if (!order.length) bl.push(B('rows', { title: 'معتمدة', items: [], empty: 'لا وصفات معتمدة' }));
   if (dr.length) bl.push(B('rows', { title: 'مبدئية وتجريبية (' + dr.length + ')', items: dr.map(function (r) { return recipeRow(r, k); }) }));
   return bl;
 }
@@ -5122,7 +5122,8 @@ function pgKitchen() {
   /* الوصفات: ثلاث الأكثر استعمالًا لبدء طبخة بضغطة، والباقي خلف «كل الوصفات» */
   var use = {}; S.batches.forEach(function (b) { if (!b.void && b.recipe) use[b.recipe] = (use[b.recipe] || 0) + 1; });
   var top = rs.filter(function (r) { return !r.draft && !r.exp; }).sort(function (x, y) { return (use[y.id] || 0) - (use[x.id] || 0); }).slice(0, 3);
-  bl.push(B('rows', { title: 'الوصفات', act: 'وصفة', actGo: function () { openSh({ t: 'addRecipe' }, { name: '', kinds: k }); },
+  bl.push(B('acts', { items: [X({ title: 'وصفة جديدة', icon: 'i-plus', go: function () { openSh({ t: 'addRecipe' }, { name: '', kinds: k }); } })] }));
+  bl.push(B('rows', { title: 'الوصفات',
     items: top.map(function (r) { return recipeRow(r, k); }).concat([X({ more: true, chev: true, icon: 'i-book', icTone: 'info', title: 'كل الوصفات (' + rs.length + ')', sub: pl(rs.filter(function (r) { return !r.draft && !r.exp; }).length, 'معتمدة', 'معتمدتان', 'معتمدة') + ' · ' + (rs.length - rs.filter(function (r) { return !r.draft && !r.exp; }).length) + ' مبدئية/تجريبية', chev: true, go: function () { open('recipes', { rk: k }); } })]), empty: 'لا وصفات لهذا النوع بعد' }));
   return bl;
 }
