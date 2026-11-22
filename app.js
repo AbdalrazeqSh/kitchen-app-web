@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.134';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.135';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -464,6 +464,8 @@ function fChips(k, label, opts, hint) {
   var cur = fv(k), short = opts.length <= 3 && opts.reduce(function (a, o) { return a + String(o[1]).length; }, 0) <= 20 && label.length <= 16, f;
   f = { label: label, hint: hint || '', hasHint: !!hint, isText: false, isChips: true, value: '', ph: '', mode: 'text', onInput: noop,
     chips: opts.map(function (o) { var sel = cur === o[0]; return X({ label: o[1], on: sel, selTone: o[2], tone: sel ? undefined : o[2], go: function () { fset(k, o[0]); } }); }) };
+  /* لون المحدد يتبع لون اتجاه النافذة (ناقص أحمر/وارد أخضر) لا أخضر ثابتًا: `shFields` تستدعيها بنغمة النافذة (المالك 2026-11-22: «الشيكل بلون مخالف») */
+  f.retone = function (tk) { var st = tk === 'out' ? 'bad' : 'ok'; f.chips = opts.map(function (o) { var sel = cur === o[0]; return X({ label: o[1], on: sel, selTone: o[2] || st, tone: sel ? undefined : o[2], go: function () { fset(k, o[0]); } }); }); };
   if (short) { f.fd = 'row'; f.ai = 'center'; f.gp = '12px'; f.lf = '1'; }
   return f;
 }
@@ -471,7 +473,8 @@ function fChips(k, label, opts, hint) {
 function fSeg(k, label, opts) {
   var f = fChips(k, label, opts); if (!label) f.lbd = 'none'; f.fd = 'column'; f.ai = 'stretch'; f.gp = '6px'; f.lf = '0'; f.cbg = '#EEF1EC'; f.cpad = '4px'; f.cflex = '1'; f.cjc = 'center';
   f.chips = opts.map(function (o) { var sel = fv(k) === o[0]; return X({ label: o[1], on: sel, selTone: o[2] === 'bad' ? 'bad' : undefined, go: function () { fset(k, o[0]); } }); });
-  f.chips.forEach(function (c, i) { var on = fv(k) === opts[i][0], bad = on && opts[i][2] === 'bad'; c.bg = on ? (bad ? '#B3261E' : '#14563A') : 'transparent'; c.fg = on ? '#FFFFFF' : '#5B6660'; c.bd = on ? (bad ? '#B3261E' : '#14563A') : 'transparent'; });
+  var paint = function (tk) { f.chips.forEach(function (c, i) { var on = fv(k) === opts[i][0], bad = on && (opts[i][2] === 'bad' || (tk === 'out' && opts[i][2] !== 'ok')), col = bad ? '#B3261E' : '#14563A'; c.bg = on ? col : 'transparent'; c.fg = on ? '#FFFFFF' : '#5B6660'; c.bd = on ? col : 'transparent'; }); };
+  paint(''); f.retone = paint;
   return f;
 }
 /* مفتاح ثلاثي مضغوط في صف واحد: الاسم يمينًا والمفتاح يسارًا بقياس موحّد (خيارات التقرير؛ المالك 2026-11-19) */
@@ -482,7 +485,8 @@ function fTri(k, label, opts) {
 function fQuick(k, label, arr) {
   var cur = num(k);
   return { label: label, hint: '', hasHint: false, isText: false, isChips: true, value: '', ph: '', mode: 'text', onInput: noop,
-    chips: arr.map(function (n) { var v = Array.isArray(n) ? n[0] : n; return X({ label: Array.isArray(n) ? n[1] : n + ' ₪', on: cur === v, go: function () { fset(k, String(v)); } }); }) };
+    chips: arr.map(function (n) { var v = Array.isArray(n) ? n[0] : n; return X({ label: Array.isArray(n) ? n[1] : n + ' ₪', on: cur === v, go: function () { fset(k, String(v)); } }); }),
+    retone: function (tk) { var me = this; me.chips = arr.map(function (n) { var v = Array.isArray(n) ? n[0] : n; return X({ label: Array.isArray(n) ? n[1] : n + ' ₪', on: cur === v, selTone: tk === 'out' ? 'bad' : 'ok', go: function () { fset(k, String(v)); } }); }); } };
 }
 function pickOr(list, o) {
   var raw = A.q.trim(), q = norm(raw);
@@ -6159,7 +6163,7 @@ function shell() {
     shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
-    shFields: (f.fields || []).map(function (x) { if (x.money && tn) { x.ibg = tn.fieldBg; x.ibd = tn.line; x.ifc = tn.text; } return Object.assign({ sideDir: 'rtl', sideMode: 'text', sideFs: '15px', sideTa: 'start', isDD: false, ddOpen: false, ddLabel: '', ddOpts: [], ddToggle: noop, lbd: 'block', chh: '44px', chmw: '56px', chp: '0 14px', chfs: '14px', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', ifc: '#1B2421', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
+    shFields: (f.fields || []).map(function (x) { if (tn && x.retone) x.retone(f.tone); if (x.money && tn) { x.ibg = tn.fieldBg; x.ibd = tn.line; x.ifc = tn.text; } return Object.assign({ sideDir: 'rtl', sideMode: 'text', sideFs: '15px', sideTa: 'start', isDD: false, ddOpen: false, ddLabel: '', ddOpts: [], ddToggle: noop, lbd: 'block', chh: '44px', chmw: '56px', chp: '0 14px', chfs: '14px', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', ifc: '#1B2421', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
     shHasBusy: !!f.busy, shBusyText: f.busy ? f.busy.text : '', shBusyW: f.busy && f.busy.pct >= 0 ? Math.max(4, Math.round(f.busy.pct * 100)) + '%' : '40%', shBusyAnim: f.busy && f.busy.pct >= 0 ? 'none' : 'kind 1.3s ease-in-out infinite', shBusyHint: f.busy ? f.busy.hint || '' : '',
     shHasNote: !!nt, shNote: nt ? nt.text : '', shNoteBg: ntn[0], shNoteFg: ntn[1],
     shHasFooter: !!sft, shFtLabel: sft ? sft.label : '', shFtDisabled: sft ? !sft.ok : false, shFtBg: sft && sft.ok ? (tn ? tn.line : (DESTR.test(sft.label) ? '#B3261E' : '#14563A')) : '#D9DDD8', shFtFg: sft && sft.ok ? '#FFFFFF' : '#4A544F',
