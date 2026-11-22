@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.148';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.149';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -983,10 +983,11 @@ function chefCanvas(sp0) {
     if (bk.t === 'dist') return 60 + bk.rows.reduce(function (a, d) { return a + (d.types ? 74 : 54); }, 0) + 60 + GAP;
     return 14 + bk.lines.length * 46 + GAP;
   };
-  var H = hdr + 16 + sp.blocks.reduce(function (a, bk) { return a + hOf(bk); }, 0) + 70;
+  var H = hdr + 16 + sp.blocks.reduce(function (a, bk) { return a + hOf(bk); }, 0) + 24;
   var c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'); x.direction = 'rtl';
   var fit = function (t, w, px, wt) { var z = px; x.font = wt + ' ' + z + 'px ' + F; while (z > 24 && x.measureText(t).width > w) { z -= 2; x.font = wt + ' ' + z + 'px ' + F; } };
   x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H); x.fillStyle = '#14563A'; x.fillRect(0, 0, W, hdr);
+  x.fillStyle = 'rgba(255,255,255,.8)'; x.textAlign = 'left'; x.font = '500 22px ' + F; x.fillText('الشيف', PAD, 36); /* هوية الورقة في الزاوية (لمن هي) لا ملاحظة في أسفلها */
   x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; fit(sp.name, W - 2 * PAD, 40, 700); x.fillText(sp.name, W - PAD, 62);
   fit(sp.sub, W - 2 * PAD, 25, 500); x.fillText(sp.sub, W - PAD, 104);
   var y = hdr + 16;
@@ -1019,7 +1020,6 @@ function chefCanvas(sp0) {
     }
     y += hOf(bk);
   });
-  x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد · بلا أسعار', W / 2, H - 24);
   return c;
 }
 function shareChef(sp) { imgPreview(function () { return chefCanvas(sp); }, 'مطبخ-عهد-' + sp.name + (sp.date ? '-' + sp.date : '') + '.png', sp.name + ' — ' + (sp.sub || dlabel(sp.date))); }
