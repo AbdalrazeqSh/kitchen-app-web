@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.135';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.137';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3683,6 +3683,7 @@ function stmtOptsSheet(sh) {
   var fail = function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); };
   return { title: 'معاينة كشف ' + i.name, sub: 'غيّر الخيارات فتتغير المعاينة، ثم شارك', fields: fl,
     acts: [X({ title: 'PDF', icon: 'i-doc', go: function () { deliverFile(nm.replace(/\.png$/, '.pdf'), u8b64(pdfFromCanvas(cv)), 'application/pdf', ttl, '').catch(fail); } }),
+      X({ title: 'PDF للطباعة', icon: 'i-doc', go: function () { deliverFile(nm.replace(/\.png$/, '-A4.pdf'), u8b64(pdfA4Pages(cv)), 'application/pdf', ttl, '').catch(fail); } }),
       X({ title: 'تنزيل صورة', icon: 'i-down', go: function () { saveFile(nm, url.split(',')[1], 'image/png', ttl).then(function (r) { say(savedMsg(r, 'الصورة')); }, function () { say('تعذّر حفظ الصورة'); }); } })],
     ft: { label: 'مشاركة', ok: true, go: function () { stSaveOpts(i); deliverFile(nm, url.split(',')[1], 'image/png', ttl, '').then(function () { S.settings.stmtSent = S.settings.stmtSent || {}; S.settings.stmtSent[stKey(i, ym)] = Date.now(); audit('إرسال كشف «' + i.name + '» ' + (ym === 'all' ? '' : monthLabel(ym))); mutated(''); }, fail); } },
     ft2: { label: 'حفظ الخيارات', go: function () { stSaveOpts(i); setState({ sh: { t: i.all ? 'stAll' : 'stmt', id: i.id }, form: { m: ym }, q: '' }); mutated('حُفظت خيارات الكشف'); } } };
@@ -3828,24 +3829,25 @@ function stBatchBlock(b, o) {
   if (!lump) (b.xl || []).forEach(function (x) { var nm = x.k || x.name || x.note || 'رسوم إضافية'; if (!o.labor && /عمال|عمالة/.test(nm)) return; extra.push({ n: nm, d: x.k && x.note ? x.note : '', c: money(x.amt || 0) }); });
   var foot = lump && o.labor ? pl(b.pots || 0, 'قدر واحد', '2 قدر', 'قدور') + ' × ' + money(b.lump || 0) + ' / قدر' : '';
   var mat = r2((b.lines || []).reduce(function (t, ln) { return t + (ln.cost || 0); }, 0));
-  return { name: batchName(b), pots: pl(b.pots || 0, 'قدر واحد', '2 قدر', 'قدور'), total: batchCostTxt(b), rows: o.lines ? rows : [], extra: extra, foot: foot, free: free, lump: lump, mat: mat, subt: o.subt && !lump && !free && mat > 0 ? money(mat) : '' };
+  return { name: batchName(b), pots: pl(b.pots || 0, 'قدر واحد', '2 قدر', 'قدور'), total: batchCostTxt(b), rows: o.lines ? rows : [], extra: extra, foot: foot, free: free, lump: lump, mat: mat, subt: o.subt && !lump && !free && mat > 0 && extra.length ? money(mat) : '' }; /* بلا بنود إضافية يطابق مجموع المواد إجمالي الطبخة فلا يُكرَّر رقمه */
 }
 /* ثوابت الأعمدة: عنوان واحد للجدول وأرقام محاذاة عموديًا (الكمية يمينًا عند QX، السعر عند PX، التكلفة يسارًا) */
-var ST_QX = 560, ST_PX = 380;
+var ST_BRK = [], ST_QX = 560, ST_PX = 380;
 /* أسطر جسم كشف جهة واحدة (الرصيد السابق، الأيام والطبخات، الإضافات، الدفعات): يستعملها الكشف الفردي والمجمّع معًا */
-function stBodyRows(a, o, L) {
+/* المبلغ يظهر مرة واحدة في تسلسل (جهة ← يوم ← طبخة ← عمالة): لا رقم يليه الرقم نفسه (المالك 2026-11-22: 2,061 تحتها 2,061 غير مريح للعميل)؛ `hideDay` = يوم الجهة الوحيد يطابق شريطها */
+function stBodyRows(a, o, L, hideDay) {
   var groups = stDayGroups(a), anyRows = false;
   var blocks = groups.map(function (g) { return { g: g, bl: g.bs.map(function (b) { var B = stBatchBlock(b, o); if (B.rows.length) anyRows = true; return B; }) }; });
   if (a.prev) L.push({ k: 'row', a: 'الرصيد السابق', d: '', c: money(a.prev), h: 56 });
   blocks.forEach(function (gb) {
     var g = gb.g, dayTot = r2(g.bs.reduce(function (t, b) { return t + (b.cost || 0); }, 0)), pots = g.bs.reduce(function (t, b) { return t + (b.pots || 0); }, 0);
-    L.push({ k: 'day', a: dlong(g.date), d: pl(pots, 'قدر واحد', '2 قدر', 'قدور'), c: money(dayTot), h: 58 });
+    L.push({ k: 'day', a: dlong(g.date), d: pl(pots, 'قدر واحد', '2 قدر', 'قدور'), c: hideDay && groups.length === 1 ? '' : money(dayTot), h: 58 });
     gb.bl.forEach(function (B) {
-      L.push({ k: 'bat', a: B.name, d: B.pots, c: B.total, h: 50 });
+      L.push({ k: 'bat', a: B.name, d: B.pots, c: g.bs.length > 1 ? B.total : '', h: 50 });
       B.rows.forEach(function (r) { L.push({ k: 'ln', r: r, lump: B.lump, free: B.free, h: 44 }); });
       if (B.subt) L.push({ k: 'sb', a: 'مجموع المواد', c: B.subt, h: 44 });
       B.extra.forEach(function (x) { L.push({ k: 'ex', a: x.n, d: x.d, c: x.c, h: 44 }); });
-      if (B.foot) L.push({ k: 'ft', a: 'العمالة', d: B.foot, c: B.total, h: 44 });
+      if (B.foot) L.push({ k: 'ft', a: 'العمالة', d: B.foot, c: '', h: 44 });
       L.push({ k: 'gap', h: 10 });
     });
   });
@@ -3856,9 +3858,11 @@ function stBodyRows(a, o, L) {
 }
 /* رسم أسطر L على اللوحة من y وإرجاع y بعدها (مشترك بين الكشف الفردي والمجمّع) */
 function stDrawL(x, W, PAD, F, L, y) {
+  var prevK = '', brk = []; ST_BRK = brk; /* بدايات الكتل لقطع صفحات الطباعة: جهة/يوم، وتفصيل طبخة؛ لا قطع بين عنوان اليوم وأول طبخته */
   var fit = function (t, mw) { t = String(t); if (x.measureText(t).width <= mw) return t; while (t.length > 1 && x.measureText(t + '…').width > mw) t = t.slice(0, -1); return t + '…'; };
   L.forEach(function (r) {
     var cy = y + r.h / 2 + 9;
+    if ((r.k === 'inst' || r.k === 'day' || r.k === 'bat') && prevK && prevK !== 'inst' && prevK !== 'day') brk.push(y); prevK = r.k;
     if (r.k === 'inst') { x.fillStyle = '#14563A'; x.fillRect(0, y, W, r.h); x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 30px ' + F; x.fillText(fit(r.a, 360), W - PAD, y + 41); x.textAlign = 'center'; x.globalAlpha = .85; x.font = '500 21px ' + F; x.fillText(r.d, W * 0.31, y + 41); x.globalAlpha = 1; x.textAlign = 'left'; x.font = '700 30px ' + F; x.fillText(r.c, PAD, y + 41); }
     else if (r.k === 'isum') { x.fillStyle = '#F7F1E4'; x.fillRect(0, y, W, r.h); x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '600 24px ' + F; x.fillText(r.a, W - PAD, y + 34); x.textAlign = 'left'; x.font = '700 26px ' + F; x.fillText(r.c, PAD, y + 34); }
     else if (r.k === 'sum') { x.fillStyle = '#F4F6F2'; x.fillRect(PAD, y, W - 2 * PAD, r.h - 10); x.fillStyle = '#5B6660'; x.textAlign = 'right'; x.font = '500 21px ' + F; x.fillText(r.lbl, W - PAD - 18, y + 30); x.fillStyle = '#14563A'; x.font = '700 34px ' + F; x.fillText(r.due, W - PAD - 18, y + 68); x.textAlign = 'left'; x.fillStyle = '#3E4843'; x.font = '500 22px ' + F; x.fillText(r.n + ' · ' + r.p, PAD + 18, y + 50); }
@@ -3886,14 +3890,18 @@ function stFinishCanvas(i, ym, o, a, L, tail, sub2) {
   var W = 840, PAD = 36, F = "'IBM Plex Sans Arabic', sans-serif";
   var sum = [['الرصيد السابق', a.prev], ['الطبخات', a.cost], ['إضافات', a.ch], ['دفعات', -a.pd]].filter(function (s) { return s[1]; });
   if (sum.length === 1 && sum[0][0] === 'الطبخات') sum = []; /* لا يتكرر المجموع نفسه مرتين */
-  var hdr = stHeadH(o), H = hdr + 24 + L.reduce(function (t, r) { return t + r.h; }, 0) + 30 + sum.length * 46 + 140 + tail.h + (tail.h ? 34 : 0);
+  var hdr = stHeadH(o), H = hdr + 24 + L.reduce(function (t, r) { return t + r.h; }, 0) + 30 + 64 + sum.length * 46 + 140 + tail.h + (tail.h ? 34 : 0);
   var c = document.createElement('canvas'); c.width = W; c.height = H;
   var x = c.getContext('2d'); x.direction = 'rtl'; x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H); stHead(x, W, PAD, F, i, ym, o, sub2);
   var y = stDrawL(x, W, PAD, F, L, hdr + 24);
-  y += 14; sum.forEach(function (s) { x.fillStyle = '#5B6660'; x.textAlign = 'right'; x.font = '500 25px ' + F; x.fillText(s[0], W - PAD, y + 32); x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '700 25px ' + F; x.fillText((s[1] < 0 ? '− ' : '') + money(Math.abs(s[1])), PAD, y + 32); y += 46; });
+  c.brk = ST_BRK.concat([y]); /* ملخص الكشف كتلة واحدة لا تُقطع */
+  /* ملخص الكشف: لوحة مظلّلة بعرض الصفحة وخط علوي أخضر وعنوان، فيُقرأ أنه يمثّل الكشف كله لا ذيلًا لآخر بند فوقه (المالك 2026-11-22) */
+  y += 18; var pTop = y, pH = 44 + sum.length * 46 + 14 + 64 + 22; x.fillStyle = '#EAF1EC'; x.fillRect(0, pTop, W, pH); x.fillStyle = '#14563A'; x.fillRect(0, pTop, W, 4);
+  x.fillStyle = '#14563A'; x.textAlign = 'right'; x.font = '700 23px ' + F; x.fillText('ملخص الكشف', W - PAD, pTop + 34); y = pTop + 44;
+  y += 4; sum.forEach(function (s) { x.fillStyle = '#5B6660'; x.textAlign = 'right'; x.font = '500 25px ' + F; x.fillText(s[0], W - PAD, y + 32); x.textAlign = 'left'; x.fillStyle = '#1B2421'; x.font = '700 25px ' + F; x.fillText((s[1] < 0 ? '− ' : '') + money(Math.abs(s[1])), PAD, y + 32); y += 46; });
   y += 14; x.fillStyle = '#14563A'; x.fillRect(PAD, y, W - 2 * PAD, 64);
   x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 30px ' + F; x.fillText(o.lbl, W - PAD - 20, y + 42); x.textAlign = 'left'; x.fillText(money(a.due), PAD + 20, y + 42);
-  y += 64 + 24; y = tail.draw(x, y);
+  y = pTop + pH + 24; y = tail.draw(x, y);
   x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد', W / 2, H - 22);
   return c;
 }
@@ -3912,7 +3920,7 @@ function stAllAcct(zs) {
 function stAllCanvas(ym, full) {
   var i = ALLI, o = stOpt(i), zs = stAllInsts(ym), t = stAllAcct(zs), W = 840, PAD = 36, F = "'IBM Plex Sans Arabic', sans-serif", L = [], tail = stTail(i, o, W, PAD, F);
   var nPots = t.bs.reduce(function (s, b) { return s + (b.pots || 0); }, 0), any = false, parts = [];
-  zs.forEach(function (z) { var body = [], ar = stBodyRows(z.a, o, body), pots = z.a.bs.reduce(function (s, b) { return s + (b.pots || 0); }, 0); if (ar) any = true; parts.push({ z: z, body: body, pots: pots }); });
+  zs.forEach(function (z) { var one = z.a.bs.length && !z.a.prev && !z.a.chg.length && !z.a.pay.length, body = [], ar = stBodyRows(z.a, o, body, one), pots = z.a.bs.reduce(function (s, b) { return s + (b.pots || 0); }, 0); if (ar) any = true; parts.push({ z: z, body: body, pots: pots }); });
   if (o.sum) L.push({ k: 'sum', h: 96, lbl: o.lbl, n: pl(zs.length, 'جهة واحدة', '2 جهة', 'جهات') + ' · ' + pl(t.bs.length, 'طبخة واحدة', '2 طبخة', 'طبخات'), p: pl(nPots, 'قدر واحد', '2 قدر', 'قدور'), due: money(t.due) });
   if (full && any) L.push({ k: 'th', unit: o.unit, h: 34 });
   parts.forEach(function (p) {
@@ -4229,12 +4237,8 @@ function paperCanvas(k) {
   });
 }
 /* PDF بصفحة واحدة مهما طال التقرير بقياس الورقة نفسها (لا A4 ولا هوامش) (المالك 2026-11-19) */
-function pdfFromCanvas(c) {
-  var M = 0, sc = 1 / EXS, w = c.width * sc, PW = Math.round(w), PH = Math.round(c.height * sc), pages = []; /* الصفحة بقياس الورقة الأصلي (420 عرضًا) بلا هوامش ولا مقاس ثابت */
-  if (PH > 14000) { sc = sc * 14000 / PH; w = c.width * sc; PW = Math.round(w); PH = 14000; } /* حد ارتفاع الصفحة في PDF */
-  var p = document.createElement('canvas'); p.width = c.width; p.height = c.height;
-  var px = p.getContext('2d'); px.fillStyle = '#fff'; px.fillRect(0, 0, p.width, p.height); px.drawImage(c, 0, 0);
-  pages.push({ jpg: atob(p.toDataURL('image/jpeg', 0.92).split(',')[1]), w: p.width, h: p.height });
+function pdfAssemble(pages, PW, PH, sc, w) { /* كاتب PDF المشترك: صفحات صور JPEG بقياس واحد */
+  var M = 0;
   var objs = [], n = pages.length, off = [], out = '%PDF-1.4\n', i;
   function add(s) { objs.push(s); }
   add('<< /Type /Catalog /Pages 2 0 R >>');
@@ -4256,6 +4260,30 @@ function pdfFromCanvas(c) {
   parts.push(xr);
   var str = parts.join(''), u = new Uint8Array(str.length); for (i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 255;
   return u;
+}
+function pdfFromCanvas(c) {
+  var M = 0, sc = 1 / EXS, w = c.width * sc, PW = Math.round(w), PH = Math.round(c.height * sc), pages = []; /* الصفحة بقياس الورقة الأصلي (420 عرضًا) بلا هوامش ولا مقاس ثابت */
+  if (PH > 14000) { sc = sc * 14000 / PH; w = c.width * sc; PW = Math.round(w); PH = 14000; } /* حد ارتفاع الصفحة في PDF */
+  var p = document.createElement('canvas'); p.width = c.width; p.height = c.height;
+  var px = p.getContext('2d'); px.fillStyle = '#fff'; px.fillRect(0, 0, p.width, p.height); px.drawImage(c, 0, 0);
+  pages.push({ jpg: atob(p.toDataURL('image/jpeg', 0.92).split(',')[1]), w: p.width, h: p.height });
+  return pdfAssemble(pages, PW, PH, sc, w);
+}
+/* PDF للطباعة: صفحات A4 تُقطع عند حدود الكتل فقط (جهة، يوم، تفصيل طبخة كاملًا)، فلا يُقطع جدول طبخة بين صفحتين وتبدأ الكتلة التالية صفحة جديدة؛ brk = مواضع بدء الكتل في اللوحة (المالك 2026-11-22) */
+function pdfA4Pages(c) {
+  var MX = 30, MY = 40, PWc = c.width + 2 * MX, PHc = Math.round(PWc * 842 / 595), room = PHc - 2 * MY, brk = (c.brk || []).slice().sort(function (a, b) { return a - b; }), cuts = [0], s = 0, pages = [], k;
+  while (c.height - s > room) {
+    var e = s + room, pick = 0; brk.forEach(function (b) { if (b > s + 40 && b <= e) pick = b; });
+    s = pick || e; cuts.push(s);
+  }
+  cuts.push(c.height);
+  for (k = 0; k + 1 < cuts.length; k++) {
+    var p = document.createElement('canvas'); p.width = PWc; p.height = PHc; var px = p.getContext('2d');
+    px.fillStyle = '#fff'; px.fillRect(0, 0, PWc, PHc); px.drawImage(c, 0, cuts[k], c.width, cuts[k + 1] - cuts[k], MX, MY, c.width, cuts[k + 1] - cuts[k]);
+    px.fillStyle = '#8A948E'; px.font = "500 18px 'IBM Plex Sans Arabic', sans-serif"; px.textAlign = 'center'; px.fillText((k + 1) + ' / ' + (cuts.length - 1), PWc / 2, PHc - 14);
+    pages.push({ jpg: atob(p.toDataURL('image/jpeg', 0.92).split(',')[1]), w: PWc, h: PHc });
+  }
+  return pdfAssemble(pages, 595, 842, 595 / PWc, 595);
 }
 function u8b64(u) { var s = '', i; for (i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 function exName(k, ext) { return 'مطبخ-عهد-' + { cook: 'الاستهلاك', supply: 'التوريد', wck: 'نسخة-المراقب', stock: 'حالة-المخزون', wfp: 'مخزون-WFP', workers: 'كشف-العمال' }[k] + '-' + today() + '.' + ext; }
@@ -6192,7 +6220,7 @@ load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeM
   window.__BOOTED = true; try { localStorage.removeItem('kitchen_upd_try'); } catch (e) {} // اكتمل البدء: الحزمة المحدَّثة سليمة
   setTimeout(function () { checkUpdate(); }, 4000);
 }).catch(function (er) { if (window.__UPD && !window.__BOOTED) { try { var u = JSON.parse(localStorage.getItem('kitchen_upd') || 'null'); if (u) localStorage.setItem('kitchen_upd_bad', u.ver); localStorage.removeItem('kitchen_upd'); localStorage.removeItem('kitchen_upd_try'); } catch (e2) {} location.reload(); return; } $('app').textContent = 'تعذّر تحميل البيانات: ' + er.message; });
-window.__kitchen = { stAllCanvas: function (ym, full) { return stAllCanvas(ym, full); }, stmtCanvas: function (i, ym) { return stmtCanvas(i, ym); }, wfSpec: function (d) { return wfSpec(d); }, eaSpec: function (d) { return eaSpec(d); }, saSpec: function (d) { return saSpec(d); }, saHash: function () { return saHash(); }, pdfFromCanvas: function (c) { return pdfFromCanvas(c); }, paperCanvas: function (k) { return paperCanvas(k); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
+window.__kitchen = { stAllCanvas: function (ym, full) { return stAllCanvas(ym, full); }, stmtCanvas: function (i, ym) { return stmtCanvas(i, ym); }, wfSpec: function (d) { return wfSpec(d); }, eaSpec: function (d) { return eaSpec(d); }, saSpec: function (d) { return saSpec(d); }, saHash: function () { return saHash(); }, pdfFromCanvas: function (c) { return pdfFromCanvas(c); }, pdfA4Pages: function (c) { return pdfA4Pages(c); }, paperCanvas: function (k) { return paperCanvas(k); }, waSpec: function (d) { return waSpec(d); }, supArrive: function (f) { return supArrive(f); }, supSched: function () { return supSched(); }, stmtDetailCanvas: function (i, y) { return stmtDetailCanvas(i, y); }, money: money, repDoc: repDoc, migrateDistTot: migrateDistTot, syncMergeData: syncMergeData, gwOps: gwOps, stockAfter: stockAfter, wstDoc: wstDoc, wstCanvas: wstCanvas, packTxt: packTxt, qtyU: qtyU, packNum: packNum, perTxt: perTxt, planAfter: planAfter, ocrPick: ocrPick, ocrQty: ocrQty, openDLine: openDLine, draftOf: draftOf, ocrLearn: ocrLearn, ocrPrep: ocrPrep, ocrWorker: ocrWorker, ocrRows: ocrRows, planShort: planShort, dLines: dLines, back: goBack, hwBack: onBack, open: open, openSh: openSh, state: function () { return S; }, ui: function () { return A; }, render: render, syncNow: syncNow, save: save, eng: E, fin: { catOf: function (m) { return catOf(m); }, data: function (y) { return finData(y); } }, chefImg: function (id) { return chefCanvas(chefSpecPlan(E.by(S.plans, id))).toDataURL('image/png'); }, chefDocP: function (ids, o) { return chefCompose(ids.map(function (id) { return chefSpecPlan(E.by(S.plans, id)); }), o); }, chefText: function (d) { return chefText(d); }, chefPng: function (d) { return chefCanvas(d).toDataURL('image/png'); }, chefImgR: function (id) { return chefCanvas(chefSpecRec(E.by(S.recipes, id))).toDataURL('image/png'); }, chefImgB: function (id) { return chefCanvas(chefSpecBatch(E.by(S.batches, id), true)).toDataURL('image/png'); } };
 
 /* ===== 06u-update.js ===== */
 /* ---------- التحديث الصامت للواجهة ----------
