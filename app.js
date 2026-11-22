@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.149';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.150';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2775,11 +2775,14 @@ function supMoves(d) {
 }
 function supTitle(d) { return d.src && d.src !== 'نص' ? d.src : 'توريدة ' + dlabel(d.date); }
 function pgSupplies() {
-  var sp = supplies(), act = sp.filter(function (d) { return d.done === 'approved'; });
-  return [B('note', { tone: 'info', icon: 'i-truck', text: 'كل توريدة معتمدة قائمة مستقلة بأصنافها. افتح توريدة لمراجعتها أو لإلغائها كاملة.' }),
-    B('kpi', { items: [X({ label: 'التوريدات', value: act.length, sub: 'معتمدة', go: function () { openSh({ t: 'kSup' }); } }), X({ label: 'الأصناف', value: act.reduce(function (a, d) { return a + d.lines.length; }, 0), sub: 'في كل التوريدات', go: function () { openSh({ t: 'kSupI' }); } }), X({ label: 'آخر توريدة', value: act.length ? dlabel(act[0].date) : '—', sub: act.length ? supTitle(act[0]) : '', go: act.length ? function () { open('supply', { sid: act[0].id }); } : undefined })] }),
-    B('rows', { title: 'التوريدات', items: sp.map(function (d) {
-      return X({ icon: 'i-truck', icTone: d.done === 'voided' ? 'warn' : 'ok', title: supTitle(d), sub: dlabel(d.date) + ' · ' + (led(d.led) ? led(d.led).name : '') + ' · ' + pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف'), tag: d.done === 'voided' ? 'أُلغيت' : d.done === 'sched' ? (d.hold ? 'بانتظار الوصول' : 'قادمة') : '', tagTone: d.done === 'sched' ? 'info' : 'warn', chev: true, go: function () { open('supply', { sid: d.id }); }, lp: function () { supplyQa(d); } });
+  var sp = supplies(), act = sp.filter(function (d) { return d.done === 'approved'; }), kit = function (d) { return d.led === 'kitchen'; };
+  var nItems = {}; act.forEach(function (d) { d.lines.forEach(function (l) { nItems[l.item || l.raw] = 1; }); });
+  return [B('acts', { items: [
+      X({ title: 'مسودة توريد', icon: 'i-doc', go: function () { openSh({ t: 'draftNew' }, { led: 'kitchen', otxt: '', dtxt: today() }); } }),
+      X({ title: 'استلام مواد', icon: 'i-truck', go: function () { openSh({ t: 'recv', item: null }, { led: 'kitchen' }); } })] }),
+    B('kpi', { items: [X({ label: 'التوريدات', value: act.length, go: function () { openSh({ t: 'kSup' }); } }), X({ label: 'الأصناف', value: Object.keys(nItems).length, go: function () { openSh({ t: 'kSupI' }); } }), X({ label: 'آخر توريدة', value: act.length ? dshow(act[0].date).slice(0, -5) : '—', sub: act.length ? supTitle(act[0]) : '', go: act.length ? function () { open('supply', { sid: act[0].id }); } : undefined })] }),
+    B('rows', { items: sp.map(function (d) {
+      return X({ icon: 'i-truck', icTone: d.done === 'voided' ? 'warn' : 'ok', title: supTitle(d), sub: dlabel(d.date) + (kit(d) || !led(d.led) ? '' : ' · ' + led(d.led).name) + ' · ' + pl(d.lines.length, 'صنف واحد', 'صنفان', 'أصناف'), tag: d.done === 'voided' ? 'أُلغيت' : d.done === 'sched' ? (d.hold ? 'بانتظار الوصول' : 'قادمة') : '', tagTone: d.done === 'sched' ? 'info' : 'warn', chev: true, go: function () { open('supply', { sid: d.id }); }, lp: function () { supplyQa(d); } });
     }), empty: 'لا توريدات معتمدة بعد' })];
 }
 function pgSupply() {
@@ -2789,9 +2792,8 @@ function pgSupply() {
   if (d.done === 'sched' && d.hold) bl.push(B('note', { tone: 'info', icon: 'i-truck', text: 'لم يصل بعد: لا يدخل المخزن ولا يُحسب في أي تقرير حتى تضغط «وصل الآن» (التاريخ المتوقع ' + dlabel(d.date) + ').' }));
   else if (d.done === 'sched') bl.push(B('note', { tone: 'info', icon: 'i-truck', text: 'توريد قادم: لا يدخل المخزن قبل ' + dlabel(d.date) + '، ويُسجَّل تلقائيًا في ذلك اليوم. إن تأخّر عدّل تاريخه، وإن وصل مبكرًا اضغط «وصل الآن».' }));
   if (d.done === 'voided') bl.push(B('note', { tone: 'warn', icon: 'i-lock', text: 'أُلغيت هذه التوريدة' + (d.voidAt ? ' بتاريخ ' + dlabel(d.voidAt) : '') + (d.schedVoid ? ' قبل أن تصل، فلم يدخل المخزن منها شيء.' : ' وأُزيلت كمياتها من المخزن.') }));
-  bl.push(B('kpi', { items: [X({ label: 'الأصناف', value: d.lines.length, sub: 'في التوريدة' }), X({ label: 'التاريخ', value: dlabel(d.date), sub: L ? L.name : '' }), X({ label: free ? 'القيمة' : 'القيمة المكتوبة', value: free ? 'عيني' : val > 0 ? money(val) : '—', sub: '' })] }));
+  bl.push(B('kpi', { items: [X({ label: 'الأصناف', value: d.lines.length }), X({ label: 'التاريخ', value: dshow(d.date).slice(0, -5), sub: L && d.led !== 'kitchen' ? L.name : '' }), X({ label: free ? 'القيمة' : 'القيمة المكتوبة', value: free ? 'عيني' : val > 0 ? money(val) : '—', sub: '' })] }));
   bl.push(B('rows', { title: 'الأصناف', items: spiceLast(d.lines).map(function (l) { var it = item(l.item); return X({ title: it ? it.name : l.raw, sub: l.price > 0 && !free ? 'بسعر ' + money(l.price) : '', end: fmt(l.qty) + ' ' + (it ? it.unit : ''), endSub2: it ? packTxt(it, l.qty) : '', chev: d.done === 'approved', go: d.done === 'approved' ? function () { openSh({ t: 'supLine', sid: d.id, lid: l.id }, { unitMode: 'base', qty: String(l.qty) }); } : noop }); }), empty: '' }));
-  if (d.done === 'approved') bl.push(B('note', { tone: 'info', icon: 'i-pencil', text: 'اضغط أي صنف لتعديل صنفه أو كميته، أو لحذفه من التوريدة.' }));
   if (d.done === 'sched') bl.push(B('btns', { items: [X({ label: 'تعديل التاريخ', icon: 'i-calendar', go: function () { openSh({ t: 'dmeta', did: d.id }, { led: d.led, day: '', dtxt: d.date, hold: d.hold ? '1' : '0' }); } }), X({ label: 'وصل الآن', icon: 'i-truck', go: function () { d.date = today(); supArrive(d.id); } }), X({ label: 'إلغاء التوريد القادم', icon: 'i-minus', go: function () { d.done = 'voided'; d.voidAt = today(); d.schedVoid = 1; audit('إلغاء توريد قادم: ' + supTitle(d)); save(); open('supplies'); mutated('أُلغي التوريد القادم', function () { d.done = 'sched'; delete d.voidAt; delete d.schedVoid; save(); render(); }); } })] }));
   if (d.done === 'approved') bl.push(B('btns', { items: [X({ label: 'إلغاء التوريدة كاملة', icon: 'i-minus', go: function () { openSh({ t: 'supVoid', sid: d.id }); } })] }));
   return bl;
@@ -6343,7 +6345,7 @@ function shell() {
   } else if (pg === 'fund') { var fu = fund(s.fid); title = fu.name; sub = fKind(fu); blocks = pgFund();
   } else if (pg === 'order') { var od = draftOf(s.did); title = 'مسودة توريد'; sub = od ? (od.src || 'نص') + ' · ' + dlabel(od.created || od.date) : ''; blocks = pgDraft();
     ft = { label: od && (od.date > today() || od.hold) ? (od.hold ? 'حفظ: لم يصل بعد' : 'جدولة التوريد القادم') : od ? 'اعتماد التوريد' + (od.lines.length ? ' · ' + pl(od.lines.length, 'صنف واحد', 'صنفان', 'أصناف') : '') : 'اعتماد', ok: dReady(od), hint: od && od.lines.length && dNeeds(od).length ? 'راجع الأسطر المعلّمة أولًا' : od && !rcvOk(od.date) ? 'غيّر تاريخ المسودة' : 'أضف سطرًا واحدًا على الأقل', go: approveDraft };
-  } else if (pg === 'supplies') { title = 'سجل التوريدات'; sub = 'كل توريدة بأصنافها'; blocks = pgSupplies();
+  } else if (pg === 'supplies') { title = 'سجل التوريدات'; sub = ''; blocks = pgSupplies();
   } else if (pg === 'supply') { var sd = draftOf(s.sid); title = sd ? supTitle(sd) : 'توريدة'; sub = sd ? dlabel(sd.date) + ' · ' + (led(sd.led) ? led(sd.led).name : '') : ''; blocks = pgSupply();
   } else if (pg === 'opening') { title = 'الأرصدة الافتتاحية'; sub = 'المخزن'; blocks = pgOpening(); ft = { label: S.settings.openingDone ? 'حفظ التعديلات' : 'اعتماد الأرصدة', ok: true, hint: '', go: approveOpening }; }
   var badge = 0;
