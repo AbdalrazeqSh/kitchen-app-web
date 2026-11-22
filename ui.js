@@ -26,7 +26,7 @@ function X(o) {
     sub2: o.sub2 || '', hasSub2: !!o.sub2, badge: o.badge || '', hasBadge: !!o.badge, warn: o.warn || '', hasWarn: !!o.warn, hasHintGo: !!o.hintGo, hintTxt: o.hintTxt || '', hintGo: o.hintGo || noop, hasUndo: !!o.undo, undoGo: o.undo ? function (e) { if (e && e.stopPropagation) e.stopPropagation(); o.undo(); } : noop, opc: o.dim ? '.5' : '1', hasX: !!o.x, xGo: o.x ? function (e) { if (e && e.stopPropagation) e.stopPropagation(); o.x(); } : noop,
     toneSet: !!o.tone, abg: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[0] : '#E9ECE7'), afg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
     rbg: o.hdr ? '#EAF1EC' : o.total ? '#D5E8DC' : o.subt ? '#F6EFDD' : o.rbg || (o.sel ? '#EAF5EE' : '#FFFFFF'), rbt: o.total ? '2px solid #14563A' : o.subt ? '1px solid #E2D6B4' : '0 solid transparent', sel: !!o.sel,
-    label: o.label || '', value: o.value == null ? '' : String(o.value),
+    label: o.label || '', value: o.value == null ? '' : String(o.value), value2: o.value2 == null ? '' : String(o.value2), hasV2: o.value2 != null && o.value2 !== '',
     on: on, count: o.count == null ? '' : String(o.count), hasCount: o.count != null && o.count !== 0,
     segBg: on ? (KIND_ID[o.kind] ? KIND_ID[o.kind].bg : '#FFFFFF') : 'transparent', segFg: on ? (KIND_ID[o.kind] ? KIND_ID[o.kind].fg : '#14563A') : '#46504B', segSh: on ? (KIND_ID[o.kind] ? '0 1px 3px rgba(0,0,0,.14), inset 0 -3px 0 ' + KIND_ID[o.kind].ln : '0 1px 3px rgba(0,0,0,.14)') : 'none',
     bg: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[0] : '#FFFFFF'), fg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),

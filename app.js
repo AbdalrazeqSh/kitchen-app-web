@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.146';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.147';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4000,7 +4000,7 @@ function oweWork() { return r2(activeW().reduce(function (a, w) { var b = wBal(w
 function pgFinSum() {
   var ym = A.fsm || today().slice(0, 7), D = finData(ym), bl = [], ms = finMonths(), t = D.T;
   bl.push(B('chips', { scroll: true, items: ms.slice(0, 12).map(function (m) { return X({ label: monthLabel(m), on: ym === m, go: function () { setState({ fsm: m }); } }); }).concat([X({ label: 'الكل', on: ym === 'all', go: function () { setState({ fsm: 'all' }); } })]) }));
-  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(t.inI), endTone: 'ok', sub: t.inU ? usdTxt(t.inU) : 'مكافئ بالشيكل' }), X({ label: 'صرف', value: money(t.outI), endTone: 'bad', sub: t.outU ? usdTxt(t.outU) : 'مكافئ بالشيكل' }), X({ label: 'الفرق (وارد − صرف)', value: money(t.dI), endTone: (t.dI < 0 || t.dU < 0) ? 'bad' : 'ok', sub: t.dU ? usdTxt(t.dU) : 'مكافئ بالشيكل' })] }));
+  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(t.inI), value2: t.inU ? usdTxt(t.inU) : '', endTone: 'ok', sub: t.inU ? '' : 'مكافئ بالشيكل' }), X({ label: 'صرف', value: money(t.outI), value2: t.outU ? usdTxt(t.outU) : '', endTone: 'bad', sub: t.outU ? '' : 'مكافئ بالشيكل' }), X({ label: 'الفرق (وارد − صرف)', value: money(t.dI), endTone: (t.dI < 0 || t.dU < 0) ? 'bad' : 'ok', value2: t.dU ? usdTxt(t.dU) : '', sub: t.dU ? '' : 'مكافئ بالشيكل' })] }));
   bl.push(B('rows', { title: 'التغيّر الفعلي في الأرصدة', items: [X({ title: 'الشيكل', end: t.nI < 0 ? sg('out', money(-t.nI)) : sg('in', money(t.nI)), endTone: t.nI < 0 ? 'bad' : 'ok' }), X({ title: 'الدولار', end: t.nU < 0 ? sg('out', usdTxt(-t.nU)) : sg('in', usdTxt(t.nU)), endTone: t.nU < 0 ? 'bad' : 'ok' })] }));
   bl.push(B('btns', { items: [X({ label: 'مشاركة الملخص (صورة)', icon: 'i-send', on: true, go: function () { shareFin(ym); } })] }));
   var CI = { pay: 'i-users', kb: 'i-truck', buy: 'i-box', move: 'i-truck', rent: 'i-home', misc: 'i-list', sales: 'i-wallet', inst: 'i-shield', oth: 'i-plus', adj: 'i-check' };
@@ -4264,7 +4264,7 @@ function pgOwnSt() {
   var R = ownRange(), D = ownData(R.from, R.to), bl = [], T = D.T;
   bl.push(B('chips', { items: ownPresets().map(function (p) { return X({ label: p[0], on: R.from === p[1] && R.to === p[2], go: function () { ownSetRange(p[1], p[2]); } }); }).concat([X({ label: 'فترة محددة', icon: 'i-calendar', go: function () { ownPrev(); } })]) }));
   bl.push(B('acts', { items: [X({ title: 'مشاركة الكشف', icon: 'i-send', go: function () { ownPrev(); } })] }));
-  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(T.inI), endTone: 'ok', sub: T.inU ? usdTxt(T.inU) : 'مكافئ بالشيكل' }), X({ label: 'مصروفات', value: money(T.outI), endTone: 'bad', sub: T.outU ? usdTxt(T.outU) : 'مكافئ بالشيكل' })] }));
+  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(T.inI), value2: T.inU ? usdTxt(T.inU) : '', endTone: 'ok', sub: T.inU ? '' : 'مكافئ بالشيكل' }), X({ label: 'مصروفات', value: money(T.outI), value2: T.outU ? usdTxt(T.outU) : '', endTone: 'bad', sub: T.outU ? '' : 'مكافئ بالشيكل' })] }));
   D.recs.forEach(function (r) { bl.push(B('rows', { title: ownRecName(r), all: true, items: ownRecRows(r) })); });
   if (!D.recs.length) bl.push(B('rows', { title: 'الأرصدة', items: [], empty: 'لا حركات في هذه الفترة' }));
   D.ins.forEach(function (g) { bl.push(B('rows', { title: 'الوارد · ' + catName(g.c) + ' · ' + ownTot(g), items: g.ms.map(function (m) { return moveRowX(m, true); }) })); });
