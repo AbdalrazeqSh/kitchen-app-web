@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.147';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.148';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -637,22 +637,33 @@ function mkLine(it, planned, actual, order, meta, extraMap) {
     after: r2(E.balance(S, last, it.id) + ((extraMap && extraMap[last]) || 0) - (src[last] || 0)), lastName: led(last).name, cover: order[0] === 'kitchen' || order[0] === 'ext' ? (src.ext || 0) + (src.mkt || 0) : 0 };
 }
 /* الأساسيات أولًا والبهارات أخيرًا في كل قائمة مكوّنات (ترتيب ثابت يحفظ ترتيب الوصفة داخل كل مجموعة) */
-function isSpiceIt(id) { var it = item(id); return it && it.grp === 'spice' ? 1 : 0; }
+function isSpiceIt(id) { var it = id ? item(id) : null; return it && it.grp === 'spice' ? 1 : 0; }
 function spiceLast(list, key) {
   var sp = function (x) { var it = item(key ? key(x) : x.item); return it && it.grp === 'spice' ? 1 : 0; };
   return list.map(function (x, i) { return [x, i]; }).sort(function (a, b) { return (sp(a[0]) - sp(b[0])) || (a[1] - b[1]); }).map(function (p) { return p[0]; });
 }
-function dLines() {
-  var d = A.draft, out = [];
-  if (!d || !d.rec) return out;
-  var r = rec(d.rec), order = E.planOrder(S, d.kind, d.inst), net = d.editId ? E.batchNet(S, d.editId) : null, alt = d.alt || {}, opts = d.opts || {}, mk = d.mkt || {}, fl = d.fill || {};
+/* ما يُضاف للرصيد الخام لصنف في هذه الطبخة: استهلاك الطبخة نفسها عند تعديلها، وما حجزته الخطط السابقة (سالب) */
+function dExm(d) {
+  var order = E.planOrder(S, d.kind, d.inst), net = d.editId ? E.batchNet(S, d.editId) : null;
   var psim = d.planEdit ? planPrior(d.planEdit) : (!d.editId && !d.planId && d.date && d.date > today() ? planPrior(null) : null); /* تعديل خطة أو طبخة مجدولة جديدة: الخطط السابقة حجزت موادها */
-  var exm = function (id) {
+  return function (id) {
     var o = {}, pe = psim ? priorExtra(psim, order, id) : null;
     if (!net && !pe) return null;
     order.forEach(function (l) { o[l] = (net ? net[l + '|' + id] || 0 : 0) + (pe ? pe[l] || 0 : 0); });
     return o;
   };
+}
+/* المتبقي من صنف في مخزن الطبخة بعد ما تحجزه هذه الطبخة (أسطرها وإضافاتها) والخطط السابقة: هو الرقم الذي يُعرض عند الاختيار لا الرصيد الخام */
+function dRemain(id) {
+  var d = A.draft; if (!d) return null;
+  var order = E.planOrder(S, d.kind, d.inst), o = dExm(d)(id), ln = dLines().filter(function (l) { return l.id === id; });
+  var used = ln.reduce(function (a, l) { return a + (l.src[order[0]] || 0); }, 0);
+  return r3(E.balance(S, order[0], id) + ((o && o[order[0]]) || 0) - used);
+}
+function dLines() {
+  var d = A.draft, out = [];
+  if (!d || !d.rec) return out;
+  var r = rec(d.rec), order = E.planOrder(S, d.kind, d.inst), alt = d.alt || {}, opts = d.opts || {}, mk = d.mkt || {}, fl = d.fill || {}, exm = dExm(d);
   r.lines.forEach(function (l) {
     if (l.opt && !opts[l.item]) return; /* مكوّن اختياري: لا يدخل إلا إن أضفته */
     var id = l.item, per = l.per, note = l.note;
@@ -3329,7 +3340,7 @@ function repDoc(k, forceExp) {
     { /* «خارجي» و«فروق عن المنيو» خياران في التقريرين معًا: ما يُضاف لأحدهما يُضاف للآخر */
       var ex = dc.order.filter(function (id) { return dc.agg[id].ext > 0; });
       if (ex.length && SH('extra')) P.secs.push(secK('extra', psec(TT('خارجي: من خارج المطبخ', 'extra'), '1fr 96px', ['المادة', 'الكمية'], ex.map(function (id) { var it = item(id); return R([C(it.name, { b: 1, fg: CL.ext }), C(qv(dc.agg[id].ext, it.unit), { c: 1, b: 1, fg: CL.ext, u: qu(dc.agg[id].ext, it.unit) })]); }))));
-      var dv = []; tb.forEach(function (b) { var pln = plannedOf(b); b.lines.forEach(function (l) { var p = l.planned != null && !l.extra ? l.planned : l.extra ? null : pln[l.item]; if (p == null) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1, sub: 'مضاف خارج الوصفة' }), C(fmt(l.qty), { c: 1 })])); else if (Math.abs(p - l.qty) > 0.001) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1 }), C(fmt(l.qty), { c: 1, u: 'بدل ' + fmt(p) })])); }); });
+      var dv = []; tb.forEach(function (b) { var pln = plannedOf(b); spiceLast(b.lines).forEach(function (l) { var p = l.planned != null && !l.extra ? l.planned : l.extra ? null : pln[l.item]; if (p == null) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1, sub: 'مضاف خارج الوصفة' }), C(fmt(l.qty), { c: 1 })])); else if (Math.abs(p - l.qty) > 0.001) dv.push(R([C(batchName(b) + ' — ' + item(l.item).name, { b: 1 }), C(fmt(l.qty), { c: 1, u: 'بدل ' + fmt(p) })])); }); });
       if (dv.length && SH('dev')) P.secs.push(secK('dev', psec(TT('فروق عن المنيو', 'dev'), '1fr 96px', ['البند', 'الفعلي'], dv)));
     }
   } else if (k === 'stock' || k === 'wfp') {
@@ -3582,7 +3593,7 @@ function extSheet(sh) {
   var rows = [];
   ps.forEach(function (b) {
     rows.push(X({ par: true, icon: 'i-pot', icTone: 'info', title: inst(b.inst).name + ' · ' + b.dish, sub: dlabel(b.date) + ' · ' + pl(b.pots, 'قدر واحد', 'قدران', 'قدور'), tag: money(b.total), tagTone: 'mute' }));
-    b.lines.forEach(function (l) { var it = item(l[0]); rows.push(X({ kid: true, title: it ? it.name : l[0], sub: qtyU(l[1], it ? it.unit : '') + ' × ' + money(l[2]), tag: money(l[1] * l[2]), tagTone: 'mute' })); });
+    spiceLast(b.lines, function (l) { return l[0]; }).forEach(function (l) { var it = item(l[0]); rows.push(X({ kid: true, title: it ? it.name : l[0], sub: qtyU(l[1], it ? it.unit : '') + ' × ' + money(l[2]), tag: money(l[1] * l[2]), tagTone: 'mute' })); });
   });
   return { title: 'طبخات من الشيت', sub: 'بأسعار الشيت كما هي', rows: rows,
     note: { text: 'تُسجَّل الطبخة بسعر كل مادة في الشيت، وتُخصم المواد من المخزن الخارجي، وما ينقص منه يبقى سالبًا. لا يتغير الشيت.', tone: 'info' },
@@ -4539,7 +4550,7 @@ function kdetSheet(sh) {
     case 'kSupI': {
       var tot = {}, ord = [];
       supplies().filter(function (d) { return d.done === 'approved'; }).forEach(function (d) { d.lines.forEach(function (l) { var k = l.item || l.raw; if (!tot[k]) { tot[k] = { it: item(l.item), raw: l.raw, q: 0, n: 0 }; ord.push(k); } tot[k].q += l.qty || 0; tot[k].n++; }); });
-      rows = ord.sort(function (a, b) { return tot[b].q - tot[a].q; }).map(function (k) { var x = tot[k]; return X({ title: x.it ? x.it.name : x.raw, sub: pl(x.n, 'توريدة واحدة', 'توريدتان', 'توريدات'), end: fmt(r2(x.q)) + ' ' + (x.it ? x.it.unit : ''), endSub2: x.it ? packTxt(x.it, x.q) : '' }); });
+      rows = ord.sort(function (a, b) { return (isSpiceIt(tot[a].it && tot[a].it.id) - isSpiceIt(tot[b].it && tot[b].it.id)) || (tot[b].q - tot[a].q); }).map(function (k) { var x = tot[k]; return X({ title: x.it ? x.it.name : x.raw, sub: pl(x.n, 'توريدة واحدة', 'توريدتان', 'توريدات'), end: fmt(r2(x.q)) + ' ' + (x.it ? x.it.unit : ''), endSub2: x.it ? packTxt(x.it, x.q) : '' }); });
       return { title: 'أصناف كل التوريدات', sub: 'مجموع ما وُرِّد من كل صنف', rows: rows, empty: 'لا توريدات معتمدة بعد' };
     }
     case 'kSup': {
@@ -5554,7 +5565,7 @@ function packTypes() { var o = ['شوال', 'كرتونة', 'كيس', 'جركن'
 function conds() { var o = ['جاف', 'بارد', 'مجمّد']; S.items.forEach(function (i) { if (i.cond && o.indexOf(i.cond) < 0) o.push(i.cond); }); return o; }
 function itemList(l) {
   var inL = {}; S.moves.forEach(function (m) { if (m.led === l && m.kind !== 'hist') inL[m.item] = 1; });
-  return S.items.slice().sort(function (x, y) { return usedCount(y.id) - usedCount(x.id); }).map(function (it) {
+  return S.items.slice().sort(function (x, y) { return ((x.grp === 'spice' ? 1 : 0) - (y.grp === 'spice' ? 1 : 0)) || (usedCount(y.id) - usedCount(x.id)); }).map(function (it) {
     return { id: it.id, name: it.name, alias: it.alias || [], sub: it.unit + (inL[it.id] ? ' · الرصيد ' + fmt(E.balance(S, l, it.id)) : ' · غير مسجّل في هذا المخزن'), tag: '', tagTone: 'mute' };
   });
 }
@@ -5919,17 +5930,18 @@ function shDesc() {
     }
     case 'extra': {
       if (!sh.item) {
-        R = pickOr(itemList(E.planOrder(S, d.kind, d.inst)[0]), { title: 'إضافة مكوّن للطبخة', sub: 'اختر الصنف أو أضف صنفًا جديدًا', plural: 'الأصناف', then: 'extra', addLabel: 'إضافة صنف جديد', sel: '',
+        var xl0 = E.planOrder(S, d.kind, d.inst)[0], xin = {}; dLines().forEach(function (l) { xin[l.id] = 1; });
+        R = pickOr(itemList(xl0).map(function (x) { var it0 = item(x.id), rm = dRemain(x.id); return Object.assign({}, x, { sub: it0.unit + ' · المتبقي ' + fmt(rm), tag: xin[x.id] ? 'في الخطة' : '', tagTone: 'mute' }); }), { title: 'إضافة مكوّن للطبخة', sub: 'اختر الصنف أو أضف صنفًا جديدًا', plural: 'الأصناف', then: 'extra', addLabel: 'إضافة صنف جديد', sel: '',
           onPick: function (id) { openSh({ t: 'extra', item: id }, { qty: '', by: 'pot' }); },
           onAdd: function (name) { openSh({ t: 'addItem', then: 'extra' }, { name: name, unit: 'كيلو', price: '' }); } });
         break;
       }
       it = item(sh.item);
-      var xp = d.pots || 1, xPot = (fv('by') || 'pot') === 'pot' && xp > 1, xTot = r3(num('qty') * (xPot ? xp : 1));
+      var xex = d.extra.filter(function (e) { return e.item === it.id; })[0], xrm = dRemain(it.id), xp = d.pots || 1, xPot = (fv('by') || 'pot') === 'pot' && xp > 1, xTot = r3(num('qty') * (xPot ? xp : 1));
       R = { title: it.name, sub: xPot ? 'الكمية لقدر واحد، وتُضرب في ' + pl(xp, 'قدر', 'قدرين', 'قدور') : 'كمية هذا الصنف لهذه الطبخة كلها',
         fields: (xp > 1 ? [fChips('by', 'الكمية المُدخلة', [['pot', 'لكل قدر'], ['all', 'للطبخة كلها']])] : []).concat([fText('qty', (xPot ? 'الكمية لكل قدر' : 'الكمية للطبخة كلها') + ' (' + it.unit + ')', '0', 'decimal')]),
-        note: { text: xPot && num('qty') > 0 ? 'الإجمالي للطبخة: ' + qtyU(xTot, it.unit) + ' (' + fmt(num('qty')) + ' × ' + xp + ').' : 'يُضاف لهذه الطبخة وحدها، ولا تتغير الوصفة.', tone: xPot && num('qty') > 0 ? 'ok' : 'info' },
-        ft: { label: 'إضافة للطبخة', ok: num('qty') > 0, go: function () { var cur = A.draft; A.draft = Object.assign({}, cur, { extra: cur.extra.filter(function (e) { return e.item !== it.id; }).concat([{ item: it.id, qty: xTot }]) }); shut(); } } };
+        note: { text: xTot > 0 && xTot > xrm ? 'المتبقي ' + qtyU(Math.max(xrm, 0), it.unit) + '، وينقص ' + qtyU(r3(xTot - Math.max(xrm, 0)), it.unit) + ' وسيظهر بالسالب.' : xPot && num('qty') > 0 ? 'الإجمالي للطبخة: ' + qtyU(xTot, it.unit) + ' (' + fmt(num('qty')) + ' × ' + xp + ').' : 'يُضاف لهذه الطبخة وحدها، ولا تتغير الوصفة.', tone: xTot > 0 && xTot > xrm ? 'warn' : xPot && num('qty') > 0 ? 'ok' : 'info' },
+        ft: { label: 'إضافة للطبخة', ok: num('qty') > 0, go: function () { var cur = A.draft; A.draft = Object.assign({}, cur, { extra: cur.extra.filter(function (e) { return e.item !== it.id; }).concat([{ item: it.id, qty: r3((xex ? xex.qty : 0) + xTot) }]) }); shut(); } } };
       break;
     }
     case 'recLine': {
