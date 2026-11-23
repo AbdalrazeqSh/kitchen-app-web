@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.169';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.170';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2292,7 +2292,7 @@ function waSpec(dry) {
     var add = e.kind === 'add', sign = add ? 1 : -1, act = !a ? 'تنبيه' : (c === 'kbuy' ? 'شراء للمطبخ ' : c === 'adjw' ? 'تسوية ' : add ? 'إضافة ' : 'خصم ') + a + ' ش';
     log.push({ k: 'app:log:' + e.id, v: [nm[e.w], e.note && e.note !== t ? e.note : t, act, e.void ? 'ملغي' : 'تم', { d: e.date }, e.void || !a ? '' : sign * a] });
   });
-  return { tab: WA_TAB, dry: !!dry, peek: 'C1:L5',
+  return { tab: WA_TAB, dry: !!dry, peek: 'C1:U14',
     setup: [{ type: 'hdr', cell: 'AB7', from: 'AA7', text: 'المبلغ (±)' }, { type: 'fappend', range: 'C3:L3', has: '$AB$8', add: '+SUMIF($W$8:$W$499,{c}$1,$AB$8:$AB$499)' }],
     blocks: [
       { id: 'att', c0: 1, n: 12, row0: 8, key: 34, skip: [1], dedup: [0], map: { row: 7, c0: 3, n: 10 }, rows: att },
@@ -2304,7 +2304,10 @@ function waOn() { return !!(S.settings.shApp && S.settings.shApp.workers && S.se
 function waChk(j) {
     var pn = function (x) { var n = parseFloat(String(x).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }, bad = [], p = j.peek || [];
     if (p[0] && p[4]) p[0].forEach(function (h, i) { var w = (S.workers || []).filter(function (x) { return x.name === String(h).trim(); })[0]; if (!w) return; var a = E.wBalance(S, w.id), b = pn(p[4][i]); if (Math.abs(a - b) > 0.011) bad.push({ n: w.name, app: a, sheet: b }); });
-    WA_CHK = { bad: bad, missing: j.missing || [], at: Date.now() }; save();
+    /* حالة حضور في التطبيق لها أثر مالي ولا تعرفها قائمة تصنيفات الشيت (T8:T14) فلا تحسبها معادلاته: يُسمّى السبب بدل فرق رقمي (المالك 2026-11-23: «نصف يوم») */
+    var known = {}, unk = [], hasList = false; for (var r = 7; r < 14; r++) { var cv = p[r] && p[r][17]; if (cv) { known[String(cv).trim()] = 1; hasList = true; } }
+    if (hasList) (S.att || []).forEach(function (a) { if (a.date < '2026-11-01') return; var sd = stat(a.st); if (!sd || (!sd.mult && !sd.bonus) || known[sd.name] || unk.indexOf(sd.name) >= 0) return; unk.push(sd.name); });
+    WA_CHK = { bad: bad, missing: j.missing || [], unk: unk, at: Date.now() }; save();
 }
 function waDry() {
   if (!gwUrl() || WA_BUSY) return Promise.resolve(); WA_BUSY = true; WA_ERR = ''; WA_PV = null;
@@ -2326,6 +2329,7 @@ function waRows() {
   var rows = [], pv = WA_PV;
   if (waOn()) rows.push(X({ title: 'تبويب «العمال» في الشيت', sub: 'التطبيق يُضيف صفوفه تحت صفوفك (حضور، دفعات، إضافات وخصومات) ومعادلاتك تحسبها' + (WA_CHK ? (WA_CHK.bad.length ? '' : ' · الأرصدة مطابقة') : ''), tag: WA_ERR ? 'خطأ' : WA_BUSY ? '…' : 'يعمل', tagTone: WA_ERR ? 'bad' : 'ok' }));
   if (WA_ERR) rows.push(X({ title: 'خطأ العمال', sub: WA_ERR }));
+  if (WA_CHK && WA_CHK.unk && WA_CHK.unk.length) rows.push(X({ title: 'حالة حضور غير معرّفة في الشيت', sub: WA_CHK.unk.join('، ') + ' · أضفها لقائمة التصنيفات (T) ولمعادلة «إجمالي المستحق» ثم افحص', tag: String(WA_CHK.unk.length), tagTone: 'bad' }));
   if (WA_CHK) { WA_CHK.bad.forEach(function (b) { rows.push(X({ title: b.n, sub: 'الرصيد في الشيت يخالف التطبيق', end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (WA_CHK.missing.length) rows.push(X({ title: 'عمال بلا عمود في تبويبك', sub: WA_CHK.missing.join('، '), tag: String(WA_CHK.missing.length), tagTone: 'warn' })); }
   if (pv) {
     if (!pv.ok) rows.push(X({ title: 'لا كتابة', sub: pv.err || 'رفضت البوابة', tag: 'خطأ', tagTone: 'bad' }));
