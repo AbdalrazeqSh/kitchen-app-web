@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.162';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.163';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1904,7 +1904,6 @@ function pgFunds() {
     X({ label: 'ناقص', icon: 'i-minus', on: true, selTone: 'bad', go: function () { openMove(ff || '', 'out'); } })] }));
   bl.push(B('acts', { items: [
     X({ title: 'تحويل', icon: 'i-send', go: function () { openSh({ t: 'fXfer' }, { from: ff || defFund(), to: '', cur: '', amt: '', got: '', dtxt: today() }); } }),
-    X({ title: 'رصيد جديد', icon: 'i-plus', go: function () { openSh({ t: 'fAdd' }, {}); } }),
     X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'fCount', f: ff || defFund() }, { cur: '', cnt: '' }); } }),
     X({ title: 'الملخص', icon: 'i-list', go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } }),
     X({ title: 'كشف حسابنا', icon: 'i-ledger', go: function () { ownOpen(); } })] }));
@@ -1913,7 +1912,7 @@ function pgFunds() {
   if (all.length > n) items.push(moreRow(Math.min(25, all.length - n), function () { setState({ fN: n + 25 }); }));
   if (L.length > 1) bl.push(B('seg', { items: [X({ label: 'الكل', on: !ff, go: function () { setState({ fFeed: '', fN: 8 }); } })].concat(L.map(function (f) { return X({ label: f.name, on: ff === f.id, go: function () { setState({ fFeed: f.id, fN: 8 }); } }); })) }));
   bl.push(B('rows', { title: 'آخر الحركات', all: true, items: items, empty: 'لا حركات بعد' }));
-  bl.push(B('rows', { title: 'الأرصدة', items: L.map(function (f) {
+  bl.push(B('rows', { title: 'الأرصدة', act: 'رصيد', actGo: function () { openSh({ t: 'fAdd' }, {}); }, items: L.map(function (f) {
     return X(Object.assign({ icon: f.w ? 'i-users' : 'i-wallet', icTone: f.w ? 'info' : 'ok', title: f.name, sub: fKind(f), chev: true, go: function () { open('fund', { fid: f.id }); } }, fBalEq(f), !fBal(f.id, fMain(f)) && !(f.curs.length > 1 && fBal(f.id, f.curs[1])) ? { endTone: 'mute' } : {}));
   }), empty: 'لا أرصدة بعد' }));
   bl.push(B('kpi', { items: [X({ label: 'مستحق لك', value: money(oweInst()), sub: 'من المؤسسات', go: function () { openSh({ t: 'kOweI' }); } }), X({ label: 'عليك', value: money(oweWork()), sub: 'للعمال', go: function () { openSh({ t: 'kOweW' }); } })] }));
@@ -5234,8 +5233,7 @@ function pgKitchen() {
   /* الوصفات: ثلاث الأكثر استعمالًا لبدء طبخة بضغطة، والباقي خلف «كل الوصفات» */
   var use = {}; S.batches.forEach(function (b) { if (!b.void && b.recipe) use[b.recipe] = (use[b.recipe] || 0) + 1; });
   var top = rs.filter(function (r) { return !r.draft && !r.exp; }).sort(function (x, y) { return (use[y.id] || 0) - (use[x.id] || 0); }).slice(0, 3);
-  bl.push(B('acts', { items: [X({ title: 'وصفة جديدة', icon: 'i-plus', go: function () { openSh({ t: 'addRecipe' }, { name: '', kinds: k }); } })] }));
-  bl.push(B('rows', { title: 'الوصفات',
+  bl.push(B('rows', { title: 'الوصفات', act: 'وصفة', actGo: function () { openSh({ t: 'addRecipe' }, { name: '', kinds: k }); },
     items: top.map(function (r) { return recipeRow(r, k); }).concat([X({ more: true, chev: true, icon: 'i-book', icTone: 'info', title: 'كل الوصفات (' + rs.length + ')', sub: pl(rs.filter(function (r) { return !r.draft && !r.exp; }).length, 'معتمدة', 'معتمدتان', 'معتمدة') + ' · ' + (rs.length - rs.filter(function (r) { return !r.draft && !r.exp; }).length) + ' مبدئية/تجريبية', chev: true, go: function () { open('recipes', { rk: k }); } })]), empty: 'لا وصفات لهذا النوع بعد' }));
   return bl;
 }
@@ -5270,7 +5268,6 @@ function pgStock() {
   bl.push(B('acts', { items: [
     X({ title: 'استلام مواد', icon: 'i-truck', on: true, go: function () { openSh({ t: 'recv', item: null }, { led: l0 }); } }),
     X({ title: 'صرف مواد', icon: 'i-box', go: function () { openSh({ t: 'issue', item: null }, { led: l0, qty: '', why: '' }); } }),
-    X({ title: 'صنف جديد', icon: 'i-plus', go: function () { openSh({ t: 'addItem', then: '' }, { name: '', unit: 'كيلو', price: '', packType: 'none', packN: '', cond: 'جاف' }); } }),
     X({ title: 'مسودة توريد', icon: 'i-doc', go: function () { openSh({ t: 'draftNew' }, { led: l0, otxt: '', dtxt: today() }); } }),
     X({ title: 'جرد', icon: 'i-check', go: function () { openSh({ t: 'count' }, { led: l0 }); } })] }));
   if (drafts().length) bl.push(B('rows', { title: 'مسودات توريد تنتظر مراجعتك (' + drafts().length + ')', items: drafts().map(function (d) {
@@ -5288,7 +5285,8 @@ function pgStock() {
       lp: function () { stockQa(r.it, l0, r.q); } });
   };
   var byCat0 = A.sort.stock.f === 'cat';
-  if (byCat0) { bl.push(B('rows', { title: 'الأصناف مرتّبة بالفئة', sort: sortInfo('stock'), items: rows.map(mkRow), empty: 'لا أصناف في هذا المخزن بعد' })); return bl; }
+  var addIt = { act: 'صنف', actGo: function () { openSh({ t: 'addItem', then: '' }, { name: '', unit: 'كيلو', price: '', packType: 'none', packN: '', cond: 'جاف' }); } };
+  if (byCat0) { bl.push(B('rows', Object.assign({ title: 'الأصناف مرتّبة بالفئة', sort: sortInfo('stock'), items: rows.map(mkRow), empty: 'لا أصناف في هذا المخزن بعد' }, addIt))); return bl; }
   var sg = A.sg || 'all', mainR = rows.filter(function (r) { return r.it.grp !== 'spice'; }), spR = rows.filter(function (r) { return r.it.grp === 'spice'; });
   var plR = rows.filter(function (r) { return planCover(r.it.id); });
   var plN = stockAfter(l0).filter(function (r) { return r.need > 0; }).length, plsL = plans().filter(function (p) { return E.planOrder(S, p.kind || 'private', p.inst).indexOf(l0) >= 0; });
@@ -5305,8 +5303,8 @@ function pgStock() {
     })), empty: 'لا أصناف' }));
     return bl;
   }
-  if (sg !== 'spice') bl.push(B('rows', { title: spR.length ? 'الأساسية' : 'الأصناف', sort: sortInfo('stock'), items: mainR.map(mkRow), empty: 'لا أصناف في هذا المخزن بعد' }));
-  if (sg !== 'main' && spR.length) bl.push(B('rows', { title: 'البهارات', sort: sg === 'spice' ? sortInfo('stock') : null, items: spR.map(mkRow), empty: '' }));
+  if (sg !== 'spice') bl.push(B('rows', Object.assign({ title: spR.length ? 'الأساسية' : 'الأصناف', sort: sortInfo('stock'), items: mainR.map(mkRow), empty: 'لا أصناف في هذا المخزن بعد' }, addIt)));
+  if (sg !== 'main' && spR.length) bl.push(B('rows', Object.assign({ title: 'البهارات', sort: sg === 'spice' ? sortInfo('stock') : null, items: spR.map(mkRow), empty: '' }, sg === 'spice' ? addIt : {})));
   return bl;
 }
 /* جدول حضور وغياب الأسبوع (السبت إلى الجمعة): صف لكل عامل وخلية لكل يوم بلون الحالة. النقر على خلية يفتح حالة ذلك اليوم */
