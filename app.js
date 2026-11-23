@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.157';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.158';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -455,6 +455,8 @@ function fDate(k, label, lo, hi, hint) { var dv = fv(k), f = fText(k, label, '',
 function fArea(k, label, ph, hint) { var f = fText(k, label, ph, 'text', hint); f.isText = false; f.isGrow = false; f.isArea = true; return f; }
 function fTime(k, label, hint) { var f = fText(k, label, '', 'text', hint); f.isGrow = false; f.isText = true; f.itype = 'time'; return inlineF(f); }
 /* قائمة منسدلة: تُعرض القيمة الحالية وحدها، والنقر عليها يفتح الخيارات الأخرى. تُستعمل لكل اختيار عملة في النوافذ */
+/* قائمة منسدلة مضغوطة لقائمة خيارات طويلة (وحدة، تعبئة، تخزين، فئة، مكان، يوم، وقت): الخيارات كلها موجودة بسطر واحد بدل رقائق تلتف على 3 صفوف (المالك 2026-11-23: «نفس العناصر مترتبة أحسن») */
+function fDD(k, label, opts, hint) { var z = opts.filter(function (o) { return o[0] === ''; })[0], f = fSelect(k, label, opts, fv(k) == null ? '' : fv(k), (fv(k) == null || fv(k) === '') && z ? z[1] : undefined); if (hint) { f.hint = hint; f.hasHint = true; } return f; }
 function fSelect(k, label, opts, sel, closedLabel) {
   var ok = k + '_o', open = fv(ok) === '1', cur = opts.filter(function (o) { return o[0] === sel; })[0] || opts[0], f = fChips(k, label, opts);
   var tog = function () { A.form[ok] = open ? '' : '1'; render(); };
@@ -784,9 +786,9 @@ function assetSheet(sh) {
     case 'addAsset': case 'assetEdit': {
       var aed = sh.t === 'assetEdit', a0 = aed ? asset(sh.id) : null;
       nm = fv('name').trim(); dup = AA(true).filter(function (x) { return norm(x.name) === norm(nm) && (!aed || x.id !== a0.id); })[0];
-      var aq = Math.round(num('qty')), fl = [fText('name', 'الاسم', 'مثال: قدر 60 لتر'), fChips('cat', 'الفئة', acats().map(function (c) { return [c, c]; })), fText('catNew', 'أو فئة جديدة', 'مثال: تبريد')];
+      var aq = Math.round(num('qty')), fl = [fText('name', 'الاسم', 'مثال: قدر 60 لتر'), fDD('cat', 'الفئة', acats().map(function (c) { return [c, c]; })), fText('catNew', 'أو فئة جديدة', 'مثال: تبريد')];
       if (!aed) fl.push(fText('qty', 'العدد', '0', 'numeric', 'كم قطعة سليمة عندك الآن؟ التعطّل والإعارة تُسجَّل بعدها كحركات.'));
-      fl.push(fChips('loc', 'مكانه', alocs().map(function (c) { return [c, c]; }))); fl.push(fText('locNew', 'أو مكان جديد', 'مثال: سطح المبنى')); fl.push(fText('note', 'ملاحظة (اختياري)', 'مثال: سعة، موديل، رقم تسلسلي')); fl.push(fPhoto('صورة القطعة (اختياري)'));
+      fl.push(fDD('loc', 'مكانه', alocs().map(function (c) { return [c, c]; }))); fl.push(fText('locNew', 'أو مكان جديد', 'مثال: سطح المبنى')); fl.push(fText('note', 'ملاحظة (اختياري)', 'مثال: سعة، موديل، رقم تسلسلي')); fl.push(fPhoto('صورة القطعة (اختياري)'));
       R = { title: aed ? 'بيانات ' + a0.name : 'موجود جديد', sub: aed ? 'العدد والحالة تتغير بالحركات والجرد فقط' : 'قدر أو أداة أو معدّة للمطبخ', fields: fl,
         dup: dup ? 'يوجد «' + dup.name + '» بنفس الاسم' + (dup.arch ? ' (مؤرشف: استعده من الأرشيف)' : '') + '.' : '',
         ft: { label: aed ? 'حفظ البيانات' : 'حفظ في الموجودات', ok: nm.length > 1 && !dup && (aed || aq > 0), go: function () { if (aed) doEditAsset(a0.id); else doAddAsset(); } } };
@@ -1276,9 +1278,9 @@ function calSheet(sh) {
       fl.push(fText('title', 'العنوان', 'مثال: دفعة مؤسسة أو توصيل طلبية'));
       fl.push(fChips('kind', 'النوع', [['task', 'مهمة'], ['pay', 'دفعة'], ['order', 'تسليم'], ['event', 'حدث في الأجندة']], cf.kind === 'event' ? 'الحدث علامة على ما جرى أو سيجري: لا يحتاج تنفيذًا ولا يظهر متأخرًا.' : ''));
       if (cf.kind === 'pay') { fl.push(fText('party', 'الجهة', 'مثال: مداد الخير')); fl.push(fText('amt', 'المبلغ بالشيكل (اختياري)', '0', 'decimal')); fl.push(fSeg('dir', 'الاتجاه', [['in', 'لنا (نقبضها)', 'ok'], ['out', 'علينا (ندفعها)', 'bad']])); }
-      fl.push(fChips('dsel', 'اليوم', days)); fl.push(fDate('dtxt', 'أو اختر من التقويم'));
-      fl.push(fChips('t', 'الوقت', [['', 'بدون وقت'], ['08:00', '8 ص'], ['12:00', '12 ظ'], ['16:00', '4 م'], ['20:00', '8 م']])); fl.push(fTime('tNew', 'أو وقت آخر'));
-      fl.push(fChips('rep', 'التكرار', [['', 'لا يتكرر'], ['d', 'يوميًا'], ['w', 'أسبوعيًا'], ['m', 'شهريًا']])); fl.push(fChips('rem', 'التنبيه', [['none', 'بلا تنبيه'], ['at', 'وقت الموعد'], ['1h', 'قبله بساعة'], ['1d', 'قبله بيوم'], ['1d+at', 'قبله بيوم وفي الوقت']]));
+      fl.push(fDD('dsel', 'اليوم', days)); fl.push(fDate('dtxt', 'أو اختر من التقويم'));
+      fl.push(fDD('t', 'الوقت', [['', 'بدون وقت'], ['08:00', '8 ص'], ['12:00', '12 ظ'], ['16:00', '4 م'], ['20:00', '8 م']])); fl.push(fTime('tNew', 'أو وقت آخر'));
+      fl.push(fChips('rep', 'التكرار', [['', 'لا يتكرر'], ['d', 'يوميًا'], ['w', 'أسبوعيًا'], ['m', 'شهريًا']])); fl.push(fDD('rem', 'التنبيه', [['none', 'بلا تنبيه'], ['at', 'وقت الموعد'], ['1h', 'قبله بساعة'], ['1d', 'قبله بيوم'], ['1d+at', 'قبله بيوم وفي الوقت']]));
       fl.push(fChips('who', 'يخص', people().filter(function (p) { return p.preset !== 'observer' && p.preset !== 'worker'; }).map(function (p) { return [p.id, p.name]; }))); fl.push(fText('note', 'ملاحظة (اختياري)', ''));
       var cfr = cf.off != null ? calFires({ t: cf.t, rem: cf.rem }, cf.off) : [];
       R = { tone: cf.kind === 'pay' ? (fv('dir') === 'in' ? 'in' : fv('dir') === 'out' ? 'out' : '') : '', toneTag: fv('dir') === 'in' ? 'لنا' : 'علينا', title: ced ? (cf.kind === 'event' ? 'تعديل الحدث' : 'تعديل الموعد') : cf.kind === 'event' ? 'حدث جديد' : 'موعد جديد', sub: cf.kind === 'event' ? 'علامة في الأجندة' : 'يُنبّه الشخص المختار على جهازه', fields: fl,
@@ -3138,7 +3140,7 @@ function adminSheet(sh) {
     case 'addPerson': case 'person': {
       var edit = sh.t === 'person', pe = edit ? E.by(people(), sh.id) : null, pr = preset(fv('preset')); nm = edit ? pe.name : fv('name').trim(); dup = edit ? null : dupOf(people(), nm);
       var fl = []; if (!edit) fl.push(fText('name', 'الاسم', 'اسم الشخص')); fl.push(fChips('preset', 'الدور', presets().map(function (x) { return [x.id, x.name]; }))); if (!edit) fl.push(fText('phone', 'رقم الهاتف (اختياري)', '05', 'tel'));
-      fl.push(fChips('rep', 'يستلم التقارير', [['no', 'لا'], ['yes', 'نعم']])); fl.push(fChips('wk', 'له سجل عامل (صفحتي)', [['', 'لا']].concat(activeW().map(function (w) { return [w.id, w.name]; }))));
+      fl.push(fTri('rep', 'يستلم التقارير', [['no', 'لا'], ['yes', 'نعم']])); fl.push(fSelect('wk', 'له سجل عامل (صفحتي)', [['', 'لا']].concat(activeW().map(function (w) { return [w.id, w.name]; })), fv('wk') || '', fv('wk') ? undefined : 'لا'));
       R = { title: edit ? pe.name : 'شخص جديد', sub: edit ? 'غيّر دوره أو استلامه للتقارير' : 'الدور يحدد ما يراه وما يعدّله', fields: fl,
         note: { text: (pr ? pr.name + ': ' + pr.desc : '') + (fv('wk') ? '. ويُضاف إليه «صفحتي»: يومياته ودفعاته وحضوره وغيابه، له وحده.' : ''), tone: 'info' }, dup: dup ? 'يوجد «' + dup.name + '» بنفس الاسم.' : '',
         ft: { label: edit ? 'حفظ التعديل' : 'إضافة الشخص', ok: nm.length > 1 && !dup, go: function () { doAddPerson(edit ? pe.id : ''); } } };
@@ -4734,9 +4736,8 @@ function wstSheet(sh) {
   var w = wk(sh.wid); if (!fv('from')) A.form.from = wstWeekFrom(); if (!fv('to')) A.form.to = today(); if (!fv('sum')) A.form.sum = '0'; if (!fv('det')) A.form.det = '1';
   var o = wstOpts(), d = wstDoc(w, o.from, o.to, o);
   return { title: 'كشف ' + w.name, sub: 'اختر الفترة وما يظهر في الكشف',
-    fields: [fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()),
+    fields: [fPhotoView(wstCanvas(d).toDataURL('image/png'), true, true), fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()),
       fStateGrid(['ما يظهر في الكشف', ['sum', 'ملخص الإجماليات في الأعلى'], ['det', 'حركات المكافآت والخصومات بتواريخها']], [['1', 'إظهار'], ['0', 'إخفاء']])],
-    rows: d.sums.map(function (s) { return X({ title: s.l, end: s.v, endTone: s.tone }); }).concat([X({ title: d.settle ? d.settle.l : d.closeL, end: d.settle ? d.settle.v + ' · ' + d.closeV : d.closeV, endTone: d.closeTone })]),
     acts: [X({ title: 'تنزيل صورة', icon: 'i-download', go: function () { wstSend(w, o, 'png'); } }), X({ title: 'تنزيل PDF', icon: 'i-download', go: function () { wstSend(w, o, 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { wstSend(w, o, 'txt'); } })],
     ft: { label: 'مشاركة', ok: true, go: function () { shut(); wstSend(w, o, 'share'); } } };
 }
@@ -5771,10 +5772,10 @@ function shDesc() {
       var dupA = !dup && nm ? S.items.filter(function (x) { return (x.alias || []).some(function (a) { return norm(a) === norm(nm); }); })[0] : null;
       R = { title: 'صنف جديد', sub: 'يُضاف للمخزن المفتوح الآن: ' + led(fv('led') || A.led).name, fields: [
           fText('name', 'اسم الصنف', 'مثال: سكر'),
-          fChips('unit', 'الوحدة', (S.units || []).map(function (u) { return [u, u]; })),
-          fChips('packType', 'التعبئة', [['none', 'بدون']].concat(packTypes().map(function (t) { return [t, t]; }))),
+          fDD('unit', 'الوحدة', (S.units || []).map(function (u) { return [u, u]; })),
+          fDD('packType', 'التعبئة', [['none', 'بدون']].concat(packTypes().map(function (t) { return [t, t]; }))),
           fText('packN', 'سعة العبوة', '25', 'decimal'),
-          fChips('cond', 'التخزين', conds().map(function (t) { return [t, t]; })),
+          fDD('cond', 'التخزين', conds().map(function (t) { return [t, t]; })),
           fChips('grp', 'المجموعة', [['', 'أساسي'], ['spice', 'بهارات']]),
           fText('alias', 'أسماء أخرى (اختياري)', 'صلصة، رب البندورة', 'text'),
           fText('price', 'آخر سعر للوحدة (اختياري)', '0', 'decimal')
@@ -5807,11 +5808,11 @@ function shDesc() {
     case 'itemEdit': {
       it = item(sh.id); var hasStk = itemTotal(it.id) !== 0, eu = hasStk ? it.unit : ((fv('unitNew') || '').trim() || fv('unit') || it.unit);
       var ept = (fv('packNew') || '').trim() || fv('packType'), epn = num('packN'), epack = ept && ept !== 'none' && epn > 0 ? { name: ept, n: epn } : null, efl = [];
-      if (!hasStk) { efl.push(fChips('unit', 'الوحدة الأساسية (الصغرى)', (S.units || []).map(function (u) { return [u, u]; }), 'أصغر وحدة يُعدّ بها الصنف. تُغيَّر فقط ما دام رصيده صفرًا.')); efl.push(fText('unitNew', 'أو وحدة جديدة', 'مثال: جالون')); }
-      efl.push(fChips('packType', 'وحدة التعبئة (الكبرى)', [['none', 'بدون']].concat(packTypes().map(function (t) { return [t, t]; })), 'ما يصل به الصنف من المورّد: شوال، كرتونة…'));
+      if (!hasStk) { efl.push(fDD('unit', 'الوحدة الأساسية (الصغرى)', (S.units || []).map(function (u) { return [u, u]; }), 'أصغر وحدة يُعدّ بها الصنف. تُغيَّر فقط ما دام رصيده صفرًا.')); efl.push(fText('unitNew', 'أو وحدة جديدة', 'مثال: جالون')); }
+      efl.push(fDD('packType', 'وحدة التعبئة (الكبرى)', [['none', 'بدون']].concat(packTypes().map(function (t) { return [t, t]; })), 'ما يصل به الصنف من المورّد: شوال، كرتونة…'));
       efl.push(fText('packNew', 'أو نوع تعبئة جديد', 'مثال: جركن'));
       efl.push(fText('packN', 'سعة العبوة: كم ' + eu + ' فيها؟', '25', 'decimal', 'تتغير سعة الشوال والكرتونة بحسب المورّد، فعدّلها هنا متى تغيّرت. الأرصدة تبقى بالـ' + eu + ' ولا تتأثر.'));
-      efl.push(fChips('cond', 'نوع التخزين', conds().map(function (t) { return [t, t]; })));
+      efl.push(fDD('cond', 'نوع التخزين', conds().map(function (t) { return [t, t]; })));
       efl.push(fChips('grp', 'المجموعة', [['', 'أساسي'], ['spice', 'بهارات']]));
       efl.push(fText('alias', 'أسماء أخرى للصنف', 'مثال: صلصة، رب البندورة', 'text', 'الأسماء التي تكتبها المؤسسات في طلبياتها. افصل بينها بفاصلة.'));
       efl.push(fText('condNew', 'أو نوع تخزين جديد', 'مثال: يحتاج تبريد'));
