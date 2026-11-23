@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.158';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.159';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2805,13 +2805,13 @@ function pgSupply() {
   var d = draftOf(A.sid), bl = [];
   if (!d) return [B('note', { tone: 'warn', icon: 'i-alert', text: 'هذه التوريدة غير موجودة.' })];
   var L = led(d.led), free = E.isFree(L), val = dValue(d);
-  if (d.done === 'sched' && d.hold) bl.push(B('note', { tone: 'info', icon: 'i-truck', text: 'لم يصل بعد: لا يدخل المخزن ولا يُحسب في أي تقرير حتى تضغط «وصل الآن» (التاريخ المتوقع ' + dlabel(d.date) + ').' }));
-  else if (d.done === 'sched') bl.push(B('note', { tone: 'info', icon: 'i-truck', text: 'توريد قادم: لا يدخل المخزن قبل ' + dlabel(d.date) + '، ويُسجَّل تلقائيًا في ذلك اليوم. إن تأخّر عدّل تاريخه، وإن وصل مبكرًا اضغط «وصل الآن».' }));
+  if (d.done === 'sched' && d.hold) bl.push(B('note', { tone: 'info', icon: 'i-truck', text: 'لم يصل بعد · لا يدخل المخزن ولا التقارير حتى «وصل الآن»' }));
+  else if (d.done === 'sched') bl.push(B('note', { tone: 'info', icon: 'i-truck', text: 'قادم · يدخل المخزن تلقائيًا في ' + dlabel(d.date) }));
   if (d.done === 'voided') bl.push(B('note', { tone: 'warn', icon: 'i-lock', text: 'أُلغيت هذه التوريدة' + (d.voidAt ? ' بتاريخ ' + dlabel(d.voidAt) : '') + (d.schedVoid ? ' قبل أن تصل، فلم يدخل المخزن منها شيء.' : ' وأُزيلت كمياتها من المخزن.') }));
   bl.push(B('kpi', { items: [X({ label: 'الأصناف', value: d.lines.length }), X({ label: 'التاريخ', value: dshow(d.date).slice(0, -5), sub: L && d.led !== 'kitchen' ? L.name : '' }), X({ label: free ? 'القيمة' : 'القيمة المكتوبة', value: free ? 'عيني' : val > 0 ? money(val) : '—', sub: '' })] }));
   bl.push(B('rows', { title: 'الأصناف', items: spiceLast(d.lines).map(function (l) { var it = item(l.item); return X({ title: it ? it.name : l.raw, sub: l.price > 0 && !free ? 'بسعر ' + money(l.price) : '', end: fmt(l.qty) + ' ' + (it ? it.unit : ''), endSub2: it ? packTxt(it, l.qty) : '', chev: d.done === 'approved', go: d.done === 'approved' ? function () { openSh({ t: 'supLine', sid: d.id, lid: l.id }, { unitMode: 'base', qty: String(l.qty) }); } : noop }); }), empty: '' }));
-  if (d.done === 'sched') bl.push(B('btns', { items: [X({ label: 'تعديل التاريخ', icon: 'i-calendar', go: function () { openSh({ t: 'dmeta', did: d.id }, { led: d.led, day: '', dtxt: d.date, hold: d.hold ? '1' : '0' }); } }), X({ label: 'وصل الآن', icon: 'i-truck', go: function () { d.date = today(); supArrive(d.id); } }), X({ label: 'إلغاء التوريد القادم', icon: 'i-minus', go: function () { d.done = 'voided'; d.voidAt = today(); d.schedVoid = 1; audit('إلغاء توريد قادم: ' + supTitle(d)); save(); open('supplies'); mutated('أُلغي التوريد القادم', function () { d.done = 'sched'; delete d.voidAt; delete d.schedVoid; save(); render(); }); } })] }));
-  if (d.done === 'approved') bl.push(B('btns', { items: [X({ label: 'إلغاء التوريدة كاملة', icon: 'i-minus', go: function () { openSh({ t: 'supVoid', sid: d.id }); } })] }));
+  if (d.done === 'sched') bl.unshift(B('acts', { items: [X({ title: 'تعديل التاريخ', icon: 'i-calendar', go: function () { openSh({ t: 'dmeta', did: d.id }, { led: d.led, day: '', dtxt: d.date, hold: d.hold ? '1' : '0' }); } }), X({ title: 'وصل الآن', icon: 'i-truck', go: function () { d.date = today(); supArrive(d.id); } }), X({ title: 'إلغاء', icon: 'i-minus', go: function () { d.done = 'voided'; d.voidAt = today(); d.schedVoid = 1; audit('إلغاء توريد قادم: ' + supTitle(d)); save(); open('supplies'); mutated('أُلغي التوريد القادم', function () { d.done = 'sched'; delete d.voidAt; delete d.schedVoid; save(); render(); }); } })] }));
+  if (d.done === 'approved') bl.unshift(B('acts', { items: [X({ title: 'إلغاء التوريدة', icon: 'i-minus', go: function () { openSh({ t: 'supVoid', sid: d.id }); } })] }));
   return bl;
 }
 function supLineMove(d, l) { var ids = supMoves(d); return S.moves.filter(function (m) { return ids.indexOf(m.id) >= 0 && m.item === l.item && Math.abs(m.q - l.qty) < 0.001; })[0]; }
