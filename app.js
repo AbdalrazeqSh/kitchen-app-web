@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.174';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.175';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4115,6 +4115,9 @@ function catOf(m) {
   return 'misc';
 }
 function ilsOf(m) { return m.cur === 'ils' ? m.amt : (m.ils > 0 ? m.ils : 0); }
+/* دولار مدفوع قيمته بالشيكل محسوبة في مجموع الشيكل: يُعرض «منه $X» لئلا يختفي الدولار (جولة المفتّش 2026-11-23) */
+function usdIn(m) { return m.cur === 'usd' && m.ils > 0 ? m.amt : 0; }
+function uTxt(u, ux) { return (ux ? 'منه ' + usdTxt(ux) : '') + (ux && u ? ' + ' : '') + (u ? usdTxt(u) : ''); }
 function usdOnly(m) { return m.cur === 'usd' && !(m.ils > 0) ? m.amt : 0; }
 function moveDate() { return dateNear(fv('dtxt')) || today(); }
 function dayFields() { if (!fv('dtxt')) A.form.dtxt = today(); return [fDate('dtxt', 'التاريخ', '', today())]; }
@@ -4123,14 +4126,14 @@ function dayOk() { var d = dateNear(fv('dtxt')); return !!d && d <= today(); }
 /* ---------- الملخص الشهري ---------- */
 function finMonths() { var o = {}; o[today().slice(0, 7)] = 1; fmOn().forEach(function (m) { o[m.date.slice(0, 7)] = 1; }); return Object.keys(o).sort().reverse(); }
 function finData(ym) {
-  var ms = fmOn().filter(function (m) { return ym === 'all' || m.date.slice(0, 7) === ym; }), cats = {}, parties = {}, T = { inI: 0, outI: 0, inU: 0, outU: 0, adjI: 0, xI: 0, nI: 0, nU: 0 };
+  var ms = fmOn().filter(function (m) { return ym === 'all' || m.date.slice(0, 7) === ym; }), cats = {}, parties = {}, T = { inI: 0, outI: 0, inU: 0, outU: 0, inX: 0, outX: 0, adjI: 0, xI: 0, nI: 0, nU: 0 };
   ms.forEach(function (m) {
     var c = catOf(m), i = ilsOf(m), u = usdOnly(m);
     if (c === 'xfer') { var sx = m.dir === 'in' ? 1 : -1; if (m.cur === 'ils') T.nI = r2(T.nI + sx * m.amt); else T.nU = r2(T.nU + sx * m.amt); return; }
     var k = (m.dir === 'in' ? 'i_' : 'o_') + c; cats[k] = cats[k] || { c: c, dir: m.dir, n: 0, ils: 0, usd: 0 }; cats[k].n++; cats[k].ils = r2(cats[k].ils + i); cats[k].usd = r2(cats[k].usd + u);
     if (c !== 'adj') { var sg = m.dir === 'in' ? 1 : -1; if (m.cur === 'ils') T.nI = r2(T.nI + sg * m.amt); else T.nU = r2(T.nU + sg * m.amt); }
     if (c === 'adj') { T.adjI = r2(T.adjI + (m.dir === 'in' ? i : -i)); return; }
-    if (m.dir === 'in') { T.inI = r2(T.inI + i); T.inU = r2(T.inU + u); } else { T.outI = r2(T.outI + i); T.outU = r2(T.outU + u);
+    if (m.dir === 'in') { T.inI = r2(T.inI + i); T.inU = r2(T.inU + u); T.inX = r2(T.inX + usdIn(m)); } else { T.outI = r2(T.outI + i); T.outU = r2(T.outU + u); T.outX = r2(T.outX + usdIn(m));
       var pk = String(m.note || 'بلا بيان').replace(/\s+/g, ' ').split(' — ')[0].trim(); parties[pk] = parties[pk] || { n: 0, ils: 0, usd: 0 }; parties[pk].n++; parties[pk].ils = r2(parties[pk].ils + i); parties[pk].usd = r2(parties[pk].usd + u); }
   });
   /* شراء العمال للمطبخ من مالهم: يظهر بنده في الصرف بقدر ما دُفع فعلًا لهم، ويُقتطع من «رواتب وعمال» فلا يتضاعف ولا يمسّ المجموع ولا الأرصدة */
@@ -4144,7 +4147,7 @@ function oweWork() { return r2(activeW().reduce(function (a, w) { var b = wBal(w
 function pgFinSum() {
   var ym = A.fsm || today().slice(0, 7), D = finData(ym), bl = [], ms = finMonths(), t = D.T;
   bl.push(B('chips', { scroll: true, items: ms.slice(0, 12).map(function (m) { return X({ label: monthLabel(m), on: ym === m, go: function () { setState({ fsm: m }); } }); }).concat([X({ label: 'الكل', on: ym === 'all', go: function () { setState({ fsm: 'all' }); } })]) }));
-  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(t.inI), value2: t.inU ? usdTxt(t.inU) : '', endTone: 'ok', sub: t.inU ? '' : 'مكافئ بالشيكل' }), X({ label: 'صرف', value: money(t.outI), value2: t.outU ? usdTxt(t.outU) : '', endTone: 'bad', sub: t.outU ? '' : 'مكافئ بالشيكل' }), X({ label: 'الفرق (وارد − صرف)', value: money(t.dI), endTone: (t.dI < 0 || t.dU < 0) ? 'bad' : 'ok', value2: t.dU ? usdTxt(t.dU) : '', sub: t.dU ? '' : 'مكافئ بالشيكل' })] }));
+  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(t.inI), value2: uTxt(t.inU, t.inX), endTone: 'ok', sub: (t.inU || t.inX) ? '' : 'مكافئ بالشيكل' }), X({ label: 'صرف', value: money(t.outI), value2: uTxt(t.outU, t.outX), endTone: 'bad', sub: (t.outU || t.outX) ? '' : 'مكافئ بالشيكل' }), X({ label: 'الفرق (وارد − صرف)', value: money(t.dI), endTone: (t.dI < 0 || t.dU < 0) ? 'bad' : 'ok', value2: (t.dU || t.inX || t.outX) ? usdTxt(r2(t.inU + t.inX - t.outU - t.outX)) : '', sub: (t.dU || t.inX || t.outX) ? '' : 'مكافئ بالشيكل' })] }));
   bl.push(B('rows', { title: 'التغيّر الفعلي في الأرصدة', items: [X({ title: 'الشيكل', end: t.nI < 0 ? sg('out', money(-t.nI)) : sg('in', money(t.nI)), endTone: t.nI < 0 ? 'bad' : 'ok' }), X({ title: 'الدولار', end: t.nU < 0 ? sg('out', usdTxt(-t.nU)) : sg('in', usdTxt(t.nU)), endTone: t.nU < 0 ? 'bad' : 'ok' })] }));
   bl.push(B('btns', { items: [X({ label: 'مشاركة الملخص (صورة)', icon: 'i-send', on: true, go: function () { shareFin(ym); } })] }));
   var CI = { pay: 'i-users', kb: 'i-truck', buy: 'i-box', move: 'i-truck', rent: 'i-home', misc: 'i-list', sales: 'i-wallet', inst: 'i-shield', oth: 'i-plus', adj: 'i-check' };
@@ -4377,12 +4380,12 @@ function ownData(from, to) {
       if (r.open || r.close || r.inN || r.outN || r.xN || r.adjN) recs.push(r);
     });
   });
-  var inR = [], outR = [], xR = [], adjR = [], T = { inI: 0, inU: 0, outI: 0, outU: 0 };
+  var inR = [], outR = [], xR = [], adjR = [], T = { inI: 0, inU: 0, outI: 0, outU: 0, inX: 0, outX: 0 };
   fmOn().filter(function (m) { return m.date >= from && m.date <= to; }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }).forEach(function (m) {
     var c = catOf(m);
     if (c === 'xfer') { if (m.dir === 'out') xR.push(m); return; }
     if (c === 'adj') { adjR.push(m); return; }
-    if (m.dir === 'in') { inR.push(m); T.inI = r2(T.inI + ilsOf(m)); T.inU = r2(T.inU + usdOnly(m)); } else { outR.push(m); T.outI = r2(T.outI + ilsOf(m)); T.outU = r2(T.outU + usdOnly(m)); }
+    if (m.dir === 'in') { inR.push(m); T.inI = r2(T.inI + ilsOf(m)); T.inU = r2(T.inU + usdOnly(m)); T.inX = r2(T.inX + usdIn(m)); } else { outR.push(m); T.outI = r2(T.outI + ilsOf(m)); T.outU = r2(T.outU + usdOnly(m)); T.outX = r2(T.outX + usdIn(m)); }
   });
   var grp = function (arr) {
     var o = {}; arr.forEach(function (m) { var c = catOf(m); o[c] = o[c] || { c: c, ms: [], ils: 0, usd: 0 }; o[c].ms.push(m); o[c].ils = r2(o[c].ils + ilsOf(m)); o[c].usd = r2(o[c].usd + usdOnly(m)); });
@@ -4408,7 +4411,7 @@ function pgOwnSt() {
   var R = ownRange(), D = ownData(R.from, R.to), bl = [], T = D.T;
   bl.push(B('chips', { items: ownPresets().map(function (p) { return X({ label: p[0], on: R.from === p[1] && R.to === p[2], go: function () { ownSetRange(p[1], p[2]); } }); }).concat([X({ label: 'فترة محددة', icon: 'i-calendar', go: function () { ownPrev(); } })]) }));
   bl.push(B('acts', { items: [X({ title: 'مشاركة الكشف', icon: 'i-send', go: function () { ownPrev(); } })] }));
-  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(T.inI), value2: T.inU ? usdTxt(T.inU) : '', endTone: 'ok', sub: T.inU ? '' : 'مكافئ بالشيكل' }), X({ label: 'مصروفات', value: money(T.outI), value2: T.outU ? usdTxt(T.outU) : '', endTone: 'bad', sub: T.outU ? '' : 'مكافئ بالشيكل' })] }));
+  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(T.inI), value2: uTxt(T.inU, T.inX), endTone: 'ok', sub: (T.inU || T.inX) ? '' : 'مكافئ بالشيكل' }), X({ label: 'مصروفات', value: money(T.outI), value2: uTxt(T.outU, T.outX), endTone: 'bad', sub: (T.outU || T.outX) ? '' : 'مكافئ بالشيكل' })] }));
   D.recs.forEach(function (r) { bl.push(B('rows', { title: ownRecName(r), all: true, items: ownRecRows(r) })); });
   if (!D.recs.length) bl.push(B('rows', { title: 'الأرصدة', items: [], empty: 'لا حركات في هذه الفترة' }));
   D.ins.forEach(function (g) { bl.push(B('rows', { title: 'الوارد · ' + catName(g.c) + ' · ' + ownTot(g), items: g.ms.map(function (m) { return moveRowX(m, true); }) })); });
