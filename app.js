@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.173';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.174';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -6019,6 +6019,7 @@ function shDesc() {
         if (b.kind === 'private') bacts.push(X({ title: distLeft(b) > 0 ? 'التوزيع · ' + fmt(distLeft(b)) : 'التوزيع', icon: 'i-users', go: function () { openSh({ t: 'dist', id: b.id }, distForm(b)); } }));
         bacts.push(X({ title: 'الأصناف والأسعار', icon: 'i-pencil', go: function () { fixOpen(b); } }));
         bacts.push(X({ title: 'نسخة للشيف', icon: 'i-send', go: function () { shareChefBatch(b); } }));
+        bacts.push(X({ title: 'تكرار', icon: 'i-copy', go: function () { startRepeat(b); } }));
       }
       var nLines = R.rows.length; /* أصناف الطبخة أولًا، ثم المحذوف والحقول المخصصة، ثم بنود التكلفة والإجمالي في الآخر */
       if (b.kind === 'external' && !b.void && (!costFree || b.pm === 'lump' || (b.xl || []).length)) {
@@ -6381,6 +6382,15 @@ function startEdit(b) {
   draftFromBatch(d, b, r);
   open('batch', { draft: d });
 }
+/* تكرار طبخة: المعالج نفسه على خطوة الكميات معبّأً من الطبخة الأصلية (الوصفة، المؤسسة، القدور، الكميات الفعلية، البدائل والإضافات والتسعير) بتاريخ اليوم؛ لا توزيع ولا خصم قبل «حفظ»، والأصل لا يتغير (المالك 2026-11-23) */
+function startRepeat(b) {
+  if (isClosed()) { openSh({ t: 'locked', what: 'batch' }); return; }
+  var r = rec(b.recipe) || GHOST_REC; if (!r) { say('وصفة هذه الطبخة غير متوفرة للتكرار'); return; }
+  var i = inst(b.inst), d = newDraft(b.kind, !!(i && i.init));
+  d.step = 2; d.rec = r.id; d.inst = b.inst || null; d.pots = b.pots || 1; d.portions = b.portions || ''; d.date = today(); d.dish = b.dish && b.dish !== r.name ? b.dish : '';
+  draftFromBatch(d, b, r);
+  open('batch', { draft: d });
+}
 function saveBatch() {
   var d = A.draft, r = rec(d.rec);
   if (d.planEdit) {
@@ -6530,7 +6540,7 @@ function shell() {
     shOn: !!s.sh, shClose: shut,
     shTitle: f.title || '', shSub: f.sub || '', shHasSub: !!f.sub, shHdBg: tn ? tn.hdBg : '#FFFFFF', shHdBd: tn ? tn.line : 'transparent', shHasTag: !!tn, shTag: tn ? (f.toneTag || tn.tag) : '', shTagBg: tn ? tn.line : '', shTagFg: '#FFFFFF',
     shHasSearch: !!f.search, shQ: s.q, shPh: f.search || '', shOnQ: function (v) { setState({ q: v }); },
-    shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [],
+    shHasCols: !!f.cols, shCol0: f.cols ? f.cols[0] : '', shCol1: f.cols ? f.cols[1] : '', shCol2: f.cols ? f.cols[2] : '', shCol3: f.cols ? f.cols[3] : '', shHasActs: !!(f.acts && f.acts.length), shActs: f.acts || [], shActsCols: (function () { var n = (f.acts || []).length; return n === 6 ? 'repeat(3,1fr)' : n >= 7 ? 'repeat(4,1fr)' : 'repeat(auto-fit,minmax(58px,1fr))'; })(),
     shRows: f.rows || [], shHasRows: !!(f.rows && f.rows.length), shHasEmpty: !!f.empty && !(f.rows && f.rows.length), shEmpty: f.empty || '',
     shHasDup: !!f.dup, shDup: f.dup || '', shHasAdd: !!f.add, shAddLabel: f.add ? f.add.label : '', shAddGo: f.add ? f.add.go : noop, shHasAdd2: !!f.add2, shAdd2Label: f.add2 ? f.add2.label : '', shAdd2Go: f.add2 ? f.add2.go : noop,
     shFields: (f.fields || []).map(function (x) { if (tn && x.retone) x.retone(f.tone); if (x.money && tn) { x.ibg = tn.fieldBg; x.ibd = tn.line; x.ifc = tn.text; } return Object.assign({ sideDir: 'rtl', sideMode: 'text', sideFs: '15px', sideTa: 'start', isDD: false, ddOpen: false, ddLabel: '', ddOpts: [], ddToggle: noop, lbd: 'block', chh: '44px', chmw: '56px', chp: '0 14px', chfs: '14px', ibg: '#fff', ibd: 'rgba(27,36,33,.22)', ifs: '16px', ifw: '400', ifc: '#1B2421', hasCap: false, cap1: '', cap2: '', hasSide: false, sideV: '', sideIn: noop, sidePh: '', did: '', hasDrag: false, hasRm: false, rm: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: 'none', cw: '100%', dir: 'rtl', ta: 'start', isCalc: false, opAdd: noop, opSub: noop, opMul: noop, opDiv: noop, opEq: noop, keep: noop, onKey: noop, isPhoto: false, phEmpty: false, phMenu: false, phOn: false, phSrc: '', phOpen: noop, phCam: noop, phFile: noop, phDel: noop, phCancel: noop }, x); }),
