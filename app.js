@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.165';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.166';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -5705,7 +5705,7 @@ function itemList(l) {
 function newId(prefix, list) { var n = list.length + 1, id; do { id = prefix + n++; } while (E.by(list, id)); return id; }
 /* ضغطة مطوّلة على صف: نافذة إجراءات سريعة (كلها تفتح نوافذ التطبيق المعتادة، ولا شيء يُنفَّذ مباشرة) */
 function qa(title, sub, acts) { openSh({ t: 'qa', title: title, sub: sub, acts: acts }); }
-function openItemEdit(it) { openSh({ t: 'itemEdit', id: it.id }, { unit: it.unit, unitNew: '', packType: it.pack ? it.pack.name : 'none', packNew: '', packN: it.pack ? String(it.pack.n) : '', cond: it.cond || 'جاف', condNew: '', grp: it.grp || '', alias: (it.alias || []).join('، '), sup: it.sup || '', price: String(it.price || '') }); }
+function openItemEdit(it) { openSh({ t: 'itemEdit', id: it.id }, { name: it.name, unit: it.unit, unitNew: '', packType: it.pack ? it.pack.name : 'none', packNew: '', packN: it.pack ? String(it.pack.n) : '', cond: it.cond || 'جاف', condNew: '', grp: it.grp || '', alias: (it.alias || []).join('، '), sup: it.sup || '', price: String(it.price || '') }); }
 var KIND = { opening: 'رصيد افتتاحي', receive: 'استلام', batch: 'طبخة', adjust: 'جرد', hist: 'سجل قديم', issue: 'صرف', cover: 'تغطية (ملغاة)' };
 function dupOf(list, name) { return list.filter(function (x) { return norm(x.name) === norm(name); })[0]; }
 function dupMsg(x, what) { return !x ? '' : x.arch ? '«' + x.name + '» مؤرشف سابقًا.' : 'يوجد ' + what + ' «' + x.name + '» بنفس الاسم، اخترْه بدل التكرار.'; }
@@ -5885,7 +5885,7 @@ function shDesc() {
     }
     case 'itemEdit': {
       it = item(sh.id); var hasStk = itemTotal(it.id) !== 0, eu = hasStk ? it.unit : ((fv('unitNew') || '').trim() || fv('unit') || it.unit);
-      var ept = (fv('packNew') || '').trim() || fv('packType'), epn = num('packN'), epack = ept && ept !== 'none' && epn > 0 ? { name: ept, n: epn } : null, efl = [];
+      var ept = (fv('packNew') || '').trim() || fv('packType'), epn = num('packN'), epack = ept && ept !== 'none' && epn > 0 ? { name: ept, n: epn } : null, efl = [fText('name', 'اسم الصنف', it.name, 'text', 'تغيير الاسم لا يمس الرصيد ولا الحركات ولا الوصفات؛ يبقى الاسم القديم اسمًا آخر للصنف.')];
       if (!hasStk) { efl.push(fDD('unit', 'الوحدة الأساسية (الصغرى)', (S.units || []).map(function (u) { return [u, u]; }), 'أصغر وحدة يُعدّ بها الصنف. تُغيَّر فقط ما دام رصيده صفرًا.')); efl.push(fText('unitNew', 'أو وحدة جديدة', 'مثال: جالون')); }
       efl.push(fDD('packType', 'وحدة التعبئة (الكبرى)', [['none', 'بدون']].concat(packTypes().map(function (t) { return [t, t]; })), 'ما يصل به الصنف من المورّد: شوال، كرتونة…'));
       efl.push(fText('packNew', 'أو نوع تعبئة جديد', 'مثال: جركن'));
@@ -6256,12 +6256,18 @@ function doAddItem(then) {
   say('أُضيف الصنف «' + name + '»');
 }
 function doEditItem(id) {
-  var it = item(id), unit = it.unit, pt = (fv('packNew') || '').trim() || fv('packType'), pn = num('packN'), price = num('price');
+  var it = item(id), nn = (fv('name') || '').trim(), oldNm = '';
+  if (nn && norm(nn) !== norm(it.name)) {
+    var dupN = S.items.filter(function (x) { return x.id !== id && (norm(x.name) === norm(nn) || (x.alias || []).some(function (a) { return norm(a) === norm(nn); })); })[0];
+    if (dupN) { say('يوجد صنف باسم «' + dupN.name + '» بالفعل'); return; }
+    oldNm = it.name; it.name = nn; /* الرقم المعرّف ثابت فكل الحركات والوصفات تتبع الاسم الجديد */
+  }
+  var unit = it.unit, pt = (fv('packNew') || '').trim() || fv('packType'), pn = num('packN'), price = num('price');
   if (itemTotal(id) === 0) { unit = (fv('unitNew') || '').trim() || fv('unit') || it.unit; if ((S.units || []).indexOf(unit) < 0) S.units.push(unit); }
   var pack = pt && pt !== 'none' && pn > 0 ? { name: pt, n: pn } : null, arr = packsOf(it).slice();
   if (JSON.stringify(it.pack || null) !== JSON.stringify(pack) && pack) { arr = arr.filter(function (x) { return !(x.name === pack.name && x.n === pack.n); }); arr.unshift(pack); }
   it.unit = unit; it.pack = pack; it.packs = arr; it.cond = (fv('condNew') || '').trim() || fv('cond') || 'جاف'; it.grp = fv('grp') === 'spice' ? 'spice' : '';
-  it.alias = aliasList(fv('alias')); it.sup = (fv('sup') || '').trim(); if (price > 0) it.price = price;
+  it.alias = aliasList(fv('alias') + (oldNm ? '،' + oldNm : '')).filter(function (a) { return norm(a) !== norm(it.name); }); it.sup = (fv('sup') || '').trim(); if (price > 0) it.price = price;
   setState({ sh: { t: 'item', id: id }, form: {} }); mutated('حُفظت بيانات «' + it.name + '»');
 }
 /* تاريخ حركة المخزن (استلام أو جرد): اليوم أو يوم سابق، لا مستقبل */
