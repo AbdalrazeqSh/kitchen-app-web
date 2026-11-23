@@ -10,6 +10,8 @@ var noop = function () {};
 
 /* ---- عنصر عام وكتلة (نفس مفاتيح التصميم) ---- */
 function X(o) {
+  var chevIc = 'i-chevL'; /* سهم الصف يدلّ على فعله: ‹ للانتقال، ⌄ للتوسيع، ⌃ للطيّ (المالك 2026-11-23) */
+  if (o.more && (o.icon === 'i-chevD' || o.icon === 'i-minus')) { chevIc = o.icon === 'i-minus' ? 'i-chevU' : 'i-chevD'; o = Object.assign({}, o, { chev: true }); }
   if (o.more) { o = Object.assign({}, o, { mini: true, icon: '', rbg: o.rbg || '#F3F7F4' }); } /* صف «تكملة» (عرض N أخرى، كل الوصفات، طيّ): لا يُشبه صف بيانات: بلا مربع أيقونة، خلفية خفيفة، نص أخضر أخف وأصغر (المالك 2026-11-18) */
   if (o.kid && !o.mini) { o = Object.assign({}, o, { mini: true }); } /* ابن في بطاقة أب: أخف من صف الأب (قاعدة الوزن التصميمي) */
   var tg = T[o.tagTone] || T.mute, ic = T[o.icTone] || T.mute, tn = T[o.tone], on = !!o.on;
@@ -21,7 +23,7 @@ function X(o) {
     hasCols: !!o.c1, c0: o.c0 || '', c1: o.c1 || '', c1s: o.c1s || '', c2: o.c2 || '', c2s: o.c2s || '', c2Fg: o.c2Tone ? T[o.c2Tone][1] : '#1B2421',
     endFg: o.hdr ? '#14563A' : o.endTone ? T[o.endTone][1] : '#1B2421',
     icon: o.icon || 'i-dot', hasIcon: !!o.icon, icBg: ic[0], icFg: ic[1],
-    chev: !!o.chev, hasGo: !!o.go, cur: o.go ? 'pointer' : 'default', go: o.go || noop, lp: o.lp ? function (e) { if (e && e.preventDefault) e.preventDefault(); o.lp(); } : noop, isBtn: !o.step, isStep: !!o.step, ph: !!o.ph,
+    chev: !!o.chev, chevIc: chevIc, hasGo: !!o.go, cur: o.go ? 'pointer' : 'default', go: o.go || noop, lp: o.lp ? function (e) { if (e && e.preventDefault) e.preventDefault(); o.lp(); } : noop, isBtn: !o.step, isStep: !!o.step, ph: !!o.ph,
     minus: o.minus || noop, plus: o.plus || noop, edit: o.edit || noop, val: o.val == null ? '' : String(o.val), unit: o.unit || '',
     sub2: o.sub2 || '', hasSub2: !!o.sub2, badge: o.badge || '', hasBadge: !!o.badge, warn: o.warn || '', hasWarn: !!o.warn, hasHintGo: !!o.hintGo, hintTxt: o.hintTxt || '', hintGo: o.hintGo || noop, hasUndo: !!o.undo, undoGo: o.undo ? function (e) { if (e && e.stopPropagation) e.stopPropagation(); o.undo(); } : noop, opc: o.dim ? '.5' : '1', hasX: !!o.x, xGo: o.x ? function (e) { if (e && e.stopPropagation) e.stopPropagation(); o.x(); } : noop,
     toneSet: !!o.tone, abg: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[0] : '#E9ECE7'), afg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
@@ -39,7 +41,7 @@ function capRows(o) {
   var it = o.items || [];
   if (o.all || it.length <= ROW_CAP + 1 || it.some(function (x) { return x && x.isMoreRow; })) return o; /* قائمة لها صف «عرض N أخرى» خاص بها (ترقيم): لا يُكدَّس عليها اختصار ثانٍ فيضمّها كلما تغيّر طولها (المالك 2026-11-19) */
   var k = (o.title || '') + '|' + it.length, open = !!rowsOpen[k], n = it.length - ROW_CAP, c = Object.assign({}, o);
-  c.items = (open ? it : it.slice(0, ROW_CAP)).concat([X({ more: true, chev: true, icon: open ? 'i-minus' : 'i-chevD', icTone: 'mute', title: open ? 'طيّ القائمة' : 'عرض ' + n + ' أخرى', go: function () { rowsOpen[k] = !open; UI.render(); } })]);
+  c.items = (open ? it : it.slice(0, ROW_CAP)).concat([X({ more: true, icon: open ? 'i-minus' : 'i-chevD', icTone: 'mute', title: open ? 'طيّ القائمة' : 'عرض ' + n + ' أخرى', go: function () { rowsOpen[k] = !open; UI.render(); } })]);
   return c;
 }
 /* لون الإجراء بمعناه (الإضافة والدفع والاستلام أخضر، الرسائل والتحويل والتقارير أزرق، الصرف والخصم كهرماني، المخالفة أحمر، غير ذلك رمادي): كل إجراء في `acts` يأخذ لونًا من أيقونته ما لم يحدّد `tone` بنفسه، فلا بلاطة رمادية بلا هوية في أي شاشة */
