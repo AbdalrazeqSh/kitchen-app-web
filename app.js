@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.160';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.161';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -215,6 +215,61 @@ function migrateMenu2() {
   S.settings.menu1126b = true; save();
 }
 
+/* تحديث المنيو الموحّد 23 نوفمبر 2026 (26 وصفة): أربع وصفات مجمدة جديدة، الفاصوليا والبامية مجمدتان، أُزيلت «إضافة اللحم» من ست وصفات،
+   ملاحظة زيت الأرز، تنبيه الصلصة، خطوات البنجر والبازيلاء، وإزاحة الأكواد. تُعدَّل الوصفات في مكانها وتبقى معرّفاتها (الطبخات المنفَّذة تحمل نسخة أسطرها). */
+function migrateMenu3() {
+  if (S.settings.menu1123) return;
+  var ln = function (r, id) { return r.lines.filter(function (l) { return l.item === id; })[0]; };
+  var rec = function (id) { return E.by(S.recipes, id); };
+  var log = function (r, what) { r.log = r.log || []; r.log.unshift({ date: today(), what: 'قائمة 23 نوفمبر: ' + what }); r.log = r.log.slice(0, 30); };
+  var mkItem = function (id, name, cond) {
+    if (item(id)) return;
+    S.items.push({ id: id, name: name, unit: 'كيلو', price: 0, daily: 0, step: 1, pack: { name: 'كرتونة', n: 10 }, packs: [{ name: 'كرتونة', n: 10 }], cond: cond || 'مجمّد' });
+    E.addMove(S, { date: today(), led: 'kitchen', item: id, q: 0, kind: 'opening', note: 'إضافة الصنف' });
+  };
+  mkItem('molokhia_f', 'ملوخية مجمدة'); mkItem('gbeans_f', 'فاصوليا خضراء مجمدة'); mkItem('spinach_f', 'سبانخ مجمدة'); mkItem('zucchini_f', 'كوسا مجمدة'); mkItem('cauli_f', 'زهرة (قرنبيط) مجمدة');
+  var b = function (it, per, note) { var l = { item: it, per: per, cat: 'b' }; if (note) l.note = note; return l; };
+  var sp = function (it, per) { return { item: it, per: per, cat: 's' }; };
+  var fuel = function () { return { item: 'pellet', per: 7.5, cat: 'f', note: '7 إلى 8 كجم' }; };
+  /* 1) إزالة «إضافة اللحم» من الست */
+  ['r07', 'r08', 'r11', 'r12', 'r13', 'r18', 'r22'].forEach(function (id) { var r = rec(id); if (r && r.meat) { r.meat = false; log(r, 'أُزيلت «إضافة اللحم»'); } });
+  /* 2) ملاحظة زيت الأرز */
+  ['r02', 'r03', 'r04', 'r05', 'r06'].forEach(function (id) { var r = rec(id), l = r && ln(r, 'oil'); if (l) { l.note = 'الكمية الموردة مخصصة لتحميص الأرز'; log(r, 'ملاحظة الزيت'); } });
+  /* 3) تنبيه نوع الصلصة (الكمية بالكيلو كما في المنيو) */
+  var tw = function (kg) { return 'معجون ' + kg + ' كجم: انتبه لنوع الصلصة فقد تتغير الكمية حسب النوع'; };
+  [['r08', 6], ['r11', 6], ['r12', 6], ['r13', 5], ['r17', 3], ['r20', 6], ['r21', 9]].forEach(function (x) { var r = rec(x[0]), l = r && ln(r, 'tomato'); if (l) { l.note = tw(x[1]); log(r, 'تنبيه الصلصة'); } });
+  var yk = rec('r18'), yt = yk && ln(yk, 'tomato'); if (yt) { yt.note = '1 كيلو فقط'; log(yk, 'ملاحظة الصلصة'); }
+  var r08 = rec('r08'); if (r08 && !r08.wnote) { r08.wnote = '27 إلى 30 لترًا'; }
+  var r09 = rec('r09'), ol = r09 && ln(r09, 'olive'); if (ol) { ol.note = 'أو زيت قلي، حسب التوفر'; log(r09, 'ملاحظة الزيت'); }
+  /* 4) خطوات البنجر والبازيلاء */
+  var bt = rec('r14'); if (bt) { bt.note = 'طريقة التحضير: 1) تصفية البنجر جيدًا من السائل الموجود داخل العلب. 2) تجهيز الليمون الطازج والجرادة الخضراء، ثم إضافتهما إلى البنجر. 3) إضافة الخل الأبيض والملح وتقليب المكونات جيدًا حتى تتجانس. 4) إضافة زيت عباد الشمس وخلط المكونات بصورة متساوية. 5) ترك الخليط لمدة ثلاث ساعات، مع مراعاة شروط النظافة وسلامة الغذاء، وحفظه في درجة حرارة مناسبة. 6) بعد التأكد من سلامة المنتج وجودته، يتم توزيعه بالتساوي على المستفيدين.'; log(bt, 'خطوات التحضير'); }
+  var pz = rec('r07'); if (pz) { pz.note = 'طريقة الطهي: 1) تُنقع البازيلاء للمدة المحددة، ثم تُصفّى جيدًا من ماء النقع وتُجهَّز للطبخ. 2) يُقطَّع البصل ويُقلى بالزيت حتى يذبل مع مراعاة عدم حرقه. 3) تُوضع البازيلاء في قدر الطبخ مع إضافة 30 لترًا من الماء، ويُترك القدر حتى الغليان. 4) يُضاف البصل المقلي إلى القدر بعد بدء الغليان مع التحريك لتوزيع المكونات. 5) تُضاف البطاطا والجزر المعلّبان، وتُترك المكونات حتى تقترب من النضج. 6) تُضاف الصلصة والملح والماجي والفلفل الأسود مع التحريك جيدًا. 7) تُترك الطبخة على النار حتى تنضج تمامًا ويصل قوام الصلصة للدرجة المطلوبة مع متابعة الماء. 8) يُراعى ضبط قوام الطبخة والتأكد من اكتمال النضج قبل التقديم والتوزيع.'; log(pz, 'خطوات الطهي'); }
+  /* 5) الفاصوليا والبامية مجمدتان (الفاصوليا صنف مستقل 22 كجم، لا علب) */
+  var gb = rec('r11');
+  if (gb) {
+    var gl = ln(gb, 'gbeans'); if (gl) { var at = gb.lines.indexOf(gl); gb.lines[at] = b('gbeans_f', 22); }
+    gb.name = 'فاصوليا خضراء (مجمدة)'; gb.en = 'Green Beans Stew (Frozen)'; log(gb, 'مجمدة: 22 كجم بدل 11 علبة معلبة');
+  }
+  var ok = rec('r12'); if (ok) { ok.name = 'بامية (مجمدة)'; ok.en = 'Okra Stew (Frozen)'; log(ok, 'مجمدة'); }
+  /* 6) الأكواد الجديدة */
+  var CODES = { r13: 'R-17', r14: 'R-18', r15: 'R-19', r16: 'R-20', r17: 'R-21', r19: 'R-22', r18: 'R-23', r22: 'R-24', r20: 'R-25', r21: 'R-26' };
+  Object.keys(CODES).forEach(function (id) { var r = rec(id); if (r && r.code !== CODES[id]) { var was = r.code; r.code = CODES[id]; log(r, 'الرمز ' + was + '←' + CODES[id]); } });
+  /* 7) الوصفات الأربع الجديدة (كلها مجمدة، ماؤها 27 إلى 30 لترًا) */
+  var mk = function (id, code, name, en, lines) {
+    if (rec(id)) return;
+    S.recipes.push({ id: id, code: code, name: name, en: en, meat: false, exp: false, water: 30, wnote: '27 إلى 30 لترًا', lines: lines.filter(function (l) { return item(l.item); }), note: '', kinds: ['private', 'external'],
+      log: [{ date: today(), what: 'أُضيفت من قائمة 23 نوفمبر الموحّدة (' + code + ')' }], src: 'قائمة WCK الموحّدة · 23 نوفمبر 2026' });
+  };
+  mk('r23', 'R-13', 'ملوخية (مجمدة)', 'Molokhia (Frozen)', [b('molokhia_f', 27), b('oil', 0.6), b('onion', 1.5), b('garlic', 0.2), sp('salt', 0.4), sp('stock', 0.15), sp('bpepper', 0.03), sp('coriander', 0.1), fuel()]);
+  mk('r24', 'R-14', 'سبانخ (مجمدة)', 'Spinach (Frozen)', [b('spinach_f', 26), b('ghee', 0.27, 'سمن أو زيت طهي: 0.2 للتقلية و0.07 للثوم'), b('chick', 3), b('onion', 1.5), b('garlic', 0.14), sp('coriander', 0.03), sp('chili', 0.02), sp('bpepper', 0.03), sp('salt', 0.2), sp('stock', 0.23), fuel()]);
+  mk('r25', 'R-15', 'كوسا (مجمدة)', 'Zucchini (Frozen)', [b('zucchini_f', 23), b('tomato', 2, 'معجون 6 كجم: انتبه لنوع الصلصة فقد تتغير الكمية حسب النوع'), b('ghee', 0.2, 'أو زيت طهي'), b('onion', 1.5), b('garlic', 0.1), sp('bpepper', 0.03), sp('salt', 0.3), sp('stock', 0.2), fuel()]);
+  mk('r26', 'R-16', 'زهرة (مجمدة)', 'Cauliflower (Frozen)', [b('cauli_f', 23), b('tomato', 2, 'معجون 6 كجم: انتبه لنوع الصلصة فقد تتغير الكمية حسب النوع'), b('oil', 0.2), b('chick', 2), b('onion', 1.5), sp('cumin', 0.01), sp('salt', 0.3), sp('bpepper', 0.03), sp('coriander', 0.03), sp('stock', 0.25), fuel()]);
+  /* ترتيب القائمة بالرمز */
+  var num = function (r) { return parseInt(String(r.code || '').replace(/\D/g, ''), 10) || 999; };
+  S.recipes = S.recipes.map(function (r, i) { return [r, i]; }).sort(function (a, c) { return num(a[0]) - num(c[0]) || a[1] - c[1]; }).map(function (x) { return x[0]; });
+  S.settings.menu1123 = true; save();
+}
+
 /* توزيع الإجمالي لكل نقطة كان يُقسَّم تلقائيًا على الطبخات ويُكتب كأنواع. نعلّم ما يطابق التقسيم التلقائي تمامًا بأنه «بالإجمالي» فلا يُنسب لنقطة نوع لم تحدده. */
 function migrateDistTot() {
   if (S.settings.distTot1114) return;
@@ -252,7 +307,7 @@ function fixShape(n) { n.settings = n.settings || {}; ARR_DEF.forEach(function (
 /* الترحيلات مرقّمة وتعمل عند كل تحميل وعند كل استعادة؛ كل ترحيل يحمل علامته فلا يُكرَّر */
 function runMigrations() {
   fixShape(S);
-  migrate(); migrate2(); migrate3(); migrate4(); migrate5(); migrate6(); migrateMenu(); migrateMenu2(); migrateDistTot(); E.wInit(S);
+  migrate(); migrate2(); migrate3(); migrate4(); migrate5(); migrate6(); migrateMenu(); migrateMenu2(); migrateMenu3(); migrateDistTot(); E.wInit(S);
   if ((S.v || 0) < SCHEMA) { S.v = SCHEMA; save(); }
 }
 
