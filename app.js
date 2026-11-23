@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.156';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.157';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1699,9 +1699,9 @@ function phSave(id) {
   });
 }
 /* نافذة الصورة المشتركة: تظهر الصورة داخل التطبيق ثم المشاركة لأي تطبيق والحفظ. تخدم كل صفوف الصور (phRow) */
-function fPhotoView(url, scroll) {
+function fPhotoView(url, scroll, sticky) {
   return { label: '', hint: '', hasHint: false, isText: false, isChips: false, isArea: false, value: '', ph: '', mode: 'text', onInput: noop, chips: [], isPhView: true,
-    phUrl: url || '', phShow: url ? 'block' : 'none', phWait: url ? 'none' : 'block', phH: url ? '0' : '160px', phAi: scroll ? 'flex-start' : 'center', phBox: scroll ? '44vh' : 'none', phMax: scroll ? 'none' : '55vh', fd: 'column', ai: 'stretch', gp: '0', lf: 'none' };
+    phUrl: url || '', phShow: url ? 'block' : 'none', phWait: url ? 'none' : 'block', phH: url ? '0' : '160px', phAi: scroll ? 'flex-start' : 'center', phBox: sticky ? '30vh' : scroll ? '44vh' : 'none', pos: sticky ? 'sticky' : 'static', pz: sticky ? '6' : '0', pbg: sticky ? '#fff' : 'transparent', phMax: scroll ? 'none' : '55vh', fd: 'column', ai: 'stretch', gp: '0', lf: 'none' };
 }
 function photoSheet(sh) {
   if (sh.t !== 'phv') return null;
@@ -3744,7 +3744,7 @@ function stSaveOpts(i) {
 }
 function stmtOptsSheet(sh) {
   var i = sh.id === '__all' ? ALLI : inst(sh.id), ym = sh.ym, full = fv('sv') !== 'sum', cv = stPrevCanvas(i, ym), url = cv.toDataURL('image/png'), nm = 'كشف-' + i.name + '-' + ym + (full ? '-مفصل' : '') + '.png', ttl = 'كشف حساب ' + i.name;
-  var fl = [fPhotoView(url, true), fSeg('sv', 'شكل الكشف', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر']]), fSeg('lbl', 'عنوان المبلغ', [['due', 'المستحق'], ['cost', 'التكلفة']])];
+  var fl = [fPhotoView(url, true, true), fSeg('sv', 'شكل الكشف', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر']]), fSeg('lbl', 'عنوان المبلغ', [['due', 'المستحق'], ['cost', 'التكلفة']])];
   fl.push(fStateGrid(['ما يظهر في الكشف'].concat(STO.map(function (k) { return ['o_' + k[0], k[1]]; })), [['1', 'ظاهر'], ['0', 'مخفي']]));
   fl.push(fArea('stNote', 'ملاحظة تظهر في كشف هذه الجهة (اختياري)', 'مثال: يشمل طبخات الأسبوع الأول'));
   fl.push(fArea('stTerms', 'الشروط وبيانات الدفع (لكل الجهات)', 'مثال: الدفع خلال 15 يومًا · حساب البنك … · للاستفسار …'));
@@ -4346,7 +4346,7 @@ function ownSheet(sh) {
   var fail = function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); };
   if (!fv('from')) A.form.from = R.from; if (!fv('to')) A.form.to = R.to;
   ['bal', 'ins', 'outs', 'xf', 'acc'].forEach(function (k) { if (fv(k) !== '1' && fv(k) !== '0') A.form[k] = o[k] ? '1' : '0'; });
-  var fl = [fPhotoView(url, true), fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()), fSeg('sv', 'شكل الكشف', [['full', 'مفصّل'], ['sum', 'مختصر']]),
+  var fl = [fPhotoView(url, true, true), fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()), fSeg('sv', 'شكل الكشف', [['full', 'مفصّل'], ['sum', 'مختصر']]),
     fStateGrid(['ما يظهر في الكشف', ['bal', 'أرصدة الحسابات'], ['ins', 'الوارد'], ['outs', 'المصروفات'], ['xf', 'التحويلات'], ['acc', 'اسم الحساب في كل حركة']], [['1', 'ظاهر'], ['0', 'مخفي']])
   ];
   return { title: 'كشف حسابنا', sub: 'غيّر الخيارات فتتغير المعاينة، ثم شارك', fields: fl,
