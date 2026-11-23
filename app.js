@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.154';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.155';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3268,6 +3268,7 @@ var RO = {
   stock: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['main', 'الأصناف الأساسية'], ['spice', 'البهارات'], ['zero', 'الأصناف برصيد صفر']],
   wfp: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['main', 'الأصناف الأساسية'], ['spice', 'البهارات'], ['zero', 'الأصناف برصيد صفر']]
 };
+var RO_DEP = { neg: 'left', alert: 'left' }; /* خيار ← أصله: يظهر في «خيارات التقرير» ما دام أصله غير مخفي */
 var SEC = { cook: ['batches', 'dist', 'mats', 'mkt', 'extra', 'dev'], wck: ['batches', 'dist', 'mats', 'extra', 'dev'] };
 function secLabel(k, key) { var a = (RO[k] || []).filter(function (x) { return x[0] === key; })[0]; return a ? a[1] : key; }
 function secOrder(k, saved) { var def = SEC[k] || [], sv = (typeof saved === 'string' ? saved.split(',') : (S.ro && S.ro[k] && S.ro[k].order ? String(S.ro[k].order).split(',') : [])).filter(function (x) { return def.indexOf(x) >= 0; }); return sv.concat(def.filter(function (x) { return sv.indexOf(x) < 0; })); }
@@ -3471,7 +3472,7 @@ function pgReports() {
 function repSheet(sh) {
   var R = null;
   if (sh.t === 'repOpt') {
-    R = { title: 'خيارات التقرير', sub: 'ما تعلّمه «ظاهر» يصل في التصدير، و«لي فقط» تراه هنا ولا يُصدَّر', fields: RO[sh.k].map(function (a) { return fTri(a[0], a[1], [['on', 'ظاهر'], ['me', 'لي فقط'], ['off', 'مخفي']]); }),
+    R = { title: 'خيارات التقرير', sub: 'ما تعلّمه «ظاهر» يصل في التصدير، و«لي فقط» تراه هنا ولا يُصدَّر', fields: RO[sh.k].filter(function (a) { return !RO_DEP[a[0]] || fv(RO_DEP[a[0]]) !== 'off'; /* الخيار التابع يختفي حين يُخفى أصله: لا خيار بلا أثر */ }).map(function (a) { return fTri(a[0], a[1], [['on', 'ظاهر'], ['me', 'لي فقط'], ['off', 'مخفي']]); }),
       rows: SEC[sh.k] ? secOrder(sh.k, fv('order')).map(function (key, i, arr) { return X({ icon: 'i-sliders', icTone: 'mute', title: (i + 1) + '. ' + secLabel(sh.k, key), sub: i ? 'اضغط لرفعه فوق «' + secLabel(sh.k, arr[i - 1]) + '»' : 'الأول في التقرير', tag: i ? '' : 'الأول', tagTone: 'ok', go: function () { if (!i) return; var a2 = arr.slice(); a2.splice(i - 1, 0, a2.splice(i, 1)[0]); fset('order', a2.join(',')); } }); }) : [],
       note: SEC[sh.k] ? { text: 'ترتيب الأقسام: اضغط القسم لرفعه فوق ما قبله. يُطبَّق على الشاشة والتصدير.', tone: 'info' } : null,
       ft: { label: 'حفظ الخيارات', ok: true, go: function () { var v = {}; RO[sh.k].forEach(function (a) { v[a[0]] = fv(a[0]); }); if (SEC[sh.k]) v.order = secOrder(sh.k, fv('order')).join(','); S.ro = S.ro || {}; S.ro[sh.k] = v; audit('تغيير خيارات تقرير «' + rptName(sh.k) + '»'); shut(); mutated('حُفظت خيارات التقرير وتُطبَّق على كل تصدير قادم'); } } };
