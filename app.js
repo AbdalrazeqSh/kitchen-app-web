@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.171';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.172';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2327,7 +2327,7 @@ function waKick() {
 }
 function waRows() {
   var rows = [], pv = WA_PV;
-  if (waOn()) rows.push(X({ sect: true, icon: 'i-doc', icTone: 'ok', title: 'العمال', sub: 'التطبيق يُضيف صفوفه تحت صفوفك (حضور، دفعات، إضافات وخصومات) ومعادلاتك تحسبها' + (WA_CHK ? (WA_CHK.bad.length ? '' : ' · الأرصدة مطابقة') : ''), tag: WA_ERR ? 'خطأ' : WA_BUSY ? '…' : 'يعمل', tagTone: WA_ERR ? 'bad' : 'ok' }));
+  if (waOn()) rows.push(X({ sect: true, icon: 'i-doc', icTone: 'ok', title: 'العمال', sub: (WA_CHK ? (WA_CHK.bad.length ? 'مخالفات: ' + WA_CHK.bad.length : 'الأرصدة مطابقة') : 'لم يُفحص'), tag: WA_ERR ? 'خطأ' : WA_BUSY ? '…' : 'يعمل', tagTone: WA_ERR ? 'bad' : 'ok' }));
   if (WA_ERR) rows.push(X({ title: 'خطأ العمال', sub: 'العمال · ' + WA_ERR }));
   if (WA_CHK && WA_CHK.unk && WA_CHK.unk.length) rows.push(X({ title: 'حالة حضور غير معرّفة في الشيت', sub: 'العمال · ' + WA_CHK.unk.join('، ') + ' · أضفها لقائمة التصنيفات (T) ولمعادلة «إجمالي المستحق» ثم افحص', tag: String(WA_CHK.unk.length), tagTone: 'bad' }));
   if (WA_CHK) { WA_CHK.bad.forEach(function (b) { rows.push(X({ title: b.n, sub: 'العمال · الرصيد في الشيت يخالف التطبيق', end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (WA_CHK.missing.length) rows.push(X({ title: 'عمال بلا عمود في تبويبك', sub: 'العمال · ' + WA_CHK.missing.join('، '), tag: String(WA_CHK.missing.length), tagTone: 'warn' })); }
@@ -2400,7 +2400,7 @@ function saKick() {
 }
 function saRows() {
   var rows = [], pv = SA_PV;
-  if (saOn()) rows.push(X({ sect: true, icon: 'i-doc', icTone: 'ok', title: 'المخزن', sub: 'التطبيق يُضيف صفوف الاستهلاك والوارد تحت صفوفك ومعادلاتك تحسب' + (SA_CHK ? (SA_CHK.bad.length ? '' : ' · الأرصدة مطابقة') : ''), tag: SA_ERR ? 'خطأ' : SA_BUSY ? '…' : 'يعمل', tagTone: SA_ERR ? 'bad' : 'ok' }));
+  if (saOn()) rows.push(X({ sect: true, icon: 'i-doc', icTone: 'ok', title: 'المخزن', sub: (SA_CHK ? (SA_CHK.bad.length ? 'مخالفات: ' + SA_CHK.bad.length : 'الأرصدة مطابقة') : 'لم يُفحص'), tag: SA_ERR ? 'خطأ' : SA_BUSY ? '…' : 'يعمل', tagTone: SA_ERR ? 'bad' : 'ok' }));
   if (SA_ERR) rows.push(X({ title: 'خطأ المخزن', sub: 'المخزن · ' + SA_ERR }));
   if (SA_CHK) { SA_CHK.bad.slice(0, 5).forEach(function (b) { rows.push(X({ title: b.n, sub: 'المخزن · الرصيد في الشيت يخالف التطبيق', end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (SA_CHK.bad.length > 5) rows.push(X({ more: true, title: 'و ' + (SA_CHK.bad.length - 5) + ' أخرى مخالفة' })); if (SA_CHK.missing.length) rows.push(X({ title: 'أصناف بلا صف في تبويبك', sub: 'المخزن · ' + SA_CHK.missing.join('، '), tag: String(SA_CHK.missing.length), tagTone: 'warn' })); }
   if (pv) {
@@ -2471,7 +2471,7 @@ function eaKick() {
 }
 function eaRows() {
   var rows = [], pv = EA_PV;
-  if (eaOn()) rows.push(X({ sect: true, icon: 'i-doc', icTone: 'ok', title: 'طبخ خارجي', sub: 'التطبيق يُضيف طبخات المؤسسات تحت صفوفك ومعادلاتك تحسب التكلفة والمجاميع' + (EA_CHK ? (EA_CHK.bad.length ? '' : ' · التكاليف مطابقة') : ''), tag: EA_ERR ? 'خطأ' : EA_BUSY ? '…' : 'يعمل', tagTone: EA_ERR ? 'bad' : 'ok' }));
+  if (eaOn()) rows.push(X({ sect: true, icon: 'i-doc', icTone: 'ok', title: 'طبخ خارجي', sub: (EA_CHK ? (EA_CHK.bad.length ? 'مخالفات: ' + EA_CHK.bad.length : 'التكاليف مطابقة') : 'لم يُفحص'), tag: EA_ERR ? 'خطأ' : EA_BUSY ? '…' : 'يعمل', tagTone: EA_ERR ? 'bad' : 'ok' }));
   if (EA_ERR) rows.push(X({ title: 'خطأ الطبخ الخارجي', sub: 'طبخ خارجي · ' + EA_ERR }));
   if (EA_CHK) { EA_CHK.bad.slice(0, 5).forEach(function (b) { rows.push(X({ title: b.n, sub: 'طبخ خارجي · ' + (b.why || 'التكلفة في الشيت تخالف التطبيق'), end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (EA_CHK.bad.length > 5) rows.push(X({ more: true, title: 'و ' + (EA_CHK.bad.length - 5) + ' أخرى مخالفة' })); }
   if (pv) {
@@ -2541,7 +2541,7 @@ function wfKick() {
 }
 function wfRows() {
   var rows = [], pv = WF_PV;
-  if (wfOn()) rows.push(X({ sect: true, icon: 'i-doc', icTone: 'ok', title: 'WFP', sub: 'التطبيق يُضيف صفوف الاستهلاك والوارد تحت صفوفك ومعادلاتك تحسب' + (WF_CHK ? (WF_CHK.bad.length ? '' : ' · الأرصدة مطابقة') : ''), tag: WF_ERR ? 'خطأ' : WF_BUSY ? '…' : 'يعمل', tagTone: WF_ERR ? 'bad' : 'ok' }));
+  if (wfOn()) rows.push(X({ sect: true, icon: 'i-doc', icTone: 'ok', title: 'WFP', sub: (WF_CHK ? (WF_CHK.bad.length ? 'مخالفات: ' + WF_CHK.bad.length : 'الأرصدة مطابقة') : 'لم يُفحص'), tag: WF_ERR ? 'خطأ' : WF_BUSY ? '…' : 'يعمل', tagTone: WF_ERR ? 'bad' : 'ok' }));
   if (WF_ERR) rows.push(X({ title: 'خطأ WFP', sub: 'WFP · ' + WF_ERR }));
   if (WF_CHK) { WF_CHK.bad.slice(0, 5).forEach(function (b) { rows.push(X({ title: b.n, sub: 'WFP · الرصيد في الشيت يخالف التطبيق', end: b.sheet + ' ≠ ' + b.app, endTone: 'bad' })); }); if (WF_CHK.bad.length > 5) rows.push(X({ more: true, title: 'و ' + (WF_CHK.bad.length - 5) + ' أخرى مخالفة' })); if (WF_CHK.missing.length) rows.push(X({ title: 'أصناف بلا صف في تبويبك', sub: 'WFP · ' + WF_CHK.missing.join('، '), tag: String(WF_CHK.missing.length), tagTone: 'warn' })); }
   if (pv) {
