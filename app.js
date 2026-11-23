@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.168';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.169';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -5308,7 +5308,7 @@ function pgStock() {
   /* إخفاء الأصناف الصفرية (اختياري من نافذة الترتيب): ما رصيده صفر ولا تحتاجه خطة ولا استُعمل حديثًا يُطوى في صف واحد؛ السالب والمحتاج يبقيان (المالك 2026-11-23) */
   var zeroSplit = function (list) {
     if (!A.hideZero) return { keep: list, z: [] };
-    var z = list.filter(function (r) { return r.q === 0 && !r.st.plan && !usageOf(r.it.id); });
+    var z = list.filter(function (r) { return r.q === 0 && !r.st.plan; });
     return { keep: z.length ? list.filter(function (r) { return z.indexOf(r) < 0; }) : list, z: z };
   };
   var zeroRows = function (list) {
