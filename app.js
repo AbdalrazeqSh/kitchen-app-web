@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.153';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.154';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3263,15 +3263,15 @@ function searchSheet() {
 var RPTS = [['cook', 'الاستهلاك اليومي'], ['supply', 'التوريد اليومي'], ['wck', 'نسخة المراقب'], ['stock', 'حالة المخزون'], ['wfp', 'مخزون WFP'], ['workers', 'كشف العمال']];
 var RO = {
   supply: [['tiles', 'ملخص الأرقام'], ['mats', 'المواد']],
-  cook: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['split', 'تقسيم المواد لعمودين'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['mkt', 'من السوق مباشرة'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
-  wck: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['split', 'تقسيم المواد لعمودين'], ['left', 'عمود المتبقي'], ['alert', 'ألوان تنبيه المتبقي'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
+  cook: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['split', 'تقسيم المواد لعمودين'], ['left', 'عمود المتبقي'], ['neg', 'المتبقي بالسالب'], ['alert', 'ألوان تنبيه المتبقي'], ['mkt', 'من السوق مباشرة'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
+  wck: [['tiles', 'ملخص الأرقام'], ['batches', 'الطبخات'], ['dist', 'التوزيع'], ['mats', 'المواد'], ['split', 'تقسيم المواد لعمودين'], ['left', 'عمود المتبقي'], ['neg', 'المتبقي بالسالب'], ['alert', 'ألوان تنبيه المتبقي'], ['extra', 'خارجي'], ['dev', 'فروق عن المنيو']],
   stock: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['main', 'الأصناف الأساسية'], ['spice', 'البهارات'], ['zero', 'الأصناف برصيد صفر']],
   wfp: [['tiles', 'ملخص الأرقام'], ['status', 'عمود الحالة'], ['pack', 'تفصيل العبوات'], ['main', 'الأصناف الأساسية'], ['spice', 'البهارات'], ['zero', 'الأصناف برصيد صفر']]
 };
 var SEC = { cook: ['batches', 'dist', 'mats', 'mkt', 'extra', 'dev'], wck: ['batches', 'dist', 'mats', 'extra', 'dev'] };
 function secLabel(k, key) { var a = (RO[k] || []).filter(function (x) { return x[0] === key; })[0]; return a ? a[1] : key; }
 function secOrder(k, saved) { var def = SEC[k] || [], sv = (typeof saved === 'string' ? saved.split(',') : (S.ro && S.ro[k] && S.ro[k].order ? String(S.ro[k].order).split(',') : [])).filter(function (x) { return def.indexOf(x) >= 0; }); return sv.concat(def.filter(function (x) { return sv.indexOf(x) < 0; })); }
-function roV(k, key) { var o = S.ro && S.ro[k]; return (o && o[key]) || ((k === 'stock' || k === 'wfp') && key === 'status' ? 'me' : 'on'); }
+function roV(k, key) { var o = S.ro && S.ro[k]; return (o && o[key]) || (key === 'neg' ? 'off' : (k === 'stock' || k === 'wfp') && key === 'status' ? 'me' : 'on'); }
 function roShow(k, key, exp) { var v = roV(k, key); return v === 'on' || (v === 'me' && !exp); }
 function roMe(k, key, exp) { return !exp && roV(k, key) === 'me'; }
 function roHasMe(k) { return (RO[k] || []).some(function (a) { return roV(k, a[0]) === 'me'; }); }
@@ -3358,7 +3358,7 @@ function repDoc(k, forceExp) {
       /* خلية المادة بلا سرد: «من المطبخ/خارجي» يعرضه قسم «خارجي» والمتبقي عمود؛ يبقى فقط ما لا يظهر في غيره (نقص مسجّل، أسباب الصرف) */
       if (priv) { if (!EXT) { var kb = E.balance(S, 'kitchen', id), ng = kb < 0 ? r3(Math.min(a.kit, -kb)) : 0; if (ng > 0) parts.push('نقص مسجّل في المطبخ ' + qtyU(ng, it.unit)); } }
       else if (a.other && a.why.length) parts.push(a.why.join('، '));
-      var left = Math.max(0, E.balance(S, 'kitchen', id)) /* المتبقي = رصيد المخزن الأساسي في كل التقارير */, lst = stStatus(left, id);
+      var left = SH('neg') ? E.balance(S, 'kitchen', id) : Math.max(0, E.balance(S, 'kitchen', id)) /* الناقص صفرًا افتراضيًا؛ خيار «المتبقي بالسالب» (ظاهر/لي فقط/مخفي) يُظهره */ /* المتبقي = رصيد المخزن الأساسي في كل التقارير */, lst = stStatus(left, id);
       var cs = [C(it.name, { b: 1, sub: parts.join(' · ')}), C(qv(tot, it.unit), { c: 1, b: 1, u: qu(tot, it.unit), fg: priv && EXT && a.ext > 0 && SH('extra') ? CL.ext : undefined })];
       if (SH('left')) cs.push(C(qv(left, it.unit), { c: 1, u: qu(left, it.unit), fg: SH('alert') ? (lst.rank <= 1 ? CL.bad : lst.rank === 2 ? CL.warn : CL.mute) : CL.mute, b: SH('alert') && lst.rank < 3 }));
       var rr = R(cs); rr.grp = isSp(id) ? 's' : 'm'; return rr;
