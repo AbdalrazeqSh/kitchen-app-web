@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.164';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.165';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -417,7 +417,27 @@ var A = {
   sort: { stock: { f: 'crit', d: 1 }, batches: { f: 'time', d: -1 }, workers: { f: 'need', d: 1 } }
 };
 var UNDO = null, TK = 0;
-function render() { UI.render(); }
+/* تفضيلات العرض (ترتيب القوائم، تصفية المخزن/الوصفات، المؤرشفون) تُحفظ على هذا الجهاز وتعود بعد إغلاق التطبيق (المالك 2026-11-23: «بطفي التطبيق وبرجع بلاقيه مترتب بشيء جديد») */
+var VIEWK = ['sort', 'sg', 'kindF', 'showArch'], VIEWJ = '';
+function loadView() {
+  try {
+    var v = JSON.parse(localStorage.getItem('kitchen_view') || '{}');
+    if (v.sort) for (var k in SORTS) { var c = v.sort[k]; if (c && (c.d === 1 || c.d === -1) && SORTS[k].some(function (x) { return x[0] === c.f; })) A.sort[k] = { f: c.f, d: c.d }; }
+    ['sg', 'kindF'].forEach(function (k) { if (typeof v[k] === 'string') A[k] = v[k]; });
+    if (v.showArch === true) A.showArch = true;
+  } catch (e) {}
+  VIEWJ = JSON.stringify(VIEWK.map(function (k) { return A[k]; }));
+}
+function saveView() {
+  try {
+    var j = JSON.stringify(VIEWK.map(function (k) { return A[k]; }));
+    if (j === VIEWJ) return; VIEWJ = j;
+    var o = {}; VIEWK.forEach(function (k) { o[k] = A[k]; });
+    localStorage.setItem('kitchen_view', JSON.stringify(o));
+  } catch (e) {}
+}
+loadView();
+function render() { saveView(); UI.render(); }
 function setState(p) { for (var k in p) A[k] = p[k]; render(); }
 function say(msg, undo) {
   var tk = ++TK; UNDO = undo || null; A.toast = msg; A.hasUndo = !!undo; render();
