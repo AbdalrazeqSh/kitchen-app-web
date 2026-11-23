@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.177';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.178';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2238,8 +2238,8 @@ function gwRowsX(pv) {
   return rows;
 }
 function gwSub() {
-  if (!gwUrl()) return 'لم تُربط بعد: الحركات تُرسل تلقائيًا إلى الشيت';
-  if (!gwOk()) return 'لم يُفحص بعد: لا إرسال قبل فحص الشيت واعتماده';
+  if (!gwUrl()) return '';
+  if (!gwOk()) return '';
   var n = gwOps().length;
   return (S.settings.syncGwAuto ? '' : 'الإرسال التلقائي موقوف · ') + (GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : n ? n + ' بانتظار الإرسال' : 'كل الحركات في الشيت') + (S.settings.syncGwAt ? ' · آخر إرسال ' + dlabel(new Date(S.settings.syncGwAt).toISOString().slice(0, 10)) : '');
 }
@@ -4496,6 +4496,108 @@ function ownCanvas(D, o) {
   brk.push(y); c.brk = brk; return c;
 }
 
+/* ===== 02w3-ach.js ===== */
+/* ---------- الإنجاز: قدور وطبخات وأيام وجهات وعمل العمال لفترة من/إلى (المالك 2026-11-23) ---------- */
+function achRange() {
+  var f = A.afrom || ownPresets()[0][1], t = A.ato || today();
+  if (t > today()) t = today(); if (f > t) f = t;
+  return { from: f, to: t };
+}
+function achSetRange(f, t) { A.afrom = f; A.ato = t; render(); }
+function achExtras() { return (S.settings.achExtra || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }); }
+function achMeal() { var m = parseFloat(S.settings.mealsPerPot); return m > 0 ? m : 0; }
+/* الطبخات المنجزة فقط (لا الخطط ولا الملغاة) داخل الفترة، ثم قدور ما قبل التطبيق المُدخلة يدويًا */
+function achData(from, to) {
+  var bs = (S.batches || []).filter(function (b) { return !b.void && b.done !== false && b.done !== 'sched' && b.date >= from && b.date <= to; });
+  var ex = achExtras().filter(function (e) { return e.date >= from && e.date <= to; });
+  var D = { from: from, to: to, bs: bs, ex: ex, pv: 0, ext: 0, n: bs.length, days: {}, camps: {}, insts: {}, dish: {}, wd: 0, ws: {} };
+  bs.forEach(function (b) {
+    var p = b.pots || 0; D.days[b.date] = 1;
+    if (b.kind === 'external') { D.ext += p; if (b.inst) D.insts[b.inst] = 1; } else { D.pv += p; Object.keys(b.dist || {}).forEach(function (g) { if (b.dist[g] > 0) D.camps[g] = 1; }); }
+    var nm = batchName(b); D.dish[nm] = (D.dish[nm] || 0) + p;
+  });
+  ex.forEach(function (e) { D.pv += e.pots; D.days[e.date] = 1; D.n += 0; });
+  (S.att || []).forEach(function (a) { if (a.date >= from && a.date <= to && a.m > 0) { D.wd = r2(D.wd + a.m); D.ws[a.w] = 1; } });
+  D.pots = r2(D.pv + D.ext); D.nd = Object.keys(D.days).length; D.nc = Object.keys(D.camps).length; D.ni = Object.keys(D.insts).length; D.nw = Object.keys(D.ws).length;
+  D.meals = achMeal() ? Math.round(D.pots * achMeal()) : 0;
+  D.top = Object.keys(D.dish).map(function (k) { return { n: k, p: D.dish[k] }; }).sort(function (a, b) { return b.p - a.p; }).slice(0, 5);
+  return D;
+}
+function achNum(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function pgAch() {
+  var R = achRange(), D = achData(R.from, R.to), bl = [];
+  bl.push(B('chips', { items: ownPresets().map(function (p) { return X({ label: p[0], on: R.from === p[1] && R.to === p[2], go: function () { achSetRange(p[1], p[2]); } }); }).concat([X({ label: 'فترة محددة', icon: 'i-calendar', go: function () { openSh({ t: 'achp' }, { from: R.from, to: R.to }); } })]) }));
+  bl.push(B('acts', { items: [X({ title: 'مشاركة', icon: 'i-send', go: function () { openSh({ t: 'achs' }); } }), X({ title: 'قدور سابقة', icon: 'i-plus', go: function () { openSh({ t: 'achx' }, { date: R.from, pots: '' }); } }), X({ title: 'وجبات/قدر', icon: 'i-sliders', go: function () { openSh({ t: 'achm' }, { m: achMeal() ? String(achMeal()) : '' }); } })] }));
+  bl.push(B('kpi', { items: [X({ label: 'قدور', value: achNum(D.pots), endTone: 'ok', sub: D.meals ? '' : pl(D.n, 'طبخة واحدة', 'طبختان', 'طبخات') }), X({ label: 'أيام الطبخ', value: D.nd, sub: D.nd ? '≈ ' + (Math.round(D.pots / D.nd * 10) / 10) + ' قدر/يوم' : '' })] }));
+  if (D.meals) bl.push(B('kpi', { items: [X({ label: 'وجبات', value: achNum(D.meals), endTone: 'ok', sub: achMeal() + ' وجبة/قدر' }), X({ label: 'طبخات', value: D.n })] }));
+  bl.push(B('rows', { title: 'التفصيل', all: true, items: [
+    X({ title: 'مخيمات', sub: D.nc ? pl(D.nc, 'نقطة واحدة', 'نقطتان', 'نقاط') : '', end: achNum(D.pv) + ' قدر' }),
+    X({ title: 'طبخ خارجي', sub: D.ni ? pl(D.ni, 'جهة واحدة', 'جهتان', 'جهات') : '', end: achNum(D.ext) + ' قدر' }),
+    X({ title: 'العمال', sub: D.nw ? pl(D.nw, 'عامل واحد', 'عاملان', 'عمال') : '', end: achNum(D.wd) + ' يوم عمل' })
+  ] }));
+  if (D.top.length) bl.push(B('rows', { title: 'الأكثر طبخًا', all: true, items: D.top.map(function (t) { return X({ title: t.n, end: achNum(t.p) + ' قدر' }); }) }));
+  if (D.ex.length) bl.push(B('rows', { title: 'قدور سابقة', all: true, items: D.ex.map(function (e) { return X({ title: dshow(e.date), sub: e.note || '', end: e.pots + ' قدر', chev: true, go: function () { openSh({ t: 'achx', id: e.id }, { date: e.date, pots: String(e.pots), note: e.note || '' }); } }); }) }));
+  return bl;
+}
+function achLabel(D) { return D.from === '2000-01-01' ? 'كل المدة حتى ' + dshow(D.to) : 'من ' + dshow(D.from) + ' إلى ' + dshow(D.to); }
+function achText(D) {
+  var L = ['الإنجاز · مطبخ عهد', achLabel(D), '', 'القدور: ' + achNum(D.pots) + (D.meals ? ' (≈ ' + achNum(D.meals) + ' وجبة)' : ''), 'الطبخات: ' + D.n, 'أيام الطبخ: ' + D.nd];
+  if (D.nc) L.push('مخيمات: ' + pl(D.nc, 'نقطة واحدة', 'نقطتان', 'نقاط'));
+  L.push('العمال: ' + achNum(D.wd) + ' يوم عمل');
+  return L.join('\n');
+}
+function achCanvas(D) {
+  var W = 840, PAD = 40, F = "'IBM Plex Sans Arabic', sans-serif", big = [['قدور', achNum(D.pots)]];
+  if (D.meals) big.push(['وجبات', achNum(D.meals)]);
+  big.push(['أيام الطبخ', String(D.nd)]);
+  var rows = [['طبخات', String(D.n)], ['مخيمات', achNum(D.pv) + ' قدر'], ['طبخ خارجي', achNum(D.ext) + ' قدر'], ['أيام عمل العمال', achNum(D.wd)]];
+  D.top.forEach(function (t, i) { rows.push([i ? t.n : 'الأكثر طبخًا: ' + t.n, achNum(t.p) + ' قدر']); });
+  var H = 150 + 190 + rows.length * 56 + 90, c = document.createElement('canvas'); c.width = W; c.height = H;
+  var x = c.getContext('2d'); x.direction = 'rtl'; x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H);
+  x.fillStyle = '#14563A'; x.fillRect(0, 0, W, 150); x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 42px ' + F; x.fillText('الإنجاز', W - PAD, 66); x.font = '500 25px ' + F; x.fillText(achLabel(D), W - PAD, 110);
+  x.textAlign = 'left'; x.font = '500 22px ' + F; x.fillText('مطبخ عهد', PAD, 66);
+  var bw = (W - 2 * PAD - (big.length - 1) * 16) / big.length, y = 150 + 30;
+  big.forEach(function (b, i) {
+    var bx = W - PAD - bw - i * (bw + 16); x.fillStyle = '#E4EFE8'; x.fillRect(bx, y, bw, 140); x.fillStyle = '#14563A'; x.textAlign = 'center';
+    x.font = '700 56px ' + F; x.fillText(b[1], bx + bw / 2, y + 78); x.font = '500 24px ' + F; x.fillText(b[0], bx + bw / 2, y + 118);
+  });
+  y += 140 + 20;
+  rows.forEach(function (r) { x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '500 26px ' + F; x.fillText(r[0], W - PAD, y + 36); x.textAlign = 'left'; x.font = '600 26px ' + F; x.fillText(r[1], PAD, y + 36); x.fillStyle = '#EEF0EC'; x.fillRect(PAD, y + 54, W - 2 * PAD, 1); y += 56; });
+  x.fillStyle = '#8A948E'; x.textAlign = 'center'; x.font = '500 20px ' + F; x.fillText('مطبخ عهد', W / 2, H - 28);
+  return c;
+}
+function achSheet(sh) {
+  if (sh.t === 'achp') {
+    var f0 = fv('from') || achRange().from, t0 = fv('to') || achRange().to;
+    return { title: 'فترة محددة', fields: [fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today())], ft: { label: 'عرض', ok: f0 <= t0 && t0 <= today(), go: function () { shut(); achSetRange(f0, t0); } } };
+  }
+  if (sh.t === 'achm') {
+    var m = parseFloat(fv('m'));
+    return { title: 'وجبات/قدر', fields: [fText('m', 'عدد الوجبات في القدر', 'مثال: 230', 'numeric')], note: { text: 'يُحسب به إجمالي الوجبات. اتركه فارغًا ليختفي.', tone: 'info' },
+      ft: { label: 'حفظ', ok: fv('m') === '' || m > 0, go: function () { S.settings.mealsPerPot = m > 0 ? m : 0; shut(); mutated('حُفظ'); } } };
+  }
+  if (sh.t === 'achx') {
+    var pots = parseFloat(fv('pots')), dt = fv('date') || today();
+    return { title: 'قدور سابقة', fields: [fDate('date', 'التاريخ', '', today()), fText('pots', 'عدد القدور', '0', 'numeric'), fText('note', 'ملاحظة (اختياري)', '')],
+      ft: { label: 'حفظ', ok: pots > 0 && dt <= today(), go: function () {
+        var l = S.settings.achExtra = S.settings.achExtra || [], e = sh.id && l.filter(function (z) { return z.id === sh.id; })[0];
+        if (e) { e.date = dt; e.pots = pots; e.note = fv('note').trim(); } else l.push({ id: newId('x', l), date: dt, pots: pots, note: fv('note').trim() });
+        shut(); mutated('حُفظت القدور');
+      } },
+      ft2: sh.id ? { label: 'حذف', go: function () { S.settings.achExtra = (S.settings.achExtra || []).filter(function (z) { return z.id !== sh.id; }); shut(); mutated('حُذفت'); } } : null };
+  }
+  if (sh.t === 'achs') {
+    var R = achRange(), D = achData(R.from, R.to), cv = achCanvas(D), url = cv.toDataURL('image/png'), nm = fnName(['الإنجاز', R.from, R.to], ''), ttl = 'الإنجاز';
+    var fail = function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); };
+    return { title: 'الإنجاز', fields: [fPhotoView(url, true, true)],
+      acts: [X({ title: 'PDF', icon: 'i-doc', go: function () { deliverFile(nm + '.pdf', u8b64(pdfFromCanvas(cv)), 'application/pdf', ttl, '').catch(fail); } }),
+        X({ title: 'تنزيل صورة', icon: 'i-download', go: function () { saveFile(nm + '.png', url.split(',')[1], 'image/png', ttl).then(function (r) { say(savedMsg(r, 'الصورة')); }, function () { say('تعذّر حفظ الصورة'); }); } }),
+        X({ title: 'نسخ النص', icon: 'i-list', go: function () { copyText(achText(D), 'نُسخ'); } })],
+      ft: { label: 'مشاركة', ok: true, go: function () { deliverFile(nm + '.png', url.split(',')[1], 'image/png', ttl, '').catch(fail); } } };
+  }
+  return null;
+}
+
 /* ===== 02x-export.js ===== */
 /* ---------- تصدير التقرير: صورة / PDF / مشاركة (يرسم «الورقة» نفسها بلا إنترنت) ---------- */
 var EXW = 420, EXS = 4, FONT64 = null;
@@ -5422,26 +5524,27 @@ function moneyCard() {
 function moneyRows() {
   var oi = oweInst(), ow = oweWork();
   return [
-    X({ icon: 'i-ledger', icTone: 'info', title: 'كشف حسابنا', sub: 'وارد ومصروف، وأرصدة كل حساب قبل وبعد', chev: true, go: function () { ownOpen(); } }),
-    X({ icon: 'i-doc', icTone: 'info', title: 'الملخص المالي', sub: 'أين ذهب المال هذا الشهر: وارد وصرف وتصنيف', chev: true, go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } }),
-    X({ icon: 'i-plus', icTone: oi > 0 ? 'ok' : 'mute', title: 'مستحق لك من المؤسسات', sub: 'كشف حساب كل جهة', end: money(oi), chev: true, go: kGo({ t: 'kOweI' }) }),
-    X({ icon: 'i-minus', icTone: ow > 0 ? 'warn' : 'mute', title: 'عليك للعمال', sub: 'رواتب وأجور غير مدفوعة', end: money(ow), chev: true, go: kGo({ t: 'kOweW' }) })
+    X({ icon: 'i-ledger', icTone: 'info', title: 'كشف حسابنا', chev: true, go: function () { ownOpen(); } }),
+    X({ icon: 'i-doc', icTone: 'info', title: 'الملخص المالي', chev: true, go: function () { setState({ fsm: today().slice(0, 7) }); open('finsum'); } }),
+    X({ icon: 'i-plus', icTone: oi > 0 ? 'ok' : 'mute', title: 'مستحق لك من المؤسسات', end: money(oi), chev: true, go: kGo({ t: 'kOweI' }) }),
+    X({ icon: 'i-minus', icTone: ow > 0 ? 'warn' : 'mute', title: 'عليك للعمال', end: money(ow), chev: true, go: kGo({ t: 'kOweW' }) })
   ];
 }
 function pgMore() {
   var cs = calSummary();
   return moneyCard().concat([B('rows', { title: 'الحسابات', items: moneyRows() }), B('rows', { title: 'المتابعة', items: [
-    X({ icon: 'i-doc', icTone: 'info', title: 'التقارير والإرسال', sub: 'الاستهلاك والمخزون وكشف العمال: شارك أو انسخ', chev: true, go: function () { open('reports'); } }),
+    X({ icon: 'i-pot', icTone: 'ok', title: 'الإنجاز', sub: 'هذا الشهر', end: achNum(achData(ownPresets()[0][1], today()).pots) + ' قدر', chev: true, go: function () { open('ach'); } }),
+    X({ icon: 'i-doc', icTone: 'info', title: 'التقارير', chev: true, go: function () { open('reports'); } }),
     X({ icon: 'i-calendar', icTone: 'info', title: 'التقويم والتنبيهات', sub: cs, chev: true, go: function () { open('cal'); } }),
-    X({ icon: 'i-box', icTone: 'ok', title: 'الموجودات', sub: pl(AA().length, 'نوع واحد', 'نوعان', 'أنواع') + ' · قدور وأدوات ومعدات: عدد وحالة وجرد', chev: true, go: function () { open('assets'); } }),
-    X({ icon: 'i-users', icTone: 'mute', title: 'المستفيدون', sub: pl(bens().length, 'مستفيد واحد', 'مستفيدان', 'مستفيدين') + ' · عدّل بياناتهم أو أضف', chev: true, go: function () { openSh({ t: 'list', k: 'bens' }); } }),
-    X({ icon: 'i-truck', icTone: 'mute', title: 'المؤسسات', sub: pl(S.insts.filter(function (i) { return !i.arch; }).length, 'مؤسسة واحدة', 'مؤسستان', 'مؤسسات') + ' · عدّل أو أنهِ التعامل', chev: true, go: function () { openSh({ t: 'list', k: 'insts' }); } })
+    X({ icon: 'i-box', icTone: 'ok', title: 'الموجودات', sub: pl(AA().length, 'نوع واحد', 'نوعان', 'أنواع'), chev: true, go: function () { open('assets'); } }),
+    X({ icon: 'i-users', icTone: 'mute', title: 'المستفيدون', sub: pl(bens().length, 'مستفيد واحد', 'مستفيدان', 'مستفيدين'), chev: true, go: function () { openSh({ t: 'list', k: 'bens' }); } }),
+    X({ icon: 'i-truck', icTone: 'mute', title: 'المؤسسات', sub: pl(S.insts.filter(function (i) { return !i.arch; }).length, 'مؤسسة واحدة', 'مؤسستان', 'مؤسسات'), chev: true, go: function () { openSh({ t: 'list', k: 'insts' }); } })
   ] }), B('rows', { title: 'أخرى', items: [
-    X({ icon: 'i-sliders', icTone: 'mute', title: 'الإدارة والإعدادات', sub: 'الأشخاص والصلاحيات، القوائم، الأرشيف، إغلاق اليوم، الأرصدة الافتتاحية', chev: true, go: function () { open('device'); } }),
+    X({ icon: 'i-sliders', icTone: 'mute', title: 'الإدارة والإعدادات', chev: true, go: function () { open('device'); } }),
     X({ icon: 'i-wifi', icTone: 'info', title: 'الحساب والمزامنة', sub: syncSub(), tag: syncTag().t, tagTone: syncTag().tone, chev: true, go: function () { openSh({ t: 'sync' }, { email: '', pw: '' }); } }),
     X({ icon: 'i-copy', icTone: 'info', title: 'مزامنة الشيت', sub: gwSub(), tag: gwTag().t, tagTone: gwTag().tone, chev: true, go: function () { openSh({ t: 'shGw' }, { gwurl: S.settings.syncGwUrl || '', gwkey: S.settings.syncGwKey || '' }); } }),
-    X({ icon: 'i-doc', icTone: 'info', title: 'نسخة احتياطية', sub: S.settings.lastBackup ? 'آخر نسخة قبل ' + pl(backupDays(), 'يوم', 'يومين', 'أيام') + ' · شاركها أو احفظها خارج الهاتف' : 'لم تُصدَّر بعد: احفظ نسخة خارج الهاتف', chev: true, go: function () { exportBackup(); } }),
-    X({ icon: 'i-lock', icTone: 'mute', title: 'عن التطبيق', sub: 'مطبخ عهد · الإصدار ' + VERSION + (updPending() ? ' · تحديث ' + updPending() + ' جاهز: أغلق التطبيق وافتحه' : '') + ' · البيانات محفوظة على هذا الجهاز', chev: false, go: function () { checkUpdate(true); } })
+    X({ icon: 'i-doc', icTone: 'info', title: 'نسخة احتياطية', sub: S.settings.lastBackup ? 'آخر نسخة قبل ' + pl(backupDays(), 'يوم', 'يومين', 'أيام') : 'لم تُصدَّر بعد', chev: true, go: function () { exportBackup(); } }),
+    X({ icon: 'i-lock', icTone: 'mute', title: 'عن التطبيق', sub: 'الإصدار ' + VERSION + (updPending() ? ' · تحديث ' + updPending() + ' جاهز: أغلق التطبيق وافتحه' : ''), chev: false, go: function () { checkUpdate(true); } })
   ] })]);
 }
 function pgDevice() {
@@ -6235,7 +6338,7 @@ function shDesc() {
       break;
     }
     case 'search': R = searchSheet(); break;
-    default: R = moneySheet(sh) || ownSheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || gwSheet(sh) || wsmsSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
+    default: R = moneySheet(sh) || ownSheet(sh) || achSheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || gwSheet(sh) || wsmsSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
   }
   return R;
 }
@@ -6487,7 +6590,7 @@ function shell() {
   resetCaches();
   var s = A, pg = s.page, tab = s.tab, d = s.draft, blocks = [], title = '', sub = '', ft = null, ft2 = null, hasAction = false;
   if (pg === 'main') {
-    var tt = { today: ['مطبخ عهد', dlong(today())], kitchen: ['الطبخ', 'طبخ وطبخ خارجي'], stock: ['المخزن', 'الأرصدة والاستلام'], workers: ['العمال', 'الحضور والحسابات'], more: ['المزيد', 'الأرصدة والنسخ والتنبيه'] }[tab];
+    var tt = { today: ['مطبخ عهد', dlong(today())], kitchen: ['الطبخ', 'طبخ وطبخ خارجي'], stock: ['المخزن', 'الأرصدة والاستلام'], workers: ['العمال', 'الحضور والحسابات'], more: ['المزيد', ''] }[tab];
     title = tt[0]; sub = tt[1];
     blocks = tab === 'today' ? pgToday() : tab === 'kitchen' ? pgKitchen() : tab === 'stock' ? pgStock() : tab === 'workers' ? pgWorkers() : pgMore();
   } else if (pg === 'batch') {
@@ -6511,6 +6614,7 @@ function shell() {
   } else if (pg === 'assets') { title = 'الموجودات'; sub = 'قدور وأدوات ومعدات المطبخ'; blocks = pgAssets();
   } else if (pg === 'funds') { title = 'الأرصدة'; sub = 'أين المال الآن'; blocks = pgFunds();
   } else if (pg === 'finsum') { title = 'الملخص المالي'; sub = 'أين ذهب المال'; blocks = pgFinSum();
+  } else if (pg === 'ach') { title = 'الإنجاز'; sub = achLabel(achData(achRange().from, achRange().to)); blocks = pgAch();
   } else if (pg === 'ownst') { title = 'كشف حسابنا'; sub = ownSub(); blocks = pgOwnSt();
   } else if (pg === 'fund') { var fu = fund(s.fid); title = fu.name; sub = fKind(fu); blocks = pgFund();
   } else if (pg === 'order') { var od = draftOf(s.did); title = 'مسودة توريد'; sub = od ? (od.src || 'نص') + ' · ' + dlabel(od.created || od.date) : ''; blocks = pgDraft();
@@ -6720,7 +6824,7 @@ function syncStart() {
   setInterval(function () { if (!document.hidden) syncNow(false); }, 60000);
 }
 function syncTag() { var s = syncSess(); return !s ? { t: 'غير مفعّل', tone: 'mute' } : S.settings.syncConflict ? { t: 'تعارض', tone: 'bad' } : { t: 'مفعّل', tone: 'ok' }; }
-function syncSub() { var s = syncSess(); if (!s) return 'ادخل بحسابك ليتزامن الهاتف والويب تلقائيًا'; return s.email + (S.settings.syncAt ? ' · آخر مزامنة ' + new Date(S.settings.syncAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) : '') + (SYNCMSG ? ' · ' + SYNCMSG : ''); }
+function syncSub() { var s = syncSess(); if (!s) return ''; return s.email + (S.settings.syncAt ? ' · آخر مزامنة ' + new Date(S.settings.syncAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) : '') + (SYNCMSG ? ' · ' + SYNCMSG : ''); }
 function syncAttn(att) { if (syncSess() && S.settings.syncConflict) att.push({ rank: 0.1, row: X({ icon: 'i-clock', icTone: 'bad', title: 'تعارض في المزامنة', sub: 'عدّلتَ هنا وعلى جهاز آخر: اختر أي نسخة تُعتمد', tag: 'اختر', tagTone: 'bad', chev: true, go: function () { openSh({ t: 'syncc' }); } }) }); }
 function doSyncLogin() {
   var em = fv('email').trim(), pw = fv('pw'); if (!em || !pw) { say('اكتب البريد وكلمة السر'); return; }
