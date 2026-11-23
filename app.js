@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.166';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.167';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -418,13 +418,13 @@ var A = {
 };
 var UNDO = null, TK = 0;
 /* تفضيلات العرض (ترتيب القوائم، تصفية المخزن/الوصفات، المؤرشفون) تُحفظ على هذا الجهاز وتعود بعد إغلاق التطبيق (المالك 2026-11-23: «بطفي التطبيق وبرجع بلاقيه مترتب بشيء جديد») */
-var VIEWK = ['sort', 'sg', 'kindF', 'showArch'], VIEWJ = '';
+var VIEWK = ['sort', 'sg', 'kindF', 'showArch', 'hideZero'], VIEWJ = '';
 function loadView() {
   try {
     var v = JSON.parse(localStorage.getItem('kitchen_view') || '{}');
     if (v.sort) for (var k in SORTS) { var c = v.sort[k]; if (c && (c.d === 1 || c.d === -1) && SORTS[k].some(function (x) { return x[0] === c.f; })) A.sort[k] = { f: c.f, d: c.d }; }
     ['sg', 'kindF'].forEach(function (k) { if (typeof v[k] === 'string') A[k] = v[k]; });
-    if (v.showArch === true) A.showArch = true;
+    if (v.showArch === true) A.showArch = true; if (v.hideZero === true) A.hideZero = true;
   } catch (e) {}
   VIEWJ = JSON.stringify(VIEWK.map(function (k) { return A[k]; }));
 }
@@ -5304,9 +5304,23 @@ function pgStock() {
       end: fmt(r.q) + ' ' + r.it.unit, endSub2: packTxt(r.it, r.q), chev: true, go: function () { openSh({ t: 'item', id: r.it.id }); },
       lp: function () { stockQa(r.it, l0, r.q); } });
   };
+  /* إخفاء الأصناف الصفرية (اختياري من نافذة الترتيب): ما رصيده صفر ولا تحتاجه خطة ولا استُعمل حديثًا يُطوى في صف واحد؛ السالب والمحتاج يبقيان (المالك 2026-11-23) */
+  var zeroSplit = function (list) {
+    if (!A.hideZero) return { keep: list, z: [] };
+    var z = list.filter(function (r) { return r.q === 0 && !r.st.plan && !usageOf(r.it.id); });
+    return { keep: z.length ? list.filter(function (r) { return z.indexOf(r) < 0; }) : list, z: z };
+  };
+  var zeroRows = function (list) {
+    var sp = zeroSplit(list), out = sp.keep.map(mkRow);
+    if (sp.z.length) {
+      if (A.zeroOpen) { out = out.concat(sp.z.map(mkRow)); out.push(X({ more: true, title: 'طيّ الأصناف بلا رصيد', icon: 'i-chevU', go: function () { setState({ zeroOpen: false }); } })); }
+      else out.push(X({ more: true, title: 'بلا رصيد (' + sp.z.length + ')', icon: 'i-chevD', go: function () { setState({ zeroOpen: true }); } }));
+    }
+    return out;
+  };
   var byCat0 = A.sort.stock.f === 'cat';
   var addIt = { act: 'صنف', actGo: function () { openSh({ t: 'addItem', then: '' }, { name: '', unit: 'كيلو', price: '', packType: 'none', packN: '', cond: 'جاف' }); } };
-  if (byCat0) { bl.push(B('rows', Object.assign({ title: 'الأصناف مرتّبة بالفئة', sort: sortInfo('stock'), items: rows.map(mkRow), empty: 'لا أصناف في هذا المخزن بعد' }, addIt))); return bl; }
+  if (byCat0) { bl.push(B('rows', Object.assign({ title: 'الأصناف مرتّبة بالفئة', sort: sortInfo('stock'), items: zeroRows(rows), all: !!A.hideZero, empty: 'لا أصناف في هذا المخزن بعد' }, addIt))); return bl; }
   var sg = A.sg || 'all', mainR = rows.filter(function (r) { return r.it.grp !== 'spice'; }), spR = rows.filter(function (r) { return r.it.grp === 'spice'; });
   var plR = rows.filter(function (r) { return planCover(r.it.id); });
   var plN = stockAfter(l0).filter(function (r) { return r.need > 0; }).length, plsL = plans().filter(function (p) { return E.planOrder(S, p.kind || 'private', p.inst).indexOf(l0) >= 0; });
@@ -5323,8 +5337,8 @@ function pgStock() {
     })), empty: 'لا أصناف' }));
     return bl;
   }
-  if (sg !== 'spice') bl.push(B('rows', Object.assign({ title: spR.length ? 'الأساسية' : 'الأصناف', sort: sortInfo('stock'), items: mainR.map(mkRow), empty: 'لا أصناف في هذا المخزن بعد' }, addIt)));
-  if (sg !== 'main' && spR.length) bl.push(B('rows', Object.assign({ title: 'البهارات', sort: sg === 'spice' ? sortInfo('stock') : null, items: spR.map(mkRow), empty: '' }, sg === 'spice' ? addIt : {})));
+  if (sg !== 'spice') bl.push(B('rows', Object.assign({ title: spR.length ? 'الأساسية' : 'الأصناف', sort: sortInfo('stock'), items: zeroRows(mainR), all: !!A.hideZero, empty: 'لا أصناف في هذا المخزن بعد' }, addIt)));
+  if (sg !== 'main' && spR.length) bl.push(B('rows', Object.assign({ title: 'البهارات', sort: sg === 'spice' ? sortInfo('stock') : null, items: zeroRows(spR), all: !!A.hideZero, empty: '' }, sg === 'spice' ? addIt : {})));
   return bl;
 }
 /* جدول حضور وغياب الأسبوع (السبت إلى الجمعة): صف لكل عامل وخلية لكل يوم بلون الحالة. النقر على خلية يفتح حالة ذلك اليوم */
@@ -6206,6 +6220,7 @@ function shDesc() {
         return X({ title: o[1], sel: on2, tag: on2 ? (cur0.d === 1 ? 'تصاعدي ↑' : 'تنازلي ↓') : '', tagTone: 'ok', sub: on2 ? 'اضغط مرة أخرى لعكس الاتجاه' : '',
           go: function () { var ns = Object.assign({}, A.sort), c = ns[sh.k]; ns[sh.k] = on2 ? { f: c.f, d: -c.d } : { f: o[0], d: o[2] }; A.sort = ns; shut(); } });
       });
+      if (sh.k === 'stock') srows.push(X({ title: 'إخفاء الأصناف الصفرية', sub: 'يُطوى ما رصيده صفر ولا تحتاجه خطة', sel: !!A.hideZero, go: function () { A.hideZero = !A.hideZero; A.zeroOpen = false; shut(); } }));
       if (sh.k !== 'batches') srows.push(X({ title: 'عرض المؤرشفين', sub: 'من انتهى التعامل معهم', sel: !!A.showArch, go: function () { A.showArch = !A.showArch; shut(); } }));
       R = { title: 'ترتيب القائمة', sub: 'يُحفظ اختيارك لهذه القائمة', rows: srows };
       break;
