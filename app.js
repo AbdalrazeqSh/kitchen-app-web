@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.175';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.176';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -5288,7 +5288,7 @@ function pgStock() {
     X({ label: free ? 'قيمة تقديرية' : 'قيمة المخزون', value: money(value), sub: L.inkind ? 'مواد عينية' : L.wck ? 'مدعومة' : 'بآخر سعر', go: function () { openSh({ t: 'kVal' }); } })
   ] }));
   if (!S.settings.openingDone) bl.push(B('note', { tone: 'warn', icon: 'i-pencil', text: 'الأرصدة الافتتاحية لم تُعتمد.', act: 'مراجعة واعتماد', actGo: function () { open('opening'); } }));
-  if (L.wck) bl.push(B('note', { tone: 'info', icon: 'i-shield', text: 'تابع لـ WCK.' }));
+  if (L.wck) bl.push(B('note', { tone: 'info', icon: 'i-shield', text: 'تابع لـ WCK' }));
   if (L.inkind) bl.push(B('note', { tone: 'info', icon: 'i-shield', text: 'مواد عينية: لا تُحسب عليك، وتُخصم منها طبخات هذه الجهة وحدها.' }));
   if (L.ext) bl.push(B('note', { tone: 'info', icon: 'i-truck', text: 'مشتريات المطبخ: منها يُغطّى نقص الطبخ، وتُسحب منها طبخات المؤسسات.' }));
   if (L.arch) bl.push(B('note', { tone: 'warn', icon: 'i-lock', text: 'مخزن مؤرشف (' + (L.archWhy || 'انتهى التعامل') + '): للاطلاع فقط.' }));
