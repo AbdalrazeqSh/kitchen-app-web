@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.163';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.164';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -5336,7 +5336,6 @@ function pgWorkers() {
     X({ label: 'مستحق لهم', value: money(owed), sub: 'مجموع الأرصدة', go: function () { openSh({ t: 'kOweW' }); } })
   ] }));
   bl.push(B('acts', { items: [
-    X({ title: 'عامل جديد', icon: 'i-userPlus', on: true, go: function () { openSh({ t: 'addWorker' }, { name: '', wage: '' }); } }),
     X({ title: 'حضور الباقين', icon: 'i-check', go: function () { allPresent(); } }),
     X({ title: 'رسالة للعمال', icon: 'i-chat', go: function () { WSMS.sel = null; openSh({ t: 'wSms' }, { msg: '' }); } }),
     X({ title: 'دفع الأسبوع', icon: 'i-wallet', go: function () { openSh({ t: 'settle' }, { sel: W.filter(function (w) { return wBal(w) > 0; }).map(function (w) { return w.id; }).join(',') }); } })] }));
@@ -5349,6 +5348,7 @@ function pgWorkers() {
     return (ka - kb) * wm.d;
   });
   if (hol) bl.push(B('note', { tone: 'info', icon: 'i-calendar', text: 'اليوم عطلة (' + hol.reason + '): لا أجر. لمن عمل رغم العطلة افتح حسابه واختر «إضافة».' }));
+  var addW = { act: 'عامل', actGo: function () { openSh({ t: 'addWorker' }, { name: '', wage: '' }); } }; /* الإضافة في سطر عنوان القائمة (ظ40) */
   var wRow = function (w) {
     var a = wAtt(w), st = a ? stat(a.st) : null, b = wBal(w);
     if (w.arch) return X({ title: w.name, sub: 'مؤرشف · ' + (w.archWhy || ''), tag: 'مؤرشف', tagTone: 'mute', chev: true, go: function () { openSh({ t: 'unarch', k: 'worker', id: w.id }, { wage: String(w.daily || '') }); } });
@@ -5366,9 +5366,9 @@ function pgWorkers() {
     /* أكثر من 3 بلا تسجيل: صف واحد مختصر يُفتح بالنقر، بدل صفوف متطابقة (لهم «حضور الباقين» وجدول الأسبوع) */
     var tItems = todo.map(wRow);
     if (todo.length > 3) tItems = A.todoOpen ? [X({ more: true, icon: 'i-minus', icTone: 'mute', title: 'طيّ القائمة', go: function () { setState({ todoOpen: false }); } })].concat(tItems) : [X({ icon: 'i-users', icTone: 'warn', title: 'عرض الأسماء', sub: todo.slice(0, 3).map(function (w) { return w.name; }).join('، ') + '…', chev: true, go: function () { setState({ todoOpen: true }); } })];
-    bl.push(B('rows', { all: true, title: 'بلا تسجيل (' + todo.length + ')', sort: todo.length > 3 && !A.todoOpen ? null : sortInfo('workers'), items: tItems, empty: 'سُجّل حضور الجميع اليوم' }));
+    bl.push(B('rows', Object.assign({ all: true, title: 'بلا تسجيل (' + todo.length + ')', sort: todo.length > 3 && !A.todoOpen ? null : sortInfo('workers'), items: tItems, empty: 'سُجّل حضور الجميع اليوم' }, addW)));
     if (done.length) bl.push(B('rows', { all: true, title: 'سُجّل (' + done.length + ')', items: done.map(wRow) }));
-  } else bl.push(B('rows', { all: true, title: m === 'att' ? 'سجّل حضور اليوم' : 'أرصدة العمال', sort: sortInfo('workers'), items: wl.map(wRow) }));
+  } else bl.push(B('rows', Object.assign({ all: true, title: m === 'att' ? 'سجّل حضور اليوم' : 'أرصدة العمال', sort: sortInfo('workers'), items: wl.map(wRow) }, addW)));
   return bl;
 }
 /* بطاقة المال: الإجراء الأهم والأرصدة وآخر الحركات (مع اسم الرصيد) في مكان واحد، وتحتها بقية الخيارات */
