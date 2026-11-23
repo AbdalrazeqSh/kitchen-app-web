@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.155';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.156';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -483,6 +483,20 @@ function fSeg(k, label, opts) {
 /* مفتاح ثلاثي مضغوط في صف واحد: الاسم يمينًا والمفتاح يسارًا بقياس موحّد (خيارات التقرير؛ المالك 2026-11-19) */
 function fTri(k, label, opts) {
   var f = fSeg(k, label, opts); f.fd = 'row'; f.ai = 'center'; f.gp = '10px'; f.lf = '1'; f.cflex = 'none'; f.cpad = '3px'; f.chh = '34px'; f.chmw = '58px'; f.chp = '0 10px'; f.chfs = '13px'; f.cdir = 'row'; f.cdisp = 'tri';
+  return f;
+}
+/* شبكة رقائق بحالات: كل خيار رقاقة بلون حالتها (ظاهر أخضر، لي فقط كهرماني، مخفي رمادي) والضغطة تدوّر الحالة؛ رقاقتان في الصف، وعناوين مجموعات صغيرة، والمفتاح مرة واحدة أعلى الشبكة (المالك 2026-11-23: «نفس العناصر مترتبة بشكل أحسن لا بحذفها»). كل نافذة خيارات ثلاثية/ثنائية تمرّ من هنا */
+function fStateGrid(items, states) {
+  states = states || [['on', 'ظاهر'], ['me', 'لي فقط'], ['off', 'مخفي']];
+  var COL = { on: ['#E3F0E8', '#14563A', '#BFD9C8'], me: ['#FFF1D0', '#8A5A00', '#EBCB86'], off: ['#F1F3F0', '#8A948E', '#E1E5E0'], '1': ['#E3F0E8', '#14563A', '#BFD9C8'], '0': ['#F1F3F0', '#8A948E', '#E1E5E0'] };
+  var f = { label: '', lbd: 'none', hint: '', hasHint: false, isText: false, isChips: false, isGrid: true, value: '', ph: '', mode: 'text', onInput: noop, fd: 'column', ai: 'stretch', gp: '6px', lf: '0', did: 'grid' };
+  var legend = states.map(function (s) { var c = COL[s[0]] || COL.off; return { label: s[1], bg: c[0], fg: c[1], bd: c[2] }; });
+  f.legend = legend;
+  f.cells = items.map(function (it) {
+    if (typeof it === 'string') return { isHead: true, isCell: false, label: it, go: noop, gc: '1 / -1', bg: 'transparent', fg: '#5B6660', bd: 'transparent', st: '' };
+    var cur = fv(it[0]), idx = Math.max(0, states.map(function (s) { return s[0]; }).indexOf(cur)), c = COL[cur] || COL.off;
+    return { isHead: false, isCell: true, label: it[1], st: states[idx][1], gc: 'auto', bg: c[0], fg: c[1], bd: c[2], dim: cur === 'off' ? '.8' : '1', go: function () { fset(it[0], states[(idx + 1) % states.length][0]); } };
+  });
   return f;
 }
 function fQuick(k, label, arr) {
@@ -3469,11 +3483,18 @@ function pgReports() {
     items: recipients().map(function (p) { return X({ icon: 'i-send', icTone: 'info', title: p.name, sub: (preset(p.preset) || {}).name || '', tag: k === 'stock' ? 'يستلم' : 'يستلم يوميًا', tagTone: 'mute' }); }), empty: 'لا مستلمين بعد' }));
   return bl;
 }
+/* خيارات التقرير مجمّعة بعنوانين صغيرين (أقسام التقرير | جدول المواد) داخل شبكة رقائق واحدة؛ الخيار التابع يختفي حين يُخفى أصله (RO_DEP) */
+var RO_TBL = { split: 1, left: 1, neg: 1, alert: 1 };
+function roGrid(k) {
+  var all = RO[k].filter(function (a) { return !RO_DEP[a[0]] || fv(RO_DEP[a[0]]) !== 'off'; });
+  var secs = all.filter(function (a) { return !RO_TBL[a[0]]; }), tbl = all.filter(function (a) { return RO_TBL[a[0]]; });
+  return ['ما يظهر في التقرير'].concat(secs, tbl.length ? ['جدول المواد'] : [], tbl);
+}
 function repSheet(sh) {
   var R = null;
   if (sh.t === 'repOpt') {
-    R = { title: 'خيارات التقرير', sub: 'ما تعلّمه «ظاهر» يصل في التصدير، و«لي فقط» تراه هنا ولا يُصدَّر', fields: RO[sh.k].filter(function (a) { return !RO_DEP[a[0]] || fv(RO_DEP[a[0]]) !== 'off'; /* الخيار التابع يختفي حين يُخفى أصله: لا خيار بلا أثر */ }).map(function (a) { return fTri(a[0], a[1], [['on', 'ظاهر'], ['me', 'لي فقط'], ['off', 'مخفي']]); }),
-      rows: SEC[sh.k] ? secOrder(sh.k, fv('order')).map(function (key, i, arr) { return X({ icon: 'i-sliders', icTone: 'mute', title: (i + 1) + '. ' + secLabel(sh.k, key), sub: i ? 'اضغط لرفعه فوق «' + secLabel(sh.k, arr[i - 1]) + '»' : 'الأول في التقرير', tag: i ? '' : 'الأول', tagTone: 'ok', go: function () { if (!i) return; var a2 = arr.slice(); a2.splice(i - 1, 0, a2.splice(i, 1)[0]); fset('order', a2.join(',')); } }); }) : [],
+    R = { title: 'خيارات التقرير', sub: 'ما تعلّمه «ظاهر» يصل في التصدير، و«لي فقط» تراه هنا ولا يُصدَّر', fields: [fStateGrid(roGrid(sh.k))],
+      rows: SEC[sh.k] ? secOrder(sh.k, fv('order')).map(function (key, i, arr) { return X({ icon: 'i-sliders', icTone: 'mute', title: (i + 1) + '. ' + secLabel(sh.k, key), tag: i ? '' : 'الأول', tagTone: 'ok', go: function () { if (!i) return; var a2 = arr.slice(); a2.splice(i - 1, 0, a2.splice(i, 1)[0]); fset('order', a2.join(',')); } }); }) : [],
       note: SEC[sh.k] ? { text: 'ترتيب الأقسام: اضغط القسم لرفعه فوق ما قبله. يُطبَّق على الشاشة والتصدير.', tone: 'info' } : null,
       ft: { label: 'حفظ الخيارات', ok: true, go: function () { var v = {}; RO[sh.k].forEach(function (a) { v[a[0]] = fv(a[0]); }); if (SEC[sh.k]) v.order = secOrder(sh.k, fv('order')).join(','); S.ro = S.ro || {}; S.ro[sh.k] = v; audit('تغيير خيارات تقرير «' + rptName(sh.k) + '»'); shut(); mutated('حُفظت خيارات التقرير وتُطبَّق على كل تصدير قادم'); } } };
   } else if (sh.t === 'repDay') {
@@ -3724,7 +3745,7 @@ function stSaveOpts(i) {
 function stmtOptsSheet(sh) {
   var i = sh.id === '__all' ? ALLI : inst(sh.id), ym = sh.ym, full = fv('sv') !== 'sum', cv = stPrevCanvas(i, ym), url = cv.toDataURL('image/png'), nm = 'كشف-' + i.name + '-' + ym + (full ? '-مفصل' : '') + '.png', ttl = 'كشف حساب ' + i.name;
   var fl = [fPhotoView(url, true), fSeg('sv', 'شكل الكشف', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر']]), fSeg('lbl', 'عنوان المبلغ', [['due', 'المستحق'], ['cost', 'التكلفة']])];
-  STO.forEach(function (k) { fl.push(fTri('o_' + k[0], k[1], [['1', 'ظاهر'], ['0', 'مخفي']])); });
+  fl.push(fStateGrid(['ما يظهر في الكشف'].concat(STO.map(function (k) { return ['o_' + k[0], k[1]]; })), [['1', 'ظاهر'], ['0', 'مخفي']]));
   fl.push(fArea('stNote', 'ملاحظة تظهر في كشف هذه الجهة (اختياري)', 'مثال: يشمل طبخات الأسبوع الأول'));
   fl.push(fArea('stTerms', 'الشروط وبيانات الدفع (لكل الجهات)', 'مثال: الدفع خلال 15 يومًا · حساب البنك … · للاستفسار …'));
   if (!i.all) fl.push(fTri('stAll', 'تطبيق الخيارات على', [['0', 'هذه الجهة'], ['1', 'كل الجهات']]));
@@ -4323,11 +4344,11 @@ function ownSheet(sh) {
   if (sh.t !== 'ownp') return null;
   var R = ownRange(), o = ownOpts(), D = ownData(R.from, R.to), cv = ownCanvas(D, o), url = cv.toDataURL('image/png'), nm = ownFileName(R, o), ttl = 'كشف حسابنا';
   var fail = function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); };
-  var fl = [fPhotoView(url, true), fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()), fSeg('sv', 'شكل الكشف', [['full', 'مفصّل'], ['sum', 'مختصر']]),
-    fTri('bal', 'أرصدة الحسابات', [['1', 'ظاهر'], ['0', 'مخفي']]), fTri('ins', 'الوارد', [['1', 'ظاهر'], ['0', 'مخفي']]), fTri('outs', 'المصروفات', [['1', 'ظاهر'], ['0', 'مخفي']]),
-    fTri('xf', 'التحويلات', [['1', 'ظاهر'], ['0', 'مخفي']]), fTri('acc', 'اسم الحساب في كل حركة', [['1', 'ظاهر'], ['0', 'مخفي']])];
   if (!fv('from')) A.form.from = R.from; if (!fv('to')) A.form.to = R.to;
   ['bal', 'ins', 'outs', 'xf', 'acc'].forEach(function (k) { if (fv(k) !== '1' && fv(k) !== '0') A.form[k] = o[k] ? '1' : '0'; });
+  var fl = [fPhotoView(url, true), fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()), fSeg('sv', 'شكل الكشف', [['full', 'مفصّل'], ['sum', 'مختصر']]),
+    fStateGrid(['ما يظهر في الكشف', ['bal', 'أرصدة الحسابات'], ['ins', 'الوارد'], ['outs', 'المصروفات'], ['xf', 'التحويلات'], ['acc', 'اسم الحساب في كل حركة']], [['1', 'ظاهر'], ['0', 'مخفي']])
+  ];
   return { title: 'كشف حسابنا', sub: 'غيّر الخيارات فتتغير المعاينة، ثم شارك', fields: fl,
     acts: [X({ title: 'PDF', icon: 'i-doc', go: function () { deliverFile(nm + '.pdf', u8b64(pdfFromCanvas(cv)), 'application/pdf', ttl, '').catch(fail); } }),
       X({ title: 'PDF للطباعة', icon: 'i-doc', go: function () { deliverFile(nm + '-A4.pdf', u8b64(pdfA4Pages(cv)), 'application/pdf', ttl, '').catch(fail); } }),
@@ -4714,7 +4735,7 @@ function wstSheet(sh) {
   var o = wstOpts(), d = wstDoc(w, o.from, o.to, o);
   return { title: 'كشف ' + w.name, sub: 'اختر الفترة وما يظهر في الكشف',
     fields: [fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today()),
-      fTri('sum', 'ملخص الإجماليات في الأعلى', [['1', 'إظهار'], ['0', 'إخفاء']]), fTri('det', 'حركات المكافآت والخصومات بتواريخها', [['1', 'إظهار'], ['0', 'إخفاء']])],
+      fStateGrid(['ما يظهر في الكشف', ['sum', 'ملخص الإجماليات في الأعلى'], ['det', 'حركات المكافآت والخصومات بتواريخها']], [['1', 'إظهار'], ['0', 'إخفاء']])],
     rows: d.sums.map(function (s) { return X({ title: s.l, end: s.v, endTone: s.tone }); }).concat([X({ title: d.settle ? d.settle.l : d.closeL, end: d.settle ? d.settle.v + ' · ' + d.closeV : d.closeV, endTone: d.closeTone })]),
     acts: [X({ title: 'تنزيل صورة', icon: 'i-download', go: function () { wstSend(w, o, 'png'); } }), X({ title: 'تنزيل PDF', icon: 'i-download', go: function () { wstSend(w, o, 'pdf'); } }), X({ title: 'نسخ النص', icon: 'i-list', go: function () { wstSend(w, o, 'txt'); } })],
     ft: { label: 'مشاركة', ok: true, go: function () { shut(); wstSend(w, o, 'share'); } } };
