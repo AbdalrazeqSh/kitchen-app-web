@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.167';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.168';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -571,6 +571,7 @@ function fStateGrid(items, states) {
   f.legend = legend;
   f.cells = items.map(function (it) {
     if (typeof it === 'string') return { isHead: true, isCell: false, label: it, go: noop, gc: '1 / -1', bg: 'transparent', fg: '#5B6660', bd: 'transparent', st: '' };
+    if (it.tog) { var on = !!it.tog(), cc = on ? COL['1'] : COL['0']; return { isHead: false, isCell: true, label: it.label, st: on ? 'مفعّل' : 'مطفأ', gc: 'auto', bg: cc[0], fg: cc[1], bd: cc[2], dim: '1', go: function () { it.set(!on); render(); } }; }
     var cur = fv(it[0]), idx = Math.max(0, states.map(function (s) { return s[0]; }).indexOf(cur)), c = COL[cur] || COL.off;
     return { isHead: false, isCell: true, label: it[1], st: states[idx][1], gc: 'auto', bg: c[0], fg: c[1], bd: c[2], dim: cur === 'off' ? '.8' : '1', go: function () { fset(it[0], states[(idx + 1) % states.length][0]); } };
   });
@@ -6220,9 +6221,10 @@ function shDesc() {
         return X({ title: o[1], sel: on2, tag: on2 ? (cur0.d === 1 ? 'تصاعدي ↑' : 'تنازلي ↓') : '', tagTone: 'ok', sub: on2 ? 'اضغط مرة أخرى لعكس الاتجاه' : '',
           go: function () { var ns = Object.assign({}, A.sort), c = ns[sh.k]; ns[sh.k] = on2 ? { f: c.f, d: -c.d } : { f: o[0], d: o[2] }; A.sort = ns; shut(); } });
       });
-      if (sh.k === 'stock') srows.push(X({ title: 'إخفاء الأصناف الصفرية', sub: 'يُطوى ما رصيده صفر ولا تحتاجه خطة', sel: !!A.hideZero, go: function () { A.hideZero = !A.hideZero; A.zeroOpen = false; shut(); } }));
-      if (sh.k !== 'batches') srows.push(X({ title: 'عرض المؤرشفين', sub: 'من انتهى التعامل معهم', sel: !!A.showArch, go: function () { A.showArch = !A.showArch; shut(); } }));
-      R = { title: 'ترتيب القائمة', sub: 'يُحفظ اختيارك لهذه القائمة', rows: srows };
+      var vopts = ['خيارات العرض'];
+      if (sh.k === 'stock') vopts.push({ label: 'إخفاء الأصناف الصفرية', tog: function () { return !!A.hideZero; }, set: function (v) { A.hideZero = v; A.zeroOpen = false; } });
+      if (sh.k !== 'batches') vopts.push({ label: 'عرض المؤرشفين', tog: function () { return !!A.showArch; }, set: function (v) { A.showArch = v; } });
+      R = { title: 'ترتيب القائمة', sub: 'ترتيب حسب · اضغط لتغيير الاتجاه', rows: srows, fields: vopts.length > 1 ? [fStateGrid(vopts, [['1', 'مفعّل'], ['0', 'مطفأ']])] : [] };
       break;
     }
     case 'search': R = searchSheet(); break;
