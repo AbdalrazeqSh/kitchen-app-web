@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.183';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.184';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1987,7 +1987,7 @@ function doXfer() {
   o.pair = i2.id; S.fm.push(i2);
   shut(); mutated('حُوّل ' + fTxt(cur, a) + ' من «' + f.name + '» إلى «' + t.name + '»');
 }
-/* تحويل لرصيدي: دفعة سجّلها غيري من رصيده (حميدا) قصدها تحويل إلى رصيد عندي؛ حسابه كما هو (الحركة تبقى ناقصًا من رصيده) وتُعلَّم تحويلًا وتدخل الرصيد المقصود وارد (المالك 2026-11-24). يُعاد بـ«إلغاء كتحويل» فيُلغى الطرف الداخل فقط */
+/* تحويل إلى رصيد: دفعة سجّلها غيري من رصيده (حميدا) قصدها تحويل إلى رصيد عندي؛ حسابه كما هو (الحركة تبقى ناقصًا من رصيده) وتُعلَّم تحويلًا وتدخل الرصيد المقصود وارد (المالك 2026-11-24). يُعاد بـ«إلغاء كتحويل» فيُلغى الطرف الداخل فقط */
 function xtOk(m) { return !!m && !m.void && !m.x && !m.w && m.dir === 'out'; }
 function xtTargets(m) { return funds().filter(function (f) { return f.id !== m.h && hasCur(f, m.cur); }); }
 function doMarkXfer(id, tid) {
@@ -2094,7 +2094,7 @@ function moneySheet(sh) {
         R.fields = [fPhoto('صورة الوصل أو السند (اختياري)')];
         if (fv('photo')) R.ft = { label: 'حفظ الصورة', ok: true, go: function () { var pid = phTake(); if (pid) { m.ph = pid; audit('أُرفقت صورة بحركة «' + (m.note || '') + '»'); } shut(); mutated('أُرفقت الصورة بالحركة'); } };
       }
-      if (xtOk(m) && fv('resrc') !== '1' && fv('asx') !== '1') R.acts = (R.acts || []).concat([X({ title: 'تحويل لرصيدي', icon: 'i-send', go: function () { fset('asx', '1'); } })]);
+      if (xtOk(m) && fv('resrc') !== '1' && fv('asx') !== '1') R.acts = (R.acts || []).concat([X({ title: 'تحويل إلى رصيد', icon: 'i-send', go: function () { fset('asx', '1'); } })]);
       if (m.xl && !m.void) R.acts = (R.acts || []).concat([X({ title: 'إلغاء كتحويل', icon: 'i-x', go: function () { doUnmarkXfer(m.id); } })]);
       if (xtOk(m) && fv('asx') === '1') {
         var xt = xtTargets(m), xv = fv('xto'), xf = fund(xv);
