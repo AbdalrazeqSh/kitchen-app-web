@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.179';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.180';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4937,6 +4937,8 @@ function wstSheet(sh) {
    مخيمات اليوم: كل مخيم له طعام اليوم (طبخات اليوم أو توزيع اليوم أو خطة اليوم غير المنفّذة) وله مندوب ورقم.
    النص قالب يعدّله المالك متى شاء (الإعدادات)، ويُرسَل من التطبيق مباشرة عبر إضافة أندرويد (تحتاج APK 0.9.96 فأحدث)،
    وفي غير ذلك تُفتح الرسالة جاهزة في تطبيق الرسائل. علامة «أُرسلت» تُحفظ لليوم فلا تتكرر رسالة المخيم نفسه. */
+/* حالة الإرسال المشتركة (المخيمات والعمال): run = إرسال جارٍ فلا يبدأ ثانٍ فوقه، all/ids = المستلمون في نافذة التأكيد (المالك 2026-11-24: «أي ضغطة بتنتشر الرسائل حتى لو أخطأت») */
+var SMSX = { run: false, kind: '', all: [], ids: [] };
 var SMS_TPL = 'صباح الخير {المندوب}، طعام اليوم لمخيم {المخيم}: {الأصناف}. الاستلام {الوقت} {المكان}. شكرًا.';
 function smsCfg() { var c = (S.settings.campSms = S.settings.campSms || {}); if (c.tpl == null) c.tpl = SMS_TPL; if (c.time == null) c.time = ''; if (c.place == null) c.place = ''; return c; }
 function smsNative() { try { return !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform() && Capacitor.isPluginAvailable && Capacitor.isPluginAvailable('KitchenSms') && vcmp(window.PKG_VER || '0.0.0', '0.9.96') >= 0); } catch (e) { return false; } }
@@ -4949,16 +4951,16 @@ function campsToday() {
   plans().filter(function (p) { return p.date === td && (p.kind || 'private') === 'private'; }).forEach(function (p) { Object.keys(p.dist || {}).forEach(function (k) { add(k, (rec(p.recipeId) || {}).name || 'طعام', p.dist[k]); }); });
   return ord.filter(function (id) { return m[id].g && !m[id].g.arch; }).map(function (id) { return { g: m[id].g, dishes: Object.keys(m[id].d).map(function (n) { return n + ' ' + pl(m[id].d[n], 'قدر واحد', '2 قدر', 'قدور'); }).join('، ') }; });
 }
-function smsText(c) {
+function smsText(c, tpl) {
   var cf = smsCfg(), g = c.g;
-  var t = String(cf.tpl).replace(/\{المخيم\}/g, g.name || '').replace(/\{المندوب\}/g, g.rep || '').replace(/\{الأصناف\}/g, c.dishes).replace(/\{الوقت\}/g, cf.time || '').replace(/\{المكان\}/g, cf.place || '');
+  var t = String(tpl != null ? tpl : cf.tpl).replace(/\{المخيم\}/g, g.name || '').replace(/\{المندوب\}/g, g.rep || '').replace(/\{الأصناف\}/g, c.dishes).replace(/\{الوقت\}/g, cf.time || '').replace(/\{المكان\}/g, cf.place || '');
   if (!cf.time && !cf.place) t = t.replace(/الاستلام\s*\./g, '');
   return t.replace(/[ \t]{2,}/g, ' ').replace(/ ([.،])/g, '$1').trim();
 }
 function smsSent(id) { var s = S.settings.campSent; return !!(s && s.d === today() && s.ids && s.ids[id]); }
 function smsMark(id) { var s = S.settings.campSent; if (!s || s.d !== today()) s = S.settings.campSent = { d: today(), ids: {} }; s.ids[id] = Date.now(); save(); }
-function smsSendOne(c) {
-  var n = smsNum(c.g.phone), tx = smsText(c);
+function smsSendOne(c, tpl) {
+  var n = smsNum(c.g.phone), tx = smsText(c, tpl);
   if (!n) { say('لا رقم لمندوب ' + c.g.name); return Promise.resolve(false); }
   if (smsNative()) return Capacitor.Plugins.KitchenSms.send({ to: n, body: tx }).then(function () { smsMark(c.g.id); return true; }).catch(function (e) { say('تعذّر الإرسال لـ ' + c.g.name + (e && e.message === 'denied' ? ': لم يُمنح إذن الرسائل' : '')); return false; });
   window.location.href = 'sms:' + n + '?body=' + encodeURIComponent(tx); smsMark(c.g.id); return Promise.resolve(true);
@@ -4966,16 +4968,17 @@ function smsSendOne(c) {
 var CSMS = { sel: null };
 /* المحدَّدون: الافتراضي كل مخيم له رقم ولم تُرسَل له رسالة اليوم؛ الضغط على صف يبدّل تحديده، فيمكن الإرسال لمخيم واحد أو اثنين (المالك 2026-11-22: «كيف بدي أرسل لواحد فيهم أو اثنين») */
 function smsPicked() { var cs = campsToday().filter(function (c) { return smsNum(c.g.phone); }); return CSMS.sel == null ? cs.filter(function (c) { return !smsSent(c.g.id); }) : cs.filter(function (c) { return CSMS.sel.indexOf(c.g.id) >= 0; }); }
-function smsSendList(todo) {
+function smsSendList(todo, tpl) {
   var ok = 0, bad = 0;
   if (!todo.length) { say('اختر مخيمًا واحدًا على الأقل'); return; }
+  if (SMSX.run) { say('جارٍ إرسال رسائل سابقة، انتظر'); return; }
+  SMSX.run = true; audit('رسائل المخيمات إلى ' + pl(todo.length, 'مخيم واحد', '2 مخيم', 'مخيمات') + ': ' + String(tpl != null ? tpl : smsCfg().tpl).slice(0, 60)); save();
   shut(); say('جارٍ إرسال ' + pl(todo.length, 'رسالة واحدة', '2 رسالة', 'رسائل') + '…');
   var i = 0, step = function () {
-    if (i >= todo.length) { say('أُرسلت ' + ok + (bad ? ' · تعذّرت ' + bad : '')); render(); return; }
-    var c = todo[i++]; smsSendOne(c).then(function (r) { if (r) ok++; else bad++; setTimeout(step, 1200); });
+    if (i >= todo.length) { SMSX.run = false; say(smsNative() ? 'أُرسلت ' + ok + (bad ? ' · تعذّرت ' + bad : '') : 'فُتحت الرسالة جاهزة في تطبيق الرسائل'); render(); return; }
+    var c = todo[i++]; smsSendOne(c, tpl).then(function (r) { if (r) ok++; else bad++; setTimeout(step, 1200); });
   }; step();
 }
-function smsSendAll() { smsSendList(smsPicked()); }
 function smsSheet(sh) {
   if (sh.t === 'campSms') {
     var cs = campsToday(), nat = smsNative(), picked = smsPicked(), withNum = cs.filter(function (c) { return smsNum(c.g.phone); }), allOn = withNum.length > 0 && picked.length === withNum.length;
@@ -4988,14 +4991,14 @@ function smsSheet(sh) {
           lp: function () { openSh({ t: 'campOne', id: c.g.id }); } }); }),
       empty: 'وزّع القدور على المخيمات أو خطّط لها أولًا',
       note: nat ? { text: 'الضغطة المطوّلة على مخيم تعرض رسالته وحده.', tone: 'info' } : { text: 'الإرسال التلقائي يحتاج النسخة الجديدة من التطبيق (APK). حتى ذلك الحين يفتح كل مخيم تطبيق الرسائل بالنص جاهزًا.', tone: 'info' },
-      ft: { label: picked.length ? (nat ? 'إرسال للمحدد (' + picked.length + ')' : 'الإرسال التلقائي يحتاج APK') : 'اختر مخيمًا', ok: nat && picked.length > 0, go: smsSendAll } };
+      ft: { label: picked.length ? (nat ? 'إرسال للمحدد (' + picked.length + ')' : 'الإرسال التلقائي يحتاج APK') : 'اختر مخيمًا', ok: nat && picked.length > 0, go: function () { smsConfirm('camp', picked.map(function (p) { return p.g.id; }), smsCfg().tpl); } } };
   }
   if (sh.t === 'campOne') {
     var c = campsToday().filter(function (x) { return x.g.id === sh.id; })[0]; if (!c) return { title: 'رسالة المخيم', rows: [], empty: 'لا طعام لهذا المخيم اليوم' };
     var n = smsNum(c.g.phone);
     return { title: c.g.name, sub: (c.g.rep ? c.g.rep + ' · ' : '') + (n ? c.g.phone : 'بلا رقم'),
       rows: [X({ title: 'نص الرسالة', sub: smsText(c) })],
-      ft: { label: smsSent(c.g.id) ? 'إعادة الإرسال' : 'إرسال الرسالة', ok: !!n, go: function () { shut(); smsSendOne(c).then(function (r) { if (r) say(smsNative() ? 'أُرسلت لـ ' + c.g.name : 'فُتحت الرسالة جاهزة للإرسال'); render(); }); } } };
+      ft: { label: smsSent(c.g.id) ? 'إعادة الإرسال' : 'إرسال الرسالة', ok: !!n, go: function () { smsConfirm('camp', [c.g.id], smsCfg().tpl); } } };
   }
   if (sh.t === 'campTpl') {
     return { title: 'نص رسالة المخيمات', sub: 'عدّله متى شئت: الكلمات بين الأقواس تُستبدل تلقائيًا',
@@ -5018,11 +5021,12 @@ function wsmsKeep(tpl) { var r = wsmsRecent().filter(function (x) { return x !==
 function wsmsSendAll(list, tpl) {
   var ok = 0, bad = 0, i = 0, nat = smsNative();
   if (!list.length) return;
+  if (SMSX.run) { say('جارٍ إرسال رسائل سابقة، انتظر'); return; }
   wsmsKeep(tpl); audit('رسالة جماعية إلى ' + pl(list.length, 'عامل واحد', '2 عامل', 'عمال') + ': ' + tpl.slice(0, 60)); save();
   if (!nat) { shut(); window.location.href = 'sms:' + list.map(function (w) { return smsNum(w.phone); }).join(',') + '?body=' + encodeURIComponent(wsmsText(tpl, { name: '' })); say('فُتحت الرسالة جاهزة في تطبيق الرسائل'); return; }
-  shut(); say('جارٍ إرسال ' + pl(list.length, 'رسالة واحدة', '2 رسالة', 'رسائل') + '…');
+  SMSX.run = true; shut(); say('جارٍ إرسال ' + pl(list.length, 'رسالة واحدة', '2 رسالة', 'رسائل') + '…');
   var step = function () {
-    if (i >= list.length) { say('أُرسلت ' + ok + (bad ? ' · تعذّرت ' + bad : '')); render(); return; }
+    if (i >= list.length) { SMSX.run = false; say('أُرسلت ' + ok + (bad ? ' · تعذّرت ' + bad : '')); render(); return; }
     var w = list[i++];
     Capacitor.Plugins.KitchenSms.send({ to: smsNum(w.phone), body: wsmsText(tpl, w) }).then(function () { ok++; }).catch(function () { bad++; }).then(function () { setTimeout(step, 1200); });
   }; step();
@@ -5035,12 +5039,12 @@ function wsmsSheet(sh) {
     var ws = activeW(), tpl = fv('msg'), nat = smsNative(), withNum = ws.filter(function (w) { return smsNum(w.phone); }), noNum = ws.length - withNum.length, picked = wsmsPicked();
     var who = !withNum.length ? 'لا أحد له رقم' : picked.length === withNum.length ? 'كل العمال' : picked.length ? picked.slice(0, 3).map(function (w) { return w.name; }).join('، ') + (picked.length > 3 ? '…' : '') : 'لم تختر أحدًا';
     return { title: 'رسالة للعمال', sub: 'تصل بضغطة واحدة للمختارين',
-      acts: [X({ title: 'رسائل سابقة', icon: 'i-clock', go: function () { openSh({ t: 'wSmsHist' }, {}); } })],
+      acts: [X({ title: 'رسائل جاهزة', icon: 'i-chat', go: function () { openSh({ t: 'smsLib', kind: 'worker' }, {}); } }), X({ title: 'رسائل سابقة', icon: 'i-clock', go: function () { openSh({ t: 'wSmsHist' }, {}); } })],
       fields: [fArea('msg', 'نص الرسالة', 'مثال: بكرة الدوام الساعة 7 صباحًا', 'يمكنك كتابة {الاسم} ليُستبدل باسم كل عامل')],
       rows: [X({ icon: 'i-users', icTone: picked.length ? 'ok' : 'warn', title: 'المستلمون', sub: who, tag: pl(picked.length, 'عامل واحد', '2 عامل', 'عمال'), tagTone: picked.length ? 'ok' : 'warn', chev: true, go: function () { openSh({ t: 'wSmsPick' }, {}); } })],
       note: nat ? (noNum ? { text: pl(noNum, 'عامل واحد بلا رقم', '2 عامل بلا رقم', 'عمال بلا رقم') + ': أضف أرقامهم من «المستلمون».', tone: 'info' } : null)
         : { text: 'الإرسال التلقائي يحتاج النسخة الجديدة من التطبيق (APK). حتى ذلك الحين تُفتح رسالة واحدة جاهزة بأرقام المختارين في تطبيق الرسائل.', tone: 'warn' },
-      ft: { label: picked.length ? 'إرسال إلى ' + pl(picked.length, 'عامل واحد', '2 عامل', 'عمال') : 'اختر المستلمين', ok: picked.length > 0 && String(tpl || '').trim().length > 1, go: function () { wsmsSendAll(picked, String(tpl).trim()); } } };
+      ft: { label: picked.length ? 'إرسال إلى ' + pl(picked.length, 'عامل واحد', '2 عامل', 'عمال') : 'اختر المستلمين', ok: picked.length > 0 && String(tpl || '').trim().length > 1, go: function () { smsConfirm('worker', picked.map(function (w) { return w.id; }), String(tpl).trim()); } } };
   }
   if (sh.t === 'wSmsPick') {
     var pw = activeW(), wn = pw.filter(function (w) { return smsNum(w.phone); }), cur = wsmsPicked(), allOn = wn.length > 0 && cur.length === wn.length;
@@ -5067,6 +5071,70 @@ function wsmsSheet(sh) {
     return { title: 'رسائل سابقة', sub: 'اضغط رسالة لإعادتها إلى نص الإرسال',
       rows: r.map(function (t) { return X({ icon: 'i-send', icTone: 'mute', title: t, chev: true, go: function () { onBack(); fset('msg', t); } }); }),
       empty: 'لا رسائل سابقة بعد' };
+  }
+  return null;
+}
+
+/* ===== 02z3-smsx.js ===== */
+/* ---------- الرسائل الجماعية: مراجعة وتأكيد قبل كل إرسال، تعديل النص لهذه المرة، ورسائل جاهزة محفوظة ----------
+   كل إرسال (مخيمات، عمال، مخيم واحد) يمرّ من نافذة «تأكيد الإرسال»: المستلمون والنص النهائي لكل واحد، النص قابل للتعديل
+   واستبدال برسالة جاهزة، وصف المستلم يُستبعد بضغطة؛ ولا إرسال إلا بزر التأكيد الصريح (المالك 2026-11-24: «أي ضغطة بتنتشر
+   الرسائل حتى لو أخطأت»). الرسائل الجاهزة S.settings.smsLib = [{id, kind: 'camp'|'worker', name, text}]. */
+var SMSLIB_H = { camp: 'المتاح: {المخيم} {المندوب} {الأصناف} {الوقت} {المكان}', worker: 'يمكنك كتابة {الاسم} ليُستبدل باسم كل عامل' };
+function smsLib(kind) { return (S.settings.smsLib || []).filter(function (m) { return m.kind === kind; }); }
+function smsxWho(kind, ids) {
+  return kind === 'camp' ? campsToday().filter(function (c) { return smsNum(c.g.phone) && ids.indexOf(c.g.id) >= 0; }) : activeW().filter(function (w) { return smsNum(w.phone) && ids.indexOf(w.id) >= 0; });
+}
+function smsxId(kind, x) { return kind === 'camp' ? x.g.id : x.id; }
+function smsConfirm(kind, ids, tpl) {
+  if (SMSX.run) { say('جارٍ إرسال رسائل سابقة، انتظر'); return; }
+  if (!ids.length) { say('اختر مستلمًا واحدًا على الأقل'); return; }
+  SMSX.kind = kind; SMSX.all = ids.slice(); SMSX.ids = ids.slice();
+  openSh({ t: 'smsGo' }, { msg: tpl });
+}
+function smsxDo() {
+  var kind = SMSX.kind, msg = String(fv('msg')).trim(), inc = smsxWho(kind, SMSX.ids);
+  if (SMSX.run) { say('جارٍ الإرسال، انتظر'); return; }
+  if (!inc.length || msg.length < 2) return;
+  if (kind === 'camp') smsSendList(inc, msg); else wsmsSendAll(inc, msg);
+}
+function smsxSheet(sh) {
+  if (sh.t === 'smsGo') {
+    var kind = SMSX.kind, isC = kind === 'camp', msg = String(fv('msg')), nat = smsNative();
+    var all = smsxWho(kind, SMSX.all), inc = smsxWho(kind, SMSX.ids), incIds = inc.map(function (x) { return smsxId(kind, x); });
+    var txt = function (x) { return isC ? smsText(x, msg) : wsmsText(msg, x); };
+    var sentN = isC ? inc.filter(function (c) { return smsSent(c.g.id); }).length : 0;
+    var mx = inc.reduce(function (m, x) { return Math.max(m, txt(x).length); }, 0), parts = mx > 70 ? Math.ceil(mx / 67) : 1;
+    var nt = sentN ? { text: pl(sentN, 'مخيم واحد أُرسلت له', '2 مخيم أُرسلت لهما', 'مخيمات أُرسلت لها') + ' رسالة اليوم. اضغط صفه لاستبعاده.', tone: 'warn' }
+      : parts > 1 ? { text: 'أطول رسالة ' + mx + ' حرفًا، فتُحسب ' + pl(parts, 'رسالة واحدة', '2 رسالة', 'رسائل') + '.', tone: 'info' }
+      : !nat ? { text: 'ستُفتح الرسالة في تطبيق الرسائل وتضغط الإرسال هناك.', tone: 'info' } : null;
+    var who = isC ? pl(inc.length, 'مخيم واحد', '2 مخيم', 'مخيمات') : pl(inc.length, 'عامل واحد', '2 عامل', 'عمال');
+    return { title: 'تأكيد الإرسال', sub: inc.length ? who : 'لم تختر أحدًا',
+      acts: [X({ title: 'رسائل جاهزة', icon: 'i-chat', go: function () { openSh({ t: 'smsLib', kind: kind }, {}); } }),
+        X({ title: 'حفظ كرسالة', icon: 'i-plus', go: function () { if (String(fv('msg')).trim().length < 2) { say('اكتب النص أولًا'); return; } openSh({ t: 'smsLibOne', kind: kind, id: '' }, { name: '', text: String(fv('msg')).trim() }); } })],
+      fields: [fArea('msg', 'نص الرسالة', '', SMSLIB_H[kind])],
+      rows: all.map(function (x) { var id = smsxId(kind, x), on = incIds.indexOf(id) >= 0, sent = isC && smsSent(id);
+        return X({ icon: 'i-users', icTone: sent ? 'warn' : 'info', title: isC ? x.g.name : x.name, sub: txt(x), tag: sent ? 'أُرسلت اليوم' : '', tagTone: 'warn', sel: on,
+          go: function () { SMSX.ids = on ? SMSX.ids.filter(function (k) { return k !== id; }) : SMSX.ids.concat([id]); render(); } }); }),
+      note: nt,
+      ft: { label: inc.length ? 'تأكيد الإرسال · ' + who : 'اختر مستلمًا', ok: inc.length > 0 && msg.trim().length > 1 && !SMSX.run, go: smsxDo } };
+  }
+  if (sh.t === 'smsLib') {
+    var L = smsLib(sh.kind);
+    return { title: 'رسائل جاهزة',
+      acts: [X({ title: 'رسالة جديدة', icon: 'i-plus', go: function () { openSh({ t: 'smsLibOne', kind: sh.kind, id: '' }, { name: '', text: '' }); } })],
+      rows: L.map(function (m) { return X({ icon: 'i-chat', icTone: 'info', title: m.name, sub: m.text, go: function () { onBack(); fset('msg', m.text); }, lp: function () { openSh({ t: 'smsLibOne', kind: sh.kind, id: m.id }, { name: m.name, text: m.text }); } }); }),
+      empty: 'لا رسائل جاهزة بعد', note: L.length ? { text: 'الضغطة المطوّلة على رسالة تعدّلها أو تحذفها.', tone: 'info' } : null };
+  }
+  if (sh.t === 'smsLibOne') {
+    var cur = (S.settings.smsLib || []).filter(function (m) { return m.id === sh.id; })[0];
+    var R = { title: cur ? 'تعديل الرسالة' : 'رسالة جاهزة', fields: [fText('name', 'الاسم', 'مثال: تذكير الدوام'), fArea('text', 'النص', '', SMSLIB_H[sh.kind])],
+      ft: { label: 'حفظ', ok: String(fv('text')).trim().length > 1, go: function () {
+        var Ls = (S.settings.smsLib = S.settings.smsLib || []), t = String(fv('text')).trim(), nm = String(fv('name')).trim() || t.slice(0, 24);
+        if (cur) { cur.name = nm; cur.text = t; } else Ls.push({ id: 'm' + Date.now().toString(36), kind: sh.kind, name: nm, text: t });
+        save(); onBack(); say('حُفظت الرسالة'); } } };
+    if (cur) R.ft2 = { label: 'حذف الرسالة', go: function () { var Ls = S.settings.smsLib, i = Ls.indexOf(cur); Ls.splice(i, 1); save(); onBack(); say('حُذفت الرسالة', function () { Ls.splice(Math.min(i, Ls.length), 0, cur); save(); render(); }); } };
+    return R;
   }
   return null;
 }
@@ -6340,7 +6408,7 @@ function shDesc() {
       break;
     }
     case 'search': R = searchSheet(); break;
-    default: R = moneySheet(sh) || ownSheet(sh) || achSheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || gwSheet(sh) || wsmsSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || { title: '' };
+    default: R = moneySheet(sh) || ownSheet(sh) || achSheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || gwSheet(sh) || wsmsSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || smsxSheet(sh) || { title: '' };
   }
   return R;
 }
