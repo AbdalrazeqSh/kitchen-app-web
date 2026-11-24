@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.178';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.179';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4395,8 +4395,10 @@ function ownData(from, to) {
 }
 function ownSub() { var R = ownRange(); return R.from === '2000-01-01' ? 'كل المدة حتى ' + dshow(R.to) : dshow(R.from) + ' ← ' + dshow(R.to); }
 function ownRecName(r) { return r.f.name + (r.f.curs.length > 1 ? ' · ' + (r.cur === 'usd' ? 'دولار' : 'شيكل') : ''); }
+/* صافي الفترة للرصيد = آخره − أوله (وارد − صرف ± تحويل ± جرد)؛ يظهر في صف عنوان البطاقة نفسه مقابل الاسم (المالك 2026-11-24) */
+function ownNet(r) { var n = r2(r.close - r.open); return { n: n, txt: n === 0 ? fTxt(r.cur, 0) : n < 0 ? sg('out', fTxt(r.cur, -n)) : sg('in', fTxt(r.cur, n)), tone: n < 0 ? 'bad' : n > 0 ? 'ok' : '' }; }
 function ownRecRows(r) {
-  var o = [X({ title: 'رصيد أول الفترة', end: fTxt(r.cur, r.open) })];
+  var nt = ownNet(r), o = [X({ sect: true, title: ownRecName(r), sub: 'صافي الفترة', end: nt.txt, endTone: nt.tone || undefined }), X({ title: 'رصيد أول الفترة', end: fTxt(r.cur, r.open) })];
   if (r.inN) o.push(X({ title: 'وارد', sub: pl(r.inN, 'حركة واحدة', 'حركتان', 'حركات'), end: sg('in', fTxt(r.cur, r.inn)), endTone: 'ok' }));
   if (r.outN) o.push(X({ title: 'مصروفات', sub: pl(r.outN, 'حركة واحدة', 'حركتان', 'حركات'), end: sg('out', fTxt(r.cur, r.out)), endTone: 'bad' }));
   if (r.xN) o.push(X({ title: 'تحويلات', sub: pl(r.xN, 'حركة واحدة', 'حركتان', 'حركات'), end: (r.x < 0 ? sg('out', fTxt(r.cur, -r.x)) : sg('in', fTxt(r.cur, r.x))), endTone: r.x < 0 ? 'bad' : 'ok' }));
@@ -4412,7 +4414,7 @@ function pgOwnSt() {
   bl.push(B('chips', { items: ownPresets().map(function (p) { return X({ label: p[0], on: R.from === p[1] && R.to === p[2], go: function () { ownSetRange(p[1], p[2]); } }); }).concat([X({ label: 'فترة محددة', icon: 'i-calendar', go: function () { ownPrev(); } })]) }));
   bl.push(B('acts', { items: [X({ title: 'مشاركة الكشف', icon: 'i-send', go: function () { ownPrev(); } })] }));
   bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(T.inI), value2: uTxt(T.inU, T.inX), endTone: 'ok', sub: (T.inU || T.inX) ? '' : 'مكافئ بالشيكل' }), X({ label: 'مصروفات', value: money(T.outI), value2: uTxt(T.outU, T.outX), endTone: 'bad', sub: (T.outU || T.outX) ? '' : 'مكافئ بالشيكل' })] }));
-  D.recs.forEach(function (r) { bl.push(B('rows', { title: ownRecName(r), all: true, items: ownRecRows(r) })); });
+  D.recs.forEach(function (r) { bl.push(B('rows', { all: true, items: ownRecRows(r) })); });
   if (!D.recs.length) bl.push(B('rows', { title: 'الأرصدة', items: [], empty: 'لا حركات في هذه الفترة' }));
   D.ins.forEach(function (g) { bl.push(B('rows', { title: 'الوارد · ' + catName(g.c) + ' · ' + ownTot(g), items: g.ms.map(function (m) { return moveRowX(m, true); }) })); });
   D.outs.forEach(function (g) { bl.push(B('rows', { title: 'المصروفات · ' + catName(g.c) + ' · ' + ownTot(g), items: g.ms.map(function (m) { return moveRowX(m, true); }) })); });
@@ -4444,7 +4446,7 @@ function ownMvTxt(m, o) { var f0 = fund(m.h), cv = m.cur === 'usd' && m.ils > 0;
 function ownText(D, o) {
   o = o || ownOpts();
   var L = ['كشف حسابنا', 'من ' + dshow(D.from) + ' إلى ' + dshow(D.to), ''];
-  if (o.bal) D.recs.forEach(function (r) { L.push(ownRecName(r) + ': رصيد أول الفترة ' + fTxt(r.cur, r.open) + (r.inN ? ' · وارد ' + fTxt(r.cur, r.inn) : '') + (r.outN ? ' · مصروفات ' + fTxt(r.cur, r.out) : '') + (r.xN ? ' · تحويلات ' + fTxt(r.cur, r.x) : '') + (r.adjN ? ' · جرد ' + fTxt(r.cur, r.adj) : '') + ' · رصيد آخر الفترة ' + fTxt(r.cur, r.close)); });
+  if (o.bal) D.recs.forEach(function (r) { L.push(ownRecName(r) + ' (صافي الفترة ' + ownNet(r).txt + '): رصيد أول الفترة ' + fTxt(r.cur, r.open) + (r.inN ? ' · وارد ' + fTxt(r.cur, r.inn) : '') + (r.outN ? ' · مصروفات ' + fTxt(r.cur, r.out) : '') + (r.xN ? ' · تحويلات ' + fTxt(r.cur, r.x) : '') + (r.adjN ? ' · جرد ' + fTxt(r.cur, r.adj) : '') + ' · رصيد آخر الفترة ' + fTxt(r.cur, r.close)); });
   var sec = function (t, gs) { if (!gs.length) return; L.push('', t); gs.forEach(function (g) { L.push(catName(g.c) + ' (' + pl(g.ms.length, 'حركة واحدة', 'حركتان', 'حركات') + ' · ' + ownTot(g) + ')'); if (o.sv !== 'sum') g.ms.forEach(function (m) { L.push(ownMvTxt(m, o)); }); }); };
   if (o.ins) sec('الوارد', D.ins); if (o.outs) sec('المصروفات', D.outs);
   if (o.xf && D.xs.length) { L.push('', 'تحويلات بين الحسابات'); D.xs.forEach(function (m) { L.push(ownMvTxt(m, o)); }); }
@@ -4455,17 +4457,17 @@ function ownCanvas(D, o) {
   o = o || ownOpts();
   var W = 840, PAD = 36, F = "'IBM Plex Sans Arabic', sans-serif", hdr = 150, L = [], brk = [];
   if (o.bal) D.recs.forEach(function (r) {
-    L.push({ k: 'sec', t: ownRecName(r), brk: 1 });
+    L.push({ k: 'sec', t: ownRecName(r), brk: 1, v: ownNet(r).txt, tone: ownNet(r).tone, cap: 'صافي الفترة' });
     L.push({ k: 'rec', l: 'رصيد أول الفترة', v: fTxt(r.cur, r.open) });
-    if (r.inN) L.push({ k: 'rec', l: 'وارد (' + r.inN + ')', v: '+' + fTxt(r.cur, r.inn), tone: 'ok' });
-    if (r.outN) L.push({ k: 'rec', l: 'مصروفات (' + r.outN + ')', v: '−' + fTxt(r.cur, r.out), tone: 'bad' });
-    if (r.xN) L.push({ k: 'rec', l: 'تحويلات', v: (r.x < 0 ? '−' : '+') + fTxt(r.cur, Math.abs(r.x)), tone: r.x < 0 ? 'bad' : 'ok' });
-    if (r.adjN) L.push({ k: 'rec', l: 'تسوية جرد', v: (r.adj < 0 ? '−' : '+') + fTxt(r.cur, Math.abs(r.adj)), tone: r.adj < 0 ? 'bad' : 'ok' });
+    if (r.inN) L.push({ k: 'rec', l: 'وارد (' + r.inN + ')', v: sg('in', fTxt(r.cur, r.inn)), tone: 'ok' });
+    if (r.outN) L.push({ k: 'rec', l: 'مصروفات (' + r.outN + ')', v: sg('out', fTxt(r.cur, r.out)), tone: 'bad' });
+    if (r.xN) L.push({ k: 'rec', l: 'تحويلات', v: sg(r.x < 0 ? 'out' : 'in', fTxt(r.cur, Math.abs(r.x))), tone: r.x < 0 ? 'bad' : 'ok' });
+    if (r.adjN) L.push({ k: 'rec', l: 'تسوية جرد', v: sg(r.adj < 0 ? 'out' : 'in', fTxt(r.cur, Math.abs(r.adj))), tone: r.adj < 0 ? 'bad' : 'ok' });
     L.push({ k: 'tot', l: 'رصيد آخر الفترة', v: fTxt(r.cur, r.close) });
   });
-  var mv = function (m, dir) { var f0 = fund(m.h), cv = m.cur === 'usd' && m.ils > 0; return { k: 'mv', d: dshow(m.date), n: m.note || (dir === 'in' ? 'وارد' : dir === 'out' ? 'مصروف' : 'تحويل'), a: o.acc && f0 ? (dir === 'in' ? 'إلى ' : 'من ') + f0.name : '', v: (dir === 'in' ? '+' : dir === 'out' ? '−' : '') + (cv ? money(m.ils) : fTxt(m.cur, m.amt)), s: cv ? usdTxt(m.amt) : '', tone: dir === 'in' ? 'ok' : dir === 'out' ? 'bad' : '' }; };
+  var mv = function (m, dir) { var f0 = fund(m.h), cv = m.cur === 'usd' && m.ils > 0; return { k: 'mv', d: dshow(m.date), n: m.note || (dir === 'in' ? 'وارد' : dir === 'out' ? 'مصروف' : 'تحويل'), a: o.acc && f0 ? (dir === 'in' ? 'إلى ' : 'من ') + f0.name : '', v: (dir ? sg(dir, cv ? money(m.ils) : fTxt(m.cur, m.amt)) : (cv ? money(m.ils) : fTxt(m.cur, m.amt))), s: cv ? usdTxt(m.amt) : '', tone: dir === 'in' ? 'ok' : dir === 'out' ? 'bad' : '' }; };
   var mvs = function (pre, gs, dir) {
-    if (o.sv === 'sum') { if (!gs.length) return; L.push({ k: 'sec', t: pre, brk: 1 }); gs.forEach(function (g) { L.push({ k: 'rec', l: catName(g.c) + ' (' + g.ms.length + ')', v: (dir === 'in' ? '+' : '−') + ownTot(g), tone: dir === 'in' ? 'ok' : 'bad' }); }); return; }
+    if (o.sv === 'sum') { if (!gs.length) return; L.push({ k: 'sec', t: pre, brk: 1 }); gs.forEach(function (g) { L.push({ k: 'rec', l: catName(g.c) + ' (' + g.ms.length + ')', v: sg(dir, ownTot(g)), tone: dir === 'in' ? 'ok' : 'bad' }); }); return; }
     gs.forEach(function (g, i) { L.push({ k: 'sec', t: pre + ' · ' + catName(g.c) + ' · ' + ownTot(g), brk: !i }); g.ms.forEach(function (m) { L.push(mv(m, dir)); }); });
   };
   if (o.ins) mvs('الوارد', D.ins, 'in'); if (o.outs) mvs('المصروفات', D.outs, 'out');
@@ -4482,7 +4484,7 @@ function ownCanvas(D, o) {
   var fit = function (t, w) { if (x.measureText(t).width <= w) return t; while (t.length > 1 && x.measureText(t + '…').width > w) t = t.slice(0, -1); return t + '…'; };
   var y = hdr + 30;
   L.forEach(function (r) {
-    if (r.k === 'sec') { if (r.brk) brk.push(y); x.fillStyle = '#E4EFE8'; x.fillRect(0, y, W, 58); x.fillStyle = '#14563A'; x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText(fit(r.t, W - 2 * PAD), W - PAD, y + 38); y += 58; return; }
+    if (r.k === 'sec') { if (r.brk) brk.push(y); x.fillStyle = '#E4EFE8'; x.fillRect(0, y, W, 58); x.fillStyle = '#14563A'; x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText(fit(r.t, W - 2 * PAD - (r.v ? 300 : 0)), W - PAD, y + 38); if (r.v) { x.textAlign = 'left'; x.fillStyle = CO[r.tone || ''] === '#1B2421' ? '#14563A' : CO[r.tone]; x.font = '700 27px ' + F; x.fillText(r.v, PAD, y + 38); if (r.cap) { var vw = x.measureText(r.v).width; x.fillStyle = '#6B756F'; x.font = '500 19px ' + F; x.fillText(r.cap, PAD + vw + 14, y + 37); } } y += 58; return; }
     if (r.k === 'rec') { x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '500 25px ' + F; x.fillText(r.l, W - PAD, y + 34); x.textAlign = 'left'; x.fillStyle = CO[r.tone || '']; x.font = '600 25px ' + F; x.fillText(r.v, PAD, y + 34); x.fillStyle = '#EEF0EC'; x.fillRect(PAD, y + 51, W - 2 * PAD, 1); y += 52; return; }
     if (r.k === 'tot') { x.fillStyle = '#DCEBE2'; x.fillRect(0, y, W, 52); x.fillStyle = '#14563A'; x.fillRect(0, y, W, 2); x.textAlign = 'right'; x.font = '700 26px ' + F; x.fillText(r.l, W - PAD, y + 35); x.textAlign = 'left'; x.fillText(r.v, PAD, y + 35); y += 52; return; }
     var two = !!(r.a || r.d), h = two ? 70 : 52;
