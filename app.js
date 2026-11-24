@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.182';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.183';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1987,6 +1987,22 @@ function doXfer() {
   o.pair = i2.id; S.fm.push(i2);
   shut(); mutated('حُوّل ' + fTxt(cur, a) + ' من «' + f.name + '» إلى «' + t.name + '»');
 }
+/* تحويل لرصيدي: دفعة سجّلها غيري من رصيده (حميدا) قصدها تحويل إلى رصيد عندي؛ حسابه كما هو (الحركة تبقى ناقصًا من رصيده) وتُعلَّم تحويلًا وتدخل الرصيد المقصود وارد (المالك 2026-11-24). يُعاد بـ«إلغاء كتحويل» فيُلغى الطرف الداخل فقط */
+function xtOk(m) { return !!m && !m.void && !m.x && !m.w && m.dir === 'out'; }
+function xtTargets(m) { return funds().filter(function (f) { return f.id !== m.h && hasCur(f, m.cur); }); }
+function doMarkXfer(id, tid) {
+  var m = E.by(S.fm, id), t = fund(tid), f = fund(m.h); if (!xtOk(m) || !t) return;
+  var i2 = { id: mid(S.fm, 'm'), date: m.date, h: t.id, dir: 'in', cur: m.cur, amt: m.amt, ils: 0, rate: 0, note: 'تحويل من ' + f.name + (m.note ? ' · ' + m.note : ''), x: true, xl: true, pair: m.id }, was = m.cat;
+  S.fm.push(i2); m.x = true; m.xl = true; m.pair = i2.id; if (was) { m.catWas = was; delete m.cat; }
+  audit('تحويل لرصيد «' + t.name + '»: ' + fTxt(m.cur, m.amt) + ' من «' + f.name + '»'); shut();
+  mutated('حُوّلت إلى «' + t.name + '» وبقي حساب «' + f.name + '» كما هو', function () { S.fm = S.fm.filter(function (x) { return x.id !== i2.id; }); m.x = false; delete m.xl; delete m.pair; if (m.catWas) { m.cat = m.catWas; delete m.catWas; } save(); render(); });
+}
+function doUnmarkXfer(id) {
+  var m = E.by(S.fm, id), p = m && m.pair ? E.by(S.fm, m.pair) : null; if (!m || !m.xl) return;
+  m.x = false; delete m.xl; delete m.pair; if (m.catWas) { m.cat = m.catWas; delete m.catWas; } if (p) p.void = true;
+  audit('إلغاء تعليم التحويل على «' + (m.note || '') + '»'); shut();
+  mutated('أُلغي التحويل وبقيت الحركة ناقصًا من رصيدها', function () { m.x = true; m.xl = true; if (p) { m.pair = p.id; p.void = false; } save(); render(); });
+}
 function voidMove(id) {
   var m = E.by(S.fm, id); if (!m) return;
   var all = [m], rev = null;
@@ -2077,6 +2093,15 @@ function moneySheet(sh) {
       else if (!m.void && !(reSrcOk(m) && fv('resrc') === '1')) {
         R.fields = [fPhoto('صورة الوصل أو السند (اختياري)')];
         if (fv('photo')) R.ft = { label: 'حفظ الصورة', ok: true, go: function () { var pid = phTake(); if (pid) { m.ph = pid; audit('أُرفقت صورة بحركة «' + (m.note || '') + '»'); } shut(); mutated('أُرفقت الصورة بالحركة'); } };
+      }
+      if (xtOk(m) && fv('resrc') !== '1' && fv('asx') !== '1') R.acts = (R.acts || []).concat([X({ title: 'تحويل لرصيدي', icon: 'i-send', go: function () { fset('asx', '1'); } })]);
+      if (m.xl && !m.void) R.acts = (R.acts || []).concat([X({ title: 'إلغاء كتحويل', icon: 'i-x', go: function () { doUnmarkXfer(m.id); } })]);
+      if (xtOk(m) && fv('asx') === '1') {
+        var xt = xtTargets(m), xv = fv('xto'), xf = fund(xv);
+        R.fields = [fChips('xto', 'يصل إلى رصيد', xt.map(function (x) { return [x.id, x.name]; }))];
+        R.note = { text: 'حساب «' + f.name + '» كما هو، وتُعلَّم الحركة تحويلًا ويدخل المبلغ ' + (xf ? 'رصيد «' + xf.name + '»' : 'الرصيد الذي تختاره') + ' وارد.' };
+        R.ft = { label: xf ? 'تحويل إلى ' + xf.name : 'اختر الرصيد', ok: !!xf, go: function () { doMarkXfer(m.id, xv); } };
+        R.ft2 = { label: 'رجوع', go: function () { fset('asx', ''); } };
       }
       /* تغيير مصدر الخصم (شيكل ↔ دولار) تصحيح نادر: يبقى مخفيًا خلف أيقونة ولا يُعرض سعر الصرف إلا إذا طلبه المستخدم */
       if (!m.void && reSrcOk(m) && fv('resrc') !== '1') { R.acts = (R.acts || []).concat([X({ title: m.cur === 'ils' ? 'خصم من الدولار' : 'إرجاع للشيكل', icon: 'i-wallet', go: function () { fset('resrc', '1'); } })]); }
