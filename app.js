@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.194';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.195';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -6122,7 +6122,8 @@ function wQa(w) {
 function pgWorker() {
   var w = wk(A.wid), a = wAtt(w), st = a ? stat(a.st) : null, b = wBal(w), bl = [];
   var ent = function (type) { return wEnt(w, type); }, ym0 = monthKeys(1)[0], ms = monthStmt(w, ym0), mc = { bonus: 0, ded: 0, pay: 0 };
-  ms.es.forEach(function (e) { var c = wCat(e); if (wPlusC(c)) mc.bonus += e.amt; else if (c === 'kbuy') mc.kb = (mc.kb || 0) + e.amt; else if (c === 'viol' || c === 'buy' || c === 'ded') mc.ded += e.amt; else if (c === 'pay' || c === 'adv') mc.pay += e.amt; });
+  var wk0 = wstWeekFrom(), d0 = today(); /* بطاقات العامل لهذا الأسبوع (من آخر جمعة) لا للشهر (المالك 2026-11-25: 90% من الاستعمال هذا الأسبوع) */
+  wlOn().filter(function (e) { return e.w === w.id && e.kind !== 'open' && e.date >= wk0 && e.date <= d0; }).forEach(function (e) { var c = wCat(e); if (wPlusC(c)) mc.bonus += e.amt; else if (c === 'kbuy') mc.kb = (mc.kb || 0) + e.amt; else if (c === 'viol' || c === 'buy' || c === 'ded') mc.ded += e.amt; else if (c === 'pay' || c === 'adv') mc.pay += e.amt; });
   var wf = funds().filter(function (f) { return f.w === w.id; })[0];
   bl.push(B('big', { label: 'الرصيد الحالي', value: balTxt(b), side: wf ? { label: 'مال المطبخ', value: money(fBal(wf.id, 'ils')), go: function () { open('fund', { fid: wf.id }); } } : null,
     text: 'آخر دفعة: ' + wLastPay(w) + (st ? '' : '\nحضور اليوم لم يُسجَّل بعد') }));
@@ -6135,14 +6136,14 @@ function pgWorker() {
     X({ title: 'مخالفة', icon: 'i-alert', tone: 'warn', go: ent('مخالفة') })
   ] }));
   if (mc.bonus || mc.ded || mc.pay) bl.push(B('kpi', { items: [
-    X({ label: 'إضافات ' + MN[+ym0.slice(5) - 1], value: money(mc.bonus), endTone: mc.bonus ? 'ok' : undefined, sub: 'هذا الشهر' }),
-    X({ label: 'خصومات', value: money(mc.ded), endTone: mc.ded ? 'bad' : undefined, sub: 'مخالفات ومسحوبات' }),
-    X({ label: 'دفعات', value: money(mc.pay), sub: 'نقدية وسلف' })
+    X({ label: 'إضافات', value: money(mc.bonus), endTone: mc.bonus ? 'ok' : undefined, sub: 'هذا الأسبوع' }),
+    X({ label: 'خصومات', value: money(mc.ded), endTone: mc.ded ? 'bad' : undefined, sub: 'هذا الأسبوع' }),
+    X({ label: 'دفعات', value: money(mc.pay), sub: 'هذا الأسبوع' })
   ] }));
   /* سجل واحد: اليوم أولًا (حضوره وحركاته) ثم الأيام السابقة، والرصيد أعلاه هو الإجمالي */
   /* السجل: لكل يوم بطاقة واحدة: صف الحضور ثم حركات ذلك اليوم تحته في البطاقة نفسها (مكافأة، خصم، دفعة، مخالفة). الملغاة تبقى تحت يومها بخط باهت وزر «استرجاع» */
   /* السجل بالأسابيع (المالك 2026-11-25): الظاهر «هذا الأسبوع» من آخر جمعة حتى اليوم ولو كان اليوم سبتًا أو أحدًا؛ وفي آخره صف يفتح الأسبوع السابق، وكل ضغطة تفتح أسبوعًا آخر؛ و«طيّ» يعيد لهذا الأسبوع */
-  var d0 = today(), ents = (S.wl || []).filter(function (e) { return e.w === w.id && e.kind !== 'open' && !(e.void && e.edTo); }), dts = {}, hist = wHist(w, 4000), items = [];
+  var ents = (S.wl || []).filter(function (e) { return e.w === w.id && e.kind !== 'open' && !(e.void && e.edTo); }), dts = {}, hist = wHist(w, 4000), items = [];
   ents.forEach(function (e) { dts[e.date] = 1; }); hist.forEach(function (h) { dts[h.date] = 1; }); if (st) dts[d0] = 1; /* اليوم غير المسجَّل لا يظهر في الحسابات (تنبيهه في بطاقة الرصيد) */
   var wkOf = function (d) { var x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() - (x.getUTCDay() - 5 + 7) % 7); return x.toISOString().slice(0, 10); }, wkMap = {}, cur0 = wkOf(d0);
   Object.keys(dts).forEach(function (d) { (wkMap[wkOf(d)] = wkMap[wkOf(d)] || []).push(d); });
