@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.187';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.188';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -3853,6 +3853,7 @@ var ST_OV = null; /* خيارات المعاينة الحية: تُمرَّر م
 function stOpt(i) {
   var st = S.settings.stOpt || {}, base = Object.assign(i.all ? { lbl: 'cost' } : {}, st['*'] || {}, st[i.id] || {}, ST_OV || {}), o = {};
   STO.forEach(function (k) { o[k[0]] = base[k[0]] !== '0'; });
+  o.sv = base.sv === 'sum' ? 'sum' : 'full'; /* شكل الكشف يُحفظ مع الخيارات */
   o.lbl = base.lbl === 'cost' ? 'التكلفة' : 'المستحق'; /* عنوان المبلغ: «المستحق» أو «التكلفة» لمن يُتعامل معهم على اتفاق التكلفة؛ الأرقام نفسها لا تتغير */
   o.noteTxt = ST_OV && ST_OV.noteTxt != null ? ST_OV.noteTxt : ((S.settings.stNote || {})[i.id] || '').trim(); o.termsTxt = ST_OV && ST_OV.termsTxt != null ? ST_OV.termsTxt : (S.settings.stTerms || '').trim(); return o;
 }
@@ -3882,15 +3883,19 @@ function stHead(x, W, PAD, F, i, ym, o, sub2) {
   if (o.head) { x.font = '500 20px ' + F; x.globalAlpha = .85; x.fillText(stMeta(i, ym), W - PAD, 158); x.globalAlpha = 1; }
 }
 /* معاينة الكشف مع خيارات تتبدل حيًّا: الصورة فوق والخيارات تحتها، ثم المشاركة (المالك 2026-11-21) */
-function stFormOv() { var v = {}; STO.forEach(function (k) { v[k[0]] = fv('o_' + k[0]) === '0' ? '0' : '1'; }); v.lbl = fv('lbl') === 'cost' ? 'cost' : 'due'; v.noteTxt = (fv('stNote') || '').trim(); v.termsTxt = (fv('stTerms') || '').trim(); return v; }
+function stFormOv() { var v = {}; STO.forEach(function (k) { v[k[0]] = fv('o_' + k[0]) === '0' ? '0' : '1'; }); v.lbl = fv('lbl') === 'cost' ? 'cost' : 'due'; v.sv = fv('sv') === 'sum' ? 'sum' : 'full'; v.noteTxt = (fv('stNote') || '').trim(); v.termsTxt = (fv('stTerms') || '').trim(); return v; }
 function stPrevCanvas(i, ym) { ST_OV = stFormOv(); try { return i.all ? stAllCanvas(ym, fv('sv') !== 'sum') : fv('sv') === 'sum' ? stmtCanvas(i, ym) : stmtDetailCanvas(i, ym); } finally { ST_OV = null; } }
 function stSaveOpts(i) {
   var st = S.settings.stOpt = S.settings.stOpt || {}, tgt = fv('stAll') === '1' && !i.all ? '*' : i.id, v = stFormOv(); delete v.noteTxt; delete v.termsTxt; st[tgt] = v;
-  if (tgt === '*' && st[i.id]) STO.concat([['lbl']]).forEach(function (k) { delete st[i.id][k[0]]; });
+  if (tgt === '*' && st[i.id]) STO.concat([['lbl'], ['sv']]).forEach(function (k) { delete st[i.id][k[0]]; });
   S.settings.stNote = S.settings.stNote || {}; S.settings.stNote[i.id] = (fv('stNote') || '').trim(); S.settings.stTerms = (fv('stTerms') || '').trim();
 }
+/* الخيارات تُحفظ تلقائيًا مع كل تغيير وتبقى كما هي حتى يغيّرها المالك (المالك 2026-11-25: «خيارات الكشف تضل نفسها طالما أنا ما غيرتها»؛ فئة الخطأ: خيار يضيع إن لم يُضغط «حفظ» أو أُغلقت النافذة) */
+function stAutoSave(i) { if (!fv('lbl')) return; var b = JSON.stringify([S.settings.stOpt, S.settings.stNote, S.settings.stTerms]); stSaveOpts(i); if (JSON.stringify([S.settings.stOpt, S.settings.stNote, S.settings.stTerms]) !== b) save(); }
+/* شكل الكشف (مفصّل/مختصر) على شاشة الكشف نفسها: يبدأ من المحفوظ ويُحفظ عند تغييره */
+function stSvInit(i) { var st = S.settings.stOpt = S.settings.stOpt || {}, sv = stOpt(i).sv; if (!fv('sv')) A.form.sv = sv; else if (fv('sv') !== sv) { st[i.id] = Object.assign(st[i.id] || {}, { sv: fv('sv') === 'sum' ? 'sum' : 'full' }); save(); } }
 function stmtOptsSheet(sh) {
-  var i = sh.id === '__all' ? ALLI : inst(sh.id), ym = sh.ym, full = fv('sv') !== 'sum', cv = stPrevCanvas(i, ym), url = cv.toDataURL('image/png'), nm = fnName(['كشف-حساب', i.name, ym, full ? 'مفصل' : ''], 'png'), ttl = 'كشف حساب ' + i.name;
+  var i = sh.id === '__all' ? ALLI : inst(sh.id); stAutoSave(i); var ym = sh.ym, full = fv('sv') !== 'sum', cv = stPrevCanvas(i, ym), url = cv.toDataURL('image/png'), nm = fnName(['كشف-حساب', i.name, ym, full ? 'مفصل' : ''], 'png'), ttl = 'كشف حساب ' + i.name;
   var fl = [fPhotoView(url, true, true), fSeg('sv', 'شكل الكشف', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر']]), fSeg('lbl', 'عنوان المبلغ', [['due', 'المستحق'], ['cost', 'التكلفة']])];
   fl.push(fStateGrid(['ما يظهر في الكشف'].concat(STO.map(function (k) { return ['o_' + k[0], k[1]]; })), [['1', 'ظاهر'], ['0', 'مخفي']]));
   fl.push(fArea('stNote', 'ملاحظة تظهر في كشف هذه الجهة (اختياري)', 'مثال: يشمل طبخات الأسبوع الأول'));
@@ -3902,13 +3907,13 @@ function stmtOptsSheet(sh) {
       X({ title: 'PDF للطباعة', icon: 'i-doc', go: function () { deliverFile(nm.replace(/\.png$/, '-للطباعة.pdf'), u8b64(pdfA4Pages(cv)), 'application/pdf', ttl, '').catch(fail); } }),
       X({ title: 'تنزيل صورة', icon: 'i-down', go: function () { saveFile(nm, url.split(',')[1], 'image/png', ttl).then(function (r) { say(savedMsg(r, 'الصورة')); }, function () { say('تعذّر حفظ الصورة'); }); } })],
     ft: { label: 'مشاركة', ok: true, go: function () { stSaveOpts(i); deliverFile(nm, url.split(',')[1], 'image/png', ttl, '').then(function () { S.settings.stmtSent = S.settings.stmtSent || {}; S.settings.stmtSent[stKey(i, ym)] = Date.now(); audit('إرسال كشف «' + i.name + '» ' + (ym === 'all' ? '' : monthLabel(ym))); mutated(''); }, fail); } },
-    ft2: { label: 'حفظ الخيارات', go: function () { stSaveOpts(i); setState({ sh: { t: i.all ? 'stAll' : 'stmt', id: i.id }, form: { m: ym }, q: '' }); mutated('حُفظت خيارات الكشف'); } } };
+    ft2: { label: 'رجوع', go: function () { stSaveOpts(i); setState({ sh: { t: i.all ? 'stAll' : 'stmt', id: i.id }, form: { m: ym }, q: '' }); mutated('حُفظت خيارات الكشف'); } } };
 }
 function stOptsOpen(i, ym, sv) { /* i = ALLI للكشف المجمّع */ var o = stOpt(i), f = { stNote: o.noteTxt, stTerms: o.termsTxt, stAll: '0', sv: sv || 'full', lbl: o.lbl === 'التكلفة' ? 'cost' : 'due' }; STO.forEach(function (k) { f['o_' + k[0]] = o[k[0]] ? '1' : '0'; }); openSh({ t: 'stOpts', id: i.id, ym: ym }, f); }
 /* ---------- الكشف المجمّع لكل الجهات: صف لكل جهة بمبلغها والمجموع العام، ومشاركته من نافذة المعاينة نفسها ---------- */
 function stAllMonths() { var o = {}; instsOf(false).concat(instsOf(true)).forEach(function (i) { stMonths(i).forEach(function (m) { o[m] = 1; }); }); return Object.keys(o).sort().reverse(); }
 function stmtAllSheet(sh) {
-  var ms = stAllMonths(); if (!fv('sv')) A.form.sv = 'full';
+  var ms = stAllMonths(); stSvInit(ALLI);
   if (!fv('m')) A.form.m = ms.filter(function (m) { return S.batches.some(function (b) { return !b.void && b.date.slice(0, 7) === m; }); })[0] || ms[0];
   var ym = fv('m'), o = stOpt(ALLI), zs = stAllInsts(ym), t = stAllAcct(zs), rows = [];
   zs.forEach(function (z) {
@@ -3924,7 +3929,7 @@ function stmtAllSheet(sh) {
     ft2: { label: 'خيارات الكشف', go: function () { stOptsOpen(ALLI, ym, fv('sv')); } } };
 }
 function stmtSheet(sh) {
-  var i = inst(sh.id), ym = stCurM(i); if (!fv('sv')) A.form.sv = 'full'; var stActs = [X({ title: 'دفعة', icon: 'i-wallet', go: function () { A.stM = ym; openSh({ t: 'iniPay', id: i.id }, { fund: '', amt: '', note: '', rate: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { A.stM = ym; openSh({ t: 'iniChg', id: i.id }, { amt: '', note: '', kind: '' }); } }), X({ title: 'طبخة جديدة', icon: 'i-pot', go: function () { startIniBatch(i.id); } })], a = stAcct(i, ym), sent = (S.settings.stmtSent || {})[stKey(i, ym)], late = stLate(i, ym, a);
+  var i = inst(sh.id), ym = stCurM(i); stSvInit(i); var stActs = [X({ title: 'دفعة', icon: 'i-wallet', go: function () { A.stM = ym; openSh({ t: 'iniPay', id: i.id }, { fund: '', amt: '', note: '', rate: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { A.stM = ym; openSh({ t: 'iniChg', id: i.id }, { amt: '', note: '', kind: '' }); } }), X({ title: 'طبخة جديدة', icon: 'i-pot', go: function () { startIniBatch(i.id); } })], a = stAcct(i, ym), sent = (S.settings.stmtSent || {})[stKey(i, ym)], late = stLate(i, ym, a);
   var ms = stMonths(i), rows = [];
   if (a.prev) rows.push(X({ title: 'الرصيد السابق', sub: 'قبل ' + (ym === 'all' ? '' : monthLabel(ym)), tag: money(a.prev), tagTone: a.prev > 0 ? 'warn' : 'ok' }));
   a.bs.forEach(function (b) {
