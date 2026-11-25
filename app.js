@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.195';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.196';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -7061,15 +7061,19 @@ function shell() {
   var badge = 0;
   ledgers().forEach(function (l) { if (l.ext) return; itemsIn(l.id).forEach(function (it) { var q = E.balance(S, l.id, it.id); if (alertable(l, it, q) && stStatus(q, it.id).rank <= 2) badge++; }); });
   var unrec = E.wDay(S, today()).none;
+  /* هوية كل تبويب رئيسي: لون وأيقونة كبيرة في الرأس، والتبويبات الفرعية والزر المحدد بلون القسم */
+  var HUE = { today: { c: '#14563A', t: '#DCEFE3', ic: 'i-home' }, kitchen: { c: '#B5541A', t: '#F8E2D2', ic: 'i-pot' }, stock: { c: '#1F5C99', t: '#DAE8F5', ic: 'i-box' }, workers: { c: '#6A4A9C', t: '#E8E0F4', ic: 'i-users' }, more: { c: '#46504B', t: '#E4E7E3', ic: 'i-menu' } }, hu = pg === 'main' ? HUE[tab] : null, TIX = { today: 0, kitchen: 1, stock: 2, workers: 3, more: 4 };
+  UI.hue = hu ? { fg: hu.c, bg: hu.t, ln: hu.c } : { fg: '#14563A', bg: '#FFFFFF', ln: '#14563A' };
   var tabs = [['today', 'اليوم', 'i-home', 0], ['kitchen', 'الطبخ', 'i-pot', 0], ['stock', 'المخزن', 'i-box', badge], ['workers', 'العمال', 'i-users', unrec], ['more', 'المزيد', 'i-menu', 0]].map(function (t) {
     var on = tab === t[0] && pg === 'main';
-    return { label: t[1], icon: t[2], cur: on ? 'page' : 'false', fg: on ? '#FFFFFF' : '#4F5A54', fw: on ? 700 : 500, pill: on ? '#14563A' : 'transparent', ic: on ? '#FFFFFF' : '#4F5A54',
+    return { label: t[1], icon: t[2], cur: on ? 'page' : 'false', fg: on ? '#FFFFFF' : '#4F5A54', fw: on ? 700 : 500, pill: on ? HUE[t[0]].c : 'transparent', ic: on ? '#FFFFFF' : '#4F5A54',
       hasBadge: t[3] > 0, badge: String(t[3]), go: function () { setState({ tab: t[0], page: 'main', sh: null, form: {}, q: '' }); } };
   });
   var pill = s.offline ? T.warn : T.ok;
   var f = s.sh ? shDesc() : {}, sft = f.ft || null, nt = f.note && f.note.text ? f.note : null, ntn = T[(nt && nt.tone) || 'info'], req = 'أكمل الحقول المطلوبة', tn = toneOf(f.tone);
   return {
     pageKey: pg + '|' + (pg === 'main' ? tab : pg === 'batch' ? d.step : pg === 'worker' ? s.wid : pg === 'fund' ? s.fid : pg === 'order' ? s.did : pg === 'supply' ? s.sid : s.rid), shKey: s.sh ? s.sh.t + '|' + (s.sh.item || s.sh.id || s.sh.wid || '') : '',
+    hasHero: !!hu, heroIc: hu ? hu.ic : '', heroBg: hu ? hu.t : '', heroFg: hu ? hu.c : '', hdBand: hu ? hu.t : 'transparent', tabIx: pg === 'main' ? TIX[tab] : null,
     isMain: pg === 'main', canBack: pg !== 'main', goBack: goBack,
     title: title, sub: sub, hasSub: !!sub, hasAction: hasAction, actionLabel: '', actionGo: noop,
     offline: s.offline, pillBg: pill[0], pillFg: pill[1], pillIcon: s.offline ? 'i-wifiOff' : 'i-wifi',

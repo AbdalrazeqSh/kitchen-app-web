@@ -30,7 +30,7 @@ function X(o) {
     rbg: o.sect ? '#DCEBE1' : o.hdr ? '#EAF1EC' : o.total ? '#D5E8DC' : o.subt ? '#F6EFDD' : o.rbg || (o.sel ? '#EAF5EE' : '#FFFFFF'), rbt: o.sect ? '5px solid #14563A' : o.total ? '2px solid #14563A' : o.subt ? '1px solid #E2D6B4' : '0 solid transparent', sel: !!o.sel,
     label: o.label || '', value: o.value == null ? '' : String(o.value), value2: o.value2 == null ? '' : String(o.value2), hasV2: o.value2 != null && o.value2 !== '',
     on: on, count: o.count == null ? '' : String(o.count), hasCount: o.count != null && o.count !== 0,
-    segBg: on ? (KIND_ID[o.kind] ? KIND_ID[o.kind].bg : '#FFFFFF') : 'transparent', segFg: on ? (KIND_ID[o.kind] ? KIND_ID[o.kind].fg : '#14563A') : '#46504B', segSh: on ? (KIND_ID[o.kind] ? '0 1px 3px rgba(0,0,0,.14), inset 0 -3px 0 ' + KIND_ID[o.kind].ln : '0 1px 3px rgba(0,0,0,.14)') : 'none',
+    segBg: on ? (KIND_ID[o.kind] ? KIND_ID[o.kind].bg : UI.hue.bg) : 'transparent', segFg: on ? (KIND_ID[o.kind] ? KIND_ID[o.kind].fg : UI.hue.fg) : '#46504B', segSh: on ? (KIND_ID[o.kind] ? '0 1px 3px rgba(0,0,0,.14), inset 0 -3px 0 ' + KIND_ID[o.kind].ln : '0 1px 3px rgba(0,0,0,.14), inset 0 -3px 0 ' + UI.hue.ln) : 'none',
     bg: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[0] : '#FFFFFF'), fg: on ? '#FFFFFF' : (tn ? tn[1] : '#1B2421'),
     bd: on ? (SOL[o.selTone] || SOL.ok) : (tn ? tn[1] : 'rgba(27,36,33,.22)')
   };
@@ -131,7 +131,7 @@ function walk(node, scope) {
 }
 
 /* ---- العرض مع حفظ التركيز والتمرير ---- */
-var restoring = false, root = null, getProps = null, lastPK = null, lastSK = null, typing = false, typTimer = 0, calcKey = null;
+var subAnim = -1, restoring = false, root = null, getProps = null, lastPK = null, lastSK = null, typing = false, typTimer = 0, calcKey = null;
 /* تحديث الشاشة في مكانها أثناء الكتابة: نُبقي عناصر الصفحة الحية (فلا يضيع التركيز ولا تنقطع كتابة لوحة المفاتيح) ونُحدّث الفروق فقط */
 function morphKids(a, b) {
   var ac = a.childNodes, bc = b.childNodes, i;
@@ -149,6 +149,15 @@ function morphKids(a, b) {
   }
   while (ac.length > bc.length) a.removeChild(a.lastChild);
 }
+var lastIx = null;
+/* انتقال: تبويب رئيسي جديد يدخل من جهة اتجاه التنقل (RTL: التالي من اليسار) مع أيقونة الرأس؛ تبويب فرعي يبدّل المحتوى تحته بتلاشٍ وانزلاق خفيف */
+function uiAnim(pkChanged, tdir) {
+  var sc = root.querySelector('[style*="overflow-y:auto"]'); if (!sc) { subAnim = -1; return; }
+  var run = function (el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(function () { el.classList.remove(cls); }, 400); }; /* بالأصناف لا بـstyle فلا يُعاد تسلسل سمة style التي تعتمد عليها محدّدات التمرير */
+  if (pkChanged) { run(sc, tdir < 0 ? 'kenR' : 'kenL'); var hi = root.querySelector('[data-hero]'); if (hi) run(hi, 'kpopc'); }
+  else if (subAnim >= 0) { for (var i = subAnim + 1; i < sc.children.length; i++) run(sc.children[i], 'ksubc'); }
+  subAnim = -1;
+}
 function fitAll() { [].forEach.call(root.querySelectorAll('textarea.gr'), function (t) { t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }); }
 function render(mode) {
   if (!root) return;
@@ -160,12 +169,13 @@ function render(mode) {
   /* تمرير الصفحة يُصفَّر عند تغيّر الصفحة، وتمرير النافذة عند تغيّر النافذة */
   var pk = props.pageKey, sk = props.shKey;
   if (pk !== lastPK) { scr[0] = 0; } if (sk !== lastSK) { for (var si = 1; si < scr.length; si++) scr[si] = 0; if (props.shOn === false) scr.length = Math.min(scr.length, 1); }
-  lastPK = pk; lastSK = sk;
+  var pkChanged = pk !== lastPK && lastPK !== null, tdir = props.tabIx != null && lastIx != null ? (props.tabIx > lastIx ? 1 : -1) : 0; lastPK = pk; lastSK = sk; lastIx = props.tabIx;
   var out = '';
   for (var c = tplRoot.firstChild; c; c = c.nextSibling) out += walk(c, props);
   if (mode === 'morph' && root.firstChild) { var tmp = document.createElement('div'); tmp.innerHTML = out; morphKids(root, tmp); } else root.innerHTML = out;
   [].forEach.call(root.querySelectorAll('[style*="overflow-y:auto"]'), function (e, i) { if (scr[i] != null) e.scrollTop = scr[i]; });
   fitAll();
+  if (mode !== 'morph' || subAnim >= 0) uiAnim(pkChanged, tdir);
   if (calcKey != null) { var ce = root.querySelector('[data-hi="' + calcKey + '"]'); if (ce && ce.closest('.ff')) ce.closest('.ff').classList.add('co'); else calcKey = null; }
   if (keep != null) { var el = root.querySelector('[data-hi="' + keep + '"]'); if (el) { restoring = true; el.focus(); restoring = false; try { if (pos === 'end') el.setSelectionRange(el.value.length, el.value.length); else if (pos) el.setSelectionRange(pos[0], pos[1]); } catch (e) {} } }
 }
@@ -221,7 +231,11 @@ function mount(el, props) {
   root.addEventListener('focusout', function (e) { var t = e.target; if (calcKey != null && t && t.getAttribute && t.getAttribute('data-hi') === calcKey) setTimeout(function () { var ae = document.activeElement; if (!(ae && ae.getAttribute && ae.getAttribute('data-hi') === calcKey) && !(ae && ae.closest && ae.closest('.cs'))) { calcKey = null; [].forEach.call(root.querySelectorAll('.ff.co'), function (f) { f.classList.remove('co'); }); } }, 150); });
   root.addEventListener('click', function (e) {
     var t = e.target.closest('[data-h]'); if (!t) return;
-    var f = handlers[+t.getAttribute('data-h')]; if (f) guard(f, e);
+    var f = handlers[+t.getAttribute('data-h')]; if (!f) return;
+    /* ضغط تبويب فرعي (قسم/رقيقة مبدّل): بعد رسمه ينتقل المحتوى تحته بحركة فيُحَسّ التبديل */
+    var sw = t.hasAttribute('aria-pressed') && t.getAttribute('aria-pressed') !== 'true' && t.parentNode && t.parentNode.children.length > 1 && !t.closest('[role=dialog]') ? t : null;
+    if (sw) { var blk = sw.parentNode; while (blk.parentNode && !(blk.parentNode.getAttribute && /overflow-y:\s*auto/.test(blk.parentNode.getAttribute('style') || ''))) blk = blk.parentNode; subAnim = blk.parentNode ? [].indexOf.call(blk.parentNode.children, blk) : -1; }
+    guard(f, e);
   });
   root.addEventListener('contextmenu', function (e) {
     var t = e.target.closest('[data-hc]'); if (!t) return;
@@ -244,5 +258,5 @@ function mount(el, props) {
   });
 }
 try { var st = document.createElement('style'); st.textContent = '.fw{position:relative}.fw .ci{display:none}.fw:focus-within .ci{display:flex}.ff.co .ci{color:#14563A}.fw:has(.ci) input,.fw:has(button[aria-label]) input{padding-left:46px!important}.ff .cs{display:none;gap:0!important;justify-content:space-around;background:#F3F4F1;border-radius:12px}.ff.co .cs{display:flex}.ff .cs button{flex:1;min-width:0!important;min-height:42px!important;padding:0!important;border:0!important;background:transparent!important;border-radius:0!important;font-size:20px!important;font-weight:400!important;color:#3E4843!important}.ff .cs button:last-child{color:#14563A!important;font-weight:600!important}'; document.head.appendChild(st); } catch (e) {}
-var UI = window.UI = { T: T, X: X, B: B, mount: mount, render: render, noop: noop, onError: null };
+var UI = window.UI = { T: T, X: X, B: B, mount: mount, render: render, noop: noop, onError: null, hue: { fg: '#14563A', bg: '#FFFFFF', ln: '#14563A' } };
 })();
