@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.196';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.197';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -483,9 +483,10 @@ function goBack() {
   if (A.page === 'batch' && A.draft && (A.draft.editId || A.draft.planEdit) && A.draft.step > 2) { setDraft({ step: A.draft.step - 1 }); return; }
   while (NAV.length) { var nv = NAV.pop(); if (navValid(nv)) { NAVB = true; try { setState(Object.assign({}, nv, { sh: null, q: '', form: {} })); } finally { NAVB = false; } return; } }
   NAVB = true;
-  var map = { order: { tab: 'stock' }, supplies: { tab: 'stock' }, worker: { tab: 'workers' }, recipe: { tab: 'kitchen' }, recipes: { tab: 'kitchen' }, device: { tab: 'more' }, batches: { tab: 'kitchen' }, batch: { tab: 'kitchen' }, backup: { tab: 'more' }, tests: { tab: 'more' }, history: { tab: 'more' }, opening: { tab: 'stock' }, funds: { tab: 'more' }, reports: { tab: 'more' }, assets: { tab: 'more' }, people: { tab: 'more' }, lists: { tab: 'more' }, admin: { tab: 'more' }, cal: { tab: 'more' } };
+  var map = { order: { tab: 'stock' }, supplies: { tab: 'stock' }, worker: { tab: 'workers' }, recipe: { tab: 'kitchen' }, recipes: { tab: 'kitchen' }, device: { tab: 'more' }, batches: { tab: 'kitchen' }, batch: { tab: 'kitchen' }, backup: { tab: 'more' }, tests: { tab: 'more' }, history: { tab: 'more' }, opening: { tab: 'stock' }, funds: { tab: 'more' }, reports: { tab: 'more' }, assets: { tab: 'more' }, people: { tab: 'more' }, lists: { tab: 'more' }, admin: { tab: 'more' }, cal: { tab: 'more' }, pad: { tab: 'more' } };
   if (A.page === 'fund' || A.page === 'finsum') { open('funds'); NAVB = false; return; }
   if (A.page === 'supply') { open('supplies'); NAVB = false; return; }
+  if (A.page === 'cal') { open('pad'); NAVB = false; return; }
   open('main', map[A.page] || {}); NAVB = false;
 }
 function setDraft(p) { for (var k in p) A.draft[k] = p[k]; render(); }
@@ -1237,6 +1238,8 @@ function calOccs(from, to) {
     if (!r.on) return;
     for (var o = from; o <= to; o++) if (r.per === 'w' ? cDow(o) === r.dow : cDay(o) === r.dom) out.push({ key: r.id + '@' + o, e: { id: r.id, title: r.name, kind: 'auto', t: r.t, rem: 'at', who: 'p1', go: r.go, rep: r.per }, off: o, t: r.t, done: !!C.done[r.id + '@' + cIso(o)], auto: true });
   });
+  /* تذكير تلقائي بالتوريد القادم المجدول (بدل أن يُكتب يدويًا): في يوم وصوله، ولا يمسّ المخزن */
+  try { supSched().forEach(function (d) { if (d.hold) return; var o = cFromIso(d.date); if (o >= from && o <= to) out.push({ key: 'sup_' + d.id + '@' + o, e: { id: 'sup_' + d.id, title: 'توريد: ' + supTitle(d), kind: 'auto', t: C.set.defT, rem: 'at', who: 'p1', go: 'supply', sid: d.id, rep: '' }, off: o, t: C.set.defT, done: !!C.done['sup_' + d.id + '@' + cIso(o)], auto: true }); }); } catch (er) {}
   out.sort(function (a, b) { return (a.off - b.off) || String(a.t || '99').localeCompare(String(b.t || '99')); });
   return out;
 }
@@ -1378,7 +1381,7 @@ function calSheet(sh) {
         cr.push(X({ icon: 'i-lock', icTone: 'mute', title: cev.rep ? 'إيقاف التكرار' : cev.kind === 'event' ? 'إلغاء الحدث' : 'إلغاء الموعد', sub: 'يختفي من القائمة ويُحفظ ويمكن استعادته', chev: true, go: function () { doEvArch(cev.id, true); } }));
       } else {
         cr.push(X({ icon: 'i-calendar', icTone: 'mute', title: 'موعد تلقائي', sub: 'يتولّد من «التنبيهات» ويمكن إيقافه أو تغيير يومه من هناك', chev: true, go: function () { openSh({ t: 'calNotif' }, {}); } }));
-        if (cev.go) cr.push(X({ icon: 'i-doc', icTone: 'mute', title: 'فتح الصفحة المرتبطة', chev: true, go: function () { shut(); if (cev.go === 'workers' || cev.go === 'stock') setState({ tab: cev.go, page: 'main' }); else open(cev.go); } }));
+        if (cev.go) cr.push(X({ icon: 'i-doc', icTone: 'mute', title: 'فتح الصفحة المرتبطة', chev: true, go: function () { shut(); if (cev.sid) open('supply', { sid: cev.sid }); else if (cev.go === 'workers' || cev.go === 'stock') setState({ tab: cev.go, page: 'main' }); else open(cev.go); } }));
       }
       R = { title: cev.title, sub: cev.kind === 'event' ? 'حدث في الأجندة · ' + (co.off < 0 ? 'جرى' : 'قادم') : (co.done ? 'تمّ · ' : '') + (cev.kind === 'pay' ? 'موعد دفعة' : cev.kind === 'order' ? 'موعد تسليم' : co.auto ? 'تلقائي' : 'مهمة'), rows: cr,
         ft: cev.kind === 'event' ? { label: 'تعديل الحدث', ok: true, go: function () { openSh({ t: 'calEdit', id: cev.id }, calForm(cev)); } } : { label: co.done ? 'إلغاء علامة تمّ' : 'تمّ', ok: true, go: function () { doEvDone(co.key, co.done); } },
@@ -1406,6 +1409,97 @@ function calSheet(sh) {
       var cur = (calOccs(-45, 120).filter(function (x) { return x.key === sh.key; })[0] || { off: 0 }).off;
       R = { title: 'تأجيل الموعد', sub: 'إلى متى؟', rows: [[1, 'غدًا'], [2, 'بعد يومين'], [3, 'بعد 3 أيام'], [7, 'الأسبوع القادم']].map(function (a) { return X({ icon: 'i-clock', icTone: 'info', title: a[1], sub: cLabel(a[0] + Math.max(0, cur)), chev: true, go: function () { doSnooze(sh.key, a[0]); } }); }),
         note: { text: 'الموعد المتكرر يبقى كما هو، ويُنشأ موعد منفرد مؤجّل بدل هذه المرة فقط.', tone: 'info' } };
+      break;
+    }
+  }
+  return R;
+}
+
+/* ===== 02c2-pad.js ===== */
+/* ---------- المفكرة (المالك 2026-11-25): مكان واحد للمطبخ لي وحدي: مهام بتاريخ ووقت وتذكير (فوق التقويم نفسه)، مشتريات، ملاحظات، وتذكير تلقائي بالتوريد القادم ---------- */
+function padS() { if (!S.pad) S.pad = { shop: [], notes: [] }; return S.pad; }
+function padShopOpen() { return padS().shop.filter(function (x) { return !x.arch; }); }
+function padNotes(arch) { return padS().notes.filter(function (n) { return !!n.arch === !!arch; }).sort(function (a, b) { return (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || (b.ts || 0) - (a.ts || 0); }); }
+/* الأصناف التي تحتاج شراءً (نفد/حرج) ولم تُضَف بعد إلى المشتريات: من مخازن المطبخ لا الخارجية */
+function padShort() {
+  var have = {}, seen = {}, out = []; padShopOpen().forEach(function (x) { have[x.t] = 1; });
+  ledgers().forEach(function (l) {
+    if (l.ext) return;
+    itemsIn(l.id).forEach(function (it) {
+      var q = E.balance(S, l.id, it.id), st = stStatus(q, it.id);
+      if (alertable(l, it, q) && st.rank <= 2 && !have[it.name] && !seen[it.name]) { seen[it.name] = 1; out.push({ name: it.name, rank: st.rank, q: q, unit: it.unit }); }
+    });
+  });
+  return out.sort(function (a, b) { return a.rank - b.rank; });
+}
+function padAdd(names) {
+  var P = padS(), have = {}, n = 0; padShopOpen().forEach(function (x) { have[x.t] = 1; });
+  names.forEach(function (t) { t = String(t || '').trim(); if (!t || have[t]) return; have[t] = 1; P.shop.push({ id: newId('s', P.shop), t: t, done: false, ts: Date.now() }); n++; });
+  if (n) { save(); }
+  return n;
+}
+function padToggle(id) { var x = E.by(padS().shop, id); if (!x) return; x.done = !x.done; save(); render('morph'); }
+function padClearDone() { var n = 0; padS().shop.forEach(function (x) { if (!x.arch && x.done) { x.arch = true; n++; } }); save(); render(); say(n ? 'مُسح ' + pl(n, 'صنف واحد', 'صنفان', 'أصناف') + ' مما اشتُري' : 'لا شيء مشترى'); }
+function padText() { return 'المشتريات\n' + padShopOpen().map(function (x) { return (x.done ? '✓ ' : '• ') + x.t; }).join('\n'); }
+function padSaveNote(id) {
+  var P = padS(), n = id ? E.by(P.notes, id) : null, t = fv('ntitle').trim(), b = fv('nbody').trim();
+  if (!n) { n = { id: newId('n', P.notes), ts: Date.now() }; P.notes.push(n); }
+  n.t = t; n.b = b; n.pin = fv('npin') === '1'; n.ts = Date.now(); save(); setState({ sh: null, form: {}, q: '' }); say('حُفظت الملاحظة');
+}
+function padArchNote(id, on) { var n = E.by(padS().notes, id); if (!n) return; n.arch = on; save(); setState({ sh: null, form: {}, q: '' }); say(on ? 'أُرشفت الملاحظة' : 'استُعيدت الملاحظة'); }
+function padNoteForm(n) { return { ntitle: n ? (n.t || '') : '', nbody: n ? (n.b || '') : '', npin: n && n.pin ? '1' : '' }; }
+function padNewTask() { var C = calS(); openSh({ t: 'calAdd' }, { title: '', kind: 'task', dsel: '0', dtxt: '', t: '', tNew: '', rep: '', rem: C.set.on ? 'at' : 'none', who: 'p1', party: '', amt: '', dir: 'out', note: '' }); }
+function padSummary() {
+  var c = calToday(), sh = padShopOpen().filter(function (x) { return !x.done; }).length, a = [];
+  if (c.today) a.push(c.today + ' اليوم'); if (c.late) a.push(c.late + ' متأخر'); if (sh) a.push(sh + ' للشراء');
+  return a.length ? a.join(' · ') : 'لا شيء اليوم';
+}
+
+function pgPad() {
+  var bl = [], P = padS(), isT = function (o) { return o.e.kind !== 'event'; };
+  var late = calOccs(-45, -1).filter(function (o) { return !o.done && !o.auto && isT(o); }), nxt = calOccs(0, 7).filter(function (o) { return !o.done && isT(o); });
+  var tasks = late.concat(nxt.filter(function (o) { return !o.auto || o.off <= 1; })); /* مهامي أولًا؛ التلقائي (جرد، تصفية) في يومه وغده فقط فلا يزاحم */
+  bl.push(B('rows', { title: 'المهام' + (tasks.length ? ' (' + tasks.length + ')' : ''), act: 'مهمة', actGo: padNewTask, items: tasks.map(calRow), empty: 'لا مهام. أضف ما تريد تذكّره بتاريخه ووقته.' }));
+  var shop = padShopOpen(), left = shop.filter(function (x) { return !x.done; }).length, sho = padShort();
+  bl.push(B('rows', { title: 'المشتريات' + (shop.length ? ' (' + left + ')' : ''), act: 'صنف', actGo: function () { openSh({ t: 'padShop' }, { pitems: '' }); }, all: true,
+    items: shop.map(function (x) { return X({ icon: x.done ? 'i-check' : 'i-dot', icTone: x.done ? 'ok' : 'mute', title: x.t, tag: x.done ? 'اشتُري' : '', tagTone: 'ok', go: function () { padToggle(x.id); }, lp: function () { qa(x.t, '', [['حذف', 'i-x', function () { shut(); P.shop = P.shop.filter(function (y) { return y.id !== x.id; }); save(); render(); }]]); } }); }),
+    empty: 'لا مشتريات. اكتب ما تحتاج جلبه.' }));
+  var sa = [];
+  if (sho.length) sa.push(X({ title: 'من النواقص', icon: 'i-box', go: function () { openSh({ t: 'padShort' }, {}); } }));
+  if (shop.length) sa.push(X({ title: 'نسخ القائمة', icon: 'i-copy', go: function () { copyText(padText(), 'نُسخت القائمة'); } }));
+  if (shop.some(function (x) { return x.done; })) sa.push(X({ title: 'مسح المشترى', icon: 'i-check', go: padClearDone }));
+  if (sa.length) bl.push(B('acts', { items: sa }));
+  var ns = padNotes(false), na = padNotes(true);
+  bl.push(B('rows', { title: 'الملاحظات' + (ns.length ? ' (' + ns.length + ')' : ''), act: 'ملاحظة', actGo: function () { openSh({ t: 'padNote', id: '' }, padNoteForm(null)); },
+    items: ns.map(function (n) { var ln = String(n.b || '').split('\n')[0]; return X({ icon: n.pin ? 'i-heart' : 'i-pencil', icTone: n.pin ? 'warn' : 'mute', title: n.t || ln || 'ملاحظة', sub: n.t ? ln : '', chev: true, go: function () { openSh({ t: 'padNote', id: n.id }, padNoteForm(n)); } }); })
+      .concat(na.length ? [X({ more: true, title: 'المؤرشفة (' + na.length + ')', go: function () { openSh({ t: 'padArc' }, {}); } })] : []), empty: 'لا ملاحظات.' }));
+  bl.push(B('rows', { items: [X({ icon: 'i-calendar', icTone: 'info', title: 'التقويم والتنبيهات', sub: calSummary(), chev: true, go: function () { open('cal'); } })] }));
+  return bl;
+}
+
+function padSheet(sh) {
+  var R = null, P = padS();
+  switch (sh.t) {
+    case 'padShop': {
+      var ln = fv('pitems').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+      R = { title: 'مشتريات', fields: [fArea('pitems', 'الأصناف', 'صنف في كل سطر')], ft: { label: 'إضافة' + (ln.length ? ' · ' + ln.length : ''), ok: ln.length > 0, go: function () { var n = padAdd(ln); setState({ sh: null, form: {}, q: '' }); say(n ? 'أُضيف ' + pl(n, 'صنف واحد', 'صنفان', 'أصناف') : 'موجودة في القائمة'); } } };
+      break;
+    }
+    case 'padShort': {
+      var sr = padShort();
+      R = { title: 'من النواقص', sub: pl(sr.length, 'صنف واحد', 'صنفان', 'أصناف'), rows: sr.map(function (r) { return X({ title: r.name, sub: r.q > 0 ? 'حرج: ' + fmt(r.q) + ' ' + r.unit : r.q < 0 ? 'ناقص ' + fmt(-r.q) + ' ' + r.unit : 'نفد', tag: '+', tagTone: 'ok', go: function () { padAdd([r.name]); render(); } }); }), empty: 'كل النواقص في قائمتك',
+        ft: sr.length ? { label: 'إضافة الكل · ' + sr.length, ok: true, go: function () { padAdd(sr.map(function (r) { return r.name; })); shut(); say('أُضيفت النواقص'); } } : null };
+      break;
+    }
+    case 'padNote': {
+      var nn = sh.id ? E.by(P.notes, sh.id) : null;
+      R = { title: nn ? 'ملاحظة' : 'ملاحظة جديدة', fields: [fText('ntitle', 'العنوان', 'اختياري'), fArea('nbody', 'النص', 'اكتب هنا'), fChips('npin', 'التثبيت', [['', 'عادية'], ['1', 'مثبتة في الأعلى']])],
+        ft: { label: 'حفظ', ok: (fv('ntitle').trim() + fv('nbody').trim()).length > 0, go: function () { padSaveNote(nn ? nn.id : ''); } },
+        ft2: nn ? { label: 'أرشفة', go: function () { padArchNote(nn.id, true); } } : null };
+      break;
+    }
+    case 'padArc': {
+      R = { title: 'الملاحظات المؤرشفة', rows: padNotes(true).map(function (n) { return X({ icon: 'i-pencil', icTone: 'mute', title: n.t || String(n.b || '').split('\n')[0] || 'ملاحظة', tag: 'استعادة', tagTone: 'info', go: function () { padArchNote(n.id, false); } }); }), empty: 'لا مؤرشفة' };
       break;
     }
   }
@@ -3372,6 +3466,7 @@ function searchPages() {
   return [
     ['التقارير والإرسال', 'التقارير', ['استهلاك', 'مراقب', 'تصدير', 'pdf'], function () { open('reports'); }],
     ['الأرصدة', 'صفحة', ['ميزانيه', 'موافقات', 'رصيد', 'مستحقات', 'حسابات', 'مال'], function () { open('funds'); }],
+    ['المفكرة', 'صفحة', ['مفكرة', 'مهام', 'مشتريات', 'ملاحظات', 'تذكير', 'قائمة'], function () { open('pad'); }],
     ['التقويم والتنبيهات', 'صفحة', ['تقويم', 'مواعيد', 'تذكير', 'مهام'], function () { open('cal'); }],
     ['الموجودات', 'صفحة', ['قدور', 'معدات', 'جرد', 'ادوات'], function () { open('assets'); }],
     ['الأشخاص والصلاحيات', 'صفحة', ['صلاحيات', 'اشخاص', 'مستخدمين'], function () { open('people'); }],
@@ -5610,7 +5705,9 @@ function pgToday() {
   if (hasData() && backupDays() >= 3) att.push({ rank: 0.6, row: X({ icon: 'i-doc', icTone: 'warn', title: 'نسخة احتياطية', sub: S.settings.lastBackup ? 'آخر نسخة قبل ' + pl(backupDays(), 'يوم', 'يومين', 'أيام') : 'لم تُصدَّر نسخة بعد: احفظها خارج الهاتف', tag: 'احفظ نسخة', tagTone: 'warn', chev: true, go: function () { exportBackup(); } }) });
   if (di.reopened) att.push({ rank: 0.2, row: X({ icon: 'i-lock', icTone: 'warn', title: 'اليوم مُعاد فتحه للتصحيح', sub: 'أغلقه ليصل المراقب التقرير المعدَّل', tag: 'مفتوح', tagTone: 'warn', chev: true, go: function () { openSh({ t: 'close' }); } }) });
   var cs = calToday();
-  if (cs.n) att.push({ rank: 0.8, row: X({ icon: 'i-calendar', icTone: cs.late ? 'bad' : 'info', title: 'المواعيد: ' + (cs.today ? cs.today + ' اليوم' : '') + (cs.today && cs.late ? ' · ' : '') + (cs.late ? cs.late + ' متأخر' : ''), sub: cs.titles, tag: cs.late ? 'متأخر' : 'اليوم', tagTone: cs.late ? 'bad' : 'info', chev: true, go: function () { open('cal'); } }) });
+  var shN = padShopOpen().filter(function (x) { return !x.done; }).length;
+  if (shN && !cs.n) att.push({ rank: 0.7, row: X({ icon: 'i-pencil', icTone: 'info', title: 'المفكرة: ' + pl(shN, 'صنف واحد للشراء', 'صنفان للشراء', 'أصناف للشراء'), chev: true, go: function () { open('pad'); } }) });
+  if (cs.n) att.push({ rank: 0.8, row: X({ icon: 'i-calendar', icTone: cs.late ? 'bad' : 'info', title: 'المواعيد: ' + (cs.today ? cs.today + ' اليوم' : '') + (cs.today && cs.late ? ' · ' : '') + (cs.late ? cs.late + ' متأخر' : ''), sub: cs.titles, tag: cs.late ? 'متأخر' : 'اليوم', tagTone: cs.late ? 'bad' : 'info', chev: true, go: function () { open('pad'); } }) });
   unconfAll().forEach(function (b) { att.push({ kd: b.kind, rank: 1.2, row: X({ icon: 'i-pot', icTone: 'warn', title: batchName(b), sub: 'كمياتها الفعلية لم تُؤكَّد · ' + dlabel(b.date), tag: 'تنتظر تأكيد', tagTone: 'warn', chev: true, go: function () { openSh({ t: 'bview', id: b.id }); }, lp: function () { batchQa(b); } }) }); });
   var dfx = dayFacts(); if (new Date().getHours() >= 17 && dfx.any && !dfx.closed) att.push({ rank: 1.5, row: X({ icon: 'i-doc', icTone: 'info', title: 'ملخص اليوم جاهز', sub: 'انسخه أو أرسله قبل إغلاق اليوم', chev: true, go: function () { openSh({ t: 'dsum' }); } }) });
   /* لمرة واحدة: حضور السبت 2026-11-07 كان داخل الرصيد المرحّل من الشيت؛ يختفي بعد النقل أو بعد 15 نوفمبر */
@@ -5953,12 +6050,11 @@ function moneyRows() {
   ];
 }
 function pgMore() {
-  var cs = calSummary();
   return moneyCard().concat([B('rows', { title: 'الحسابات', items: moneyRows() }), B('rows', { title: 'المتابعة', items: [
     X({ icon: 'i-pot', icTone: 'ok', title: 'الإنجاز', sub: 'هذا الشهر', end: achNum(achData(ownPresets()[0][1], today()).pots) + ' قدر', chev: true, go: function () { open('ach'); } }),
     X({ icon: 'i-send', icTone: 'info', title: 'ملخص المتابعة', chev: true, go: function () { open('wrep'); } }),
     X({ icon: 'i-doc', icTone: 'info', title: 'التقارير', chev: true, go: function () { open('reports'); } }),
-    X({ icon: 'i-calendar', icTone: 'info', title: 'التقويم والتنبيهات', sub: cs, chev: true, go: function () { open('cal'); } }),
+    X({ icon: 'i-pencil', icTone: 'info', title: 'المفكرة', sub: padSummary(), chev: true, go: function () { open('pad'); } }),
     X({ icon: 'i-box', icTone: 'ok', title: 'الموجودات', sub: pl(AA().length, 'نوع واحد', 'نوعان', 'أنواع'), chev: true, go: function () { open('assets'); } }),
     X({ icon: 'i-users', icTone: 'mute', title: 'المستفيدون', sub: pl(bens().length, 'مستفيد واحد', 'مستفيدان', 'مستفيدين'), chev: true, go: function () { openSh({ t: 'list', k: 'bens' }); } }),
     X({ icon: 'i-truck', icTone: 'mute', title: 'المؤسسات', sub: pl(S.insts.filter(function (i) { return !i.arch; }).length, 'مؤسسة واحدة', 'مؤسستان', 'مؤسسات'), chev: true, go: function () { openSh({ t: 'list', k: 'insts' }); } })
@@ -6773,7 +6869,7 @@ function shDesc() {
       break;
     }
     case 'search': R = searchSheet(); break;
-    default: R = moneySheet(sh) || ownSheet(sh) || achSheet(sh) || wrSheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || gwSheet(sh) || wsmsSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || smsxSheet(sh) || { title: '' };
+    default: R = moneySheet(sh) || ownSheet(sh) || achSheet(sh) || wrSheet(sh) || orderSheet(sh) || daySheet(sh) || assetSheet(sh) || adminSheet(sh) || calSheet(sh) || padSheet(sh) || repSheet(sh) || safeSheet(sh) || photoSheet(sh) || gwSheet(sh) || wsmsSheet(sh) || imgSheet(sh) || initSheet(sh) || fixSheet(sh) || finSheet(sh) || kdetSheet(sh) || smartSheet(sh) || wstSheet(sh) || batchxSheet(sh) || extSheet(sh) || syncSheet(sh) || smsSheet(sh) || smsxSheet(sh) || { title: '' };
   }
   return R;
 }
@@ -7042,6 +7138,7 @@ function shell() {
   } else if (pg === 'recipes') { title = 'الوصفات'; sub = KNF[s.rk || 'private']; blocks = pgRecipes();
   } else if (pg === 'device') { title = 'إعدادات متقدمة'; sub = 'لهذا الجهاز'; blocks = pgDevice();
   } else if (pg === 'reports') { title = 'التقارير'; sub = 'اختر تقريرًا، ثم شارك أو انسخ'; blocks = pgReports();
+  } else if (pg === 'pad') { title = 'المفكرة'; sub = ''; blocks = pgPad();
   } else if (pg === 'cal') { title = 'التقويم والتنبيهات'; sub = ''; blocks = pgCal();
   } else if (pg === 'people') { title = 'الأشخاص والصلاحيات'; sub = 'من يرى وماذا يعدّل'; blocks = pgPeople();
   } else if (pg === 'lists') { title = 'القوائم والحقول'; sub = 'أضف ما تحتاجه متى شئت'; blocks = pgLists();
