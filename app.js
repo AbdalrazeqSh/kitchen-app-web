@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.199';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.200';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4860,7 +4860,10 @@ function wrData(from, to) {
   var OD = ownData(from, to); D.inI = OD.P.i.inn; D.outI = OD.P.i.out; D.inU = OD.P.u.inn; D.outU = OD.P.u.out; D.net = r2(D.inI - D.outI); D.netU = r2(D.inU - D.outU); D.netNow = r2(D.owI - D.owW);
   /* مؤشرات الإدارة: التكلفة التشغيلية / قدر = كل مصروفات الفترة (عمال، صيانة، نقل، تشغيل...) ÷ كل قدور الفترة؛ المواد مجانية فلا تدخل (المالك 2026-11-25)، وإنتاجية العمل (قدور لكل يوم عمل)، وصافي الفترة السابقة */
   var OP = ownData(pr.from, pr.to), opc = function (out, q) { return { c: r2(out), q: q, per: q > 0 ? r2(out / q) : 0 }; };
-  D.pc = opc(D.outI, A1.pots); D.ppc = opc(OP.P.i.out, P.pots); D.ppd = A1.wd > 0 ? r2(A1.pots / A1.wd) : 0; D.pppd = P.wd > 0 ? r2(P.pots / P.wd) : 0;
+  /* كل مصروفات الفترة بالشيكل: الشيكل + الدولار (بسعره المسجَّل في الحركة أو آخر سعر صرف) */
+  D.rate = lastRate(); var opAll = function (O) { return r2(O.T.outI + O.T.outU * D.rate); };
+  D.opAll = opAll(OD); D.opNoRate = OD.T.outU > 0 && !(D.rate > 0);
+  D.pc = opc(D.opAll, A1.pots); D.ppc = opc(opAll(OP), P.pots); D.ppd = A1.wd > 0 ? r2(A1.pots / A1.wd) : 0; D.pppd = P.wd > 0 ? r2(P.pots / P.wd) : 0;
   D.pnet = r2(OP.P.i.inn - OP.P.i.out);
   /* الأسبوع القادم: طبخات مخططة بعد نهاية الفترة، وتوريدات قادمة */
   D.nxB = plans().filter(function (z) { return z.date > to; }); D.nxPots = r2(D.nxB.reduce(function (a, z) { return a + (z.pots || 0); }, 0));
@@ -4870,6 +4873,7 @@ function wrData(from, to) {
   if (oc) D.exc.push({ t: pl(oc, 'صنف واحد نفد', 'صنفان نفدا', 'أصناف نفدت') + (D.outNames.length ? ': ' + D.outNames.slice(0, 3).join('، ') + (D.outNames.length > 3 ? '…' : '') : ''), tone: 'bad' });
   if (lc) D.exc.push({ t: pl(lc, 'صنف حرج', 'صنفان حرجان', 'أصناف حرجة'), tone: 'warn' });
   if (D.noAtt) D.exc.push({ t: 'حضور ' + pl(D.noAtt, 'عامل واحد', 'عاملين', 'عمال') + ' لم يُسجَّل اليوم', tone: 'warn' });
+  if (D.opNoRate) D.exc.push({ t: 'مصروفات بالدولار بلا سعر صرف: لم تدخل التكلفة التشغيلية', tone: 'warn' });
   if (D.net < 0) D.exc.push({ t: 'المصروفات أكثر من الوارد هذه الفترة', tone: 'bad' });
   if (P.pots > 0 && A1.pots < P.pots * 0.7) D.exc.push({ t: 'القدور أقل من الفترة السابقة بأكثر من 30%', tone: 'warn' });
   if (D.ppc.per > 0 && D.pc.per > D.ppc.per * 1.15) D.exc.push({ t: 'التكلفة التشغيلية للقدر ارتفعت أكثر من 15% عن السابق', tone: 'warn' });
@@ -4917,7 +4921,8 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
     S1.push({ k: 'sec', t: 'المال', c: '#14563A', n: '' });
     S1.push({ k: 'row', l: 'وارد الفترة', v: money(D.inI), tone: D.inI > 0 ? 'ok' : '' });
     if (D.colI > 0) S1.push({ k: 'row', l: 'منه: محصَّل من الجهات', v: money(D.colI), sub: 1 });
-    S1.push({ k: 'row', l: 'مصروفات الفترة', v: money(D.outI), tone: D.outI > 0 ? 'bad' : '', s: D.pc.per > 0 ? money(D.pc.per) + ' / قدر' : '' });
+    S1.push({ k: 'row', l: 'مصروفات الفترة', v: money(D.outI), tone: D.outI > 0 ? 'bad' : '' });
+    if (D.pc.per > 0) S1.push({ k: 'row', l: 'التكلفة التشغيلية / قدر', v: money(D.pc.per), sub: 1, s: D.opAll !== D.outI ? 'مع الدولار' : '' });
     if (D.paidW > 0) S1.push({ k: 'row', l: 'منها: دُفع للعمال', v: money(D.paidW), sub: 1 });
     if (D.inU || D.outU) { S1.push({ k: 'row', l: 'وارد بالدولار', v: usdTxt(D.inU), tone: D.inU > 0 ? 'ok' : '' }); S1.push({ k: 'row', l: 'مصروفات بالدولار', v: usdTxt(D.outU), tone: D.outU > 0 ? 'bad' : '' }); }
     S1.push({ k: 'row', l: 'صافي الفترة', v: wrNet(D.net), tone: D.net < 0 ? 'bad' : D.net > 0 ? 'ok' : '', tot: 1, s: 'وارد − مصروفات' });
