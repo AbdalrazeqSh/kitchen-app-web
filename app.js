@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.193';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.194';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -6141,14 +6141,25 @@ function pgWorker() {
   ] }));
   /* سجل واحد: اليوم أولًا (حضوره وحركاته) ثم الأيام السابقة، والرصيد أعلاه هو الإجمالي */
   /* السجل: لكل يوم بطاقة واحدة: صف الحضور ثم حركات ذلك اليوم تحته في البطاقة نفسها (مكافأة، خصم، دفعة، مخالفة). الملغاة تبقى تحت يومها بخط باهت وزر «استرجاع» */
-  var d0 = today(), ents = (S.wl || []).filter(function (e) { return e.w === w.id && e.kind !== 'open' && !(e.void && e.edTo) && e.date >= dayOff(-30); }), dts = {}, hist = wHist(w, 40), items = [];
-  ents.forEach(function (e) { dts[e.date] = 1; }); hist.slice(0, 7).forEach(function (h) { dts[h.date] = 1; }); if (st) dts[d0] = 1; /* اليوم غير المسجَّل لا يظهر في الحسابات (تنبيهه في بطاقة الرصيد) */
-  Object.keys(dts).sort().reverse().forEach(function (d) {
-    var es = ents.filter(function (e) { return e.date === d; }).sort(function (x, y) { return (x.void ? 1 : 0) - (y.void ? 1 : 0) || x.ts - y.ts; }), head, tg = es.length > 0;
+  /* السجل بالأسابيع (المالك 2026-11-25): الظاهر «هذا الأسبوع» من آخر جمعة حتى اليوم ولو كان اليوم سبتًا أو أحدًا؛ وفي آخره صف يفتح الأسبوع السابق، وكل ضغطة تفتح أسبوعًا آخر؛ و«طيّ» يعيد لهذا الأسبوع */
+  var d0 = today(), ents = (S.wl || []).filter(function (e) { return e.w === w.id && e.kind !== 'open' && !(e.void && e.edTo); }), dts = {}, hist = wHist(w, 4000), items = [];
+  ents.forEach(function (e) { dts[e.date] = 1; }); hist.forEach(function (h) { dts[h.date] = 1; }); if (st) dts[d0] = 1; /* اليوم غير المسجَّل لا يظهر في الحسابات (تنبيهه في بطاقة الرصيد) */
+  var wkOf = function (d) { var x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() - (x.getUTCDay() - 5 + 7) % 7); return x.toISOString().slice(0, 10); }, wkMap = {}, cur0 = wkOf(d0);
+  Object.keys(dts).forEach(function (d) { (wkMap[wkOf(d)] = wkMap[wkOf(d)] || []).push(d); });
+  var wks = Object.keys(wkMap).filter(function (k) { return k !== cur0; }).sort().reverse(), nOpen = Math.min((A.wkm || {})[w.id] || 0, wks.length);
+  var wkLab = function (k) { var e = ownAddDays(k, 6), m1 = +k.slice(5, 7), m2 = +e.slice(5, 7); return +k.slice(8) + (m1 !== m2 ? ' ' + MN[m1 - 1] : '') + ' – ' + (+e.slice(8)) + ' ' + MN[m2 - 1]; };
+  var dayRows = function (d) {
+    var es = ents.filter(function (e) { return e.date === d; }).sort(function (x, y) { return (x.void ? 1 : 0) - (y.void ? 1 : 0) || x.ts - y.ts; }), head, tg = es.length > 0, r = [];
     if (d === d0) head = X({ tight: tg, title: 'اليوم', tag: st ? st.name : '', tagTone: st ? st.tone : 'mute', end: st && a.st !== 'h' ? money(E.attAmt(a)) : '', chev: true, go: function () { openSh({ t: 'status', wid: w.id }); } });
     else { var h = hist.filter(function (x) { return x.date === d; })[0], t = h ? (stat(h.st) || {}) : null; head = X({ tight: tg, title: dlong(d).replace(/ \d{4}$/, ''), tag: t ? t.name : '', tagTone: t ? t.tone : 'mute', end: h && h.st !== 'h' ? money(E.attAmt(h)) : '' }); }
-    items.push(head); es.forEach(function (e, i) { items.push(wlEnt(e, w, i === es.length - 1)); });
-  });
+    r.push(head); es.forEach(function (e, i) { r.push(wlEnt(e, w, i === es.length - 1)); }); return r;
+  };
+  var setN = function (n) { var m = Object.assign({}, A.wkm || {}); m[w.id] = n; setState({ wkm: m }); };
+  (wkMap[cur0] || []).sort().reverse().forEach(function (d) { items = items.concat(dayRows(d)); });
+  if (!items.length && wks.length) items.push(X({ title: 'لا حركات هذا الأسبوع' }));
+  wks.slice(0, nOpen).forEach(function (k) { items.push(X({ sect: true, title: 'الأسبوع ' + wkLab(k) })); wkMap[k].sort().reverse().forEach(function (d) { items = items.concat(dayRows(d)); }); });
+  if (nOpen < wks.length) items.push(X({ more: true, icon: 'i-chevD', icTone: 'mute', title: 'الأسبوع السابق · ' + wkLab(wks[nOpen]), go: function () { setN(nOpen + 1); } }));
+  if (nOpen > 0) items.push(X({ more: true, icon: 'i-chevU', icTone: 'mute', title: 'طيّ إلى هذا الأسبوع', go: function () { setN(0); } }));
   bl.push(B('rows', { title: 'السجل', items: items, all: true, empty: 'لا حركات بعد' }));
   if (w.stints && w.stints.length) bl.push(B('rows', { title: 'فترات العمل', items: stintRows(w, false) }));
   bl.push(B('rows', { title: 'الكشف', items: [X({ icon: 'i-doc', icTone: 'info', title: 'كشف حساب ' + monthLabel(ym0), sub: 'صورة للمشاركة', chev: true, go: function () { wstOpen(w); } })] }));
