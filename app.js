@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.200';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.201';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4895,7 +4895,7 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
   if (o.hd) { var h = wrHead(D); S1.push({ k: 'verdict', lvl: h.lvl, l: h.l, t: h.t }); }
   if (o.kpi) {
     var k = [['قدور', achNum(a.pots), wrDelta(a.pots, p.pots)]];
-    if (D.pc.per) k.push(['التكلفة التشغيلية / قدر', money(D.pc.per), wrDelta(D.pc.per, D.ppc.per, true)]);
+    k.push(['التكلفة التشغيلية / قدر', D.pc.per > 0 ? money(D.pc.per) : '—', D.pc.per > 0 ? wrDelta(D.pc.per, D.ppc.per, true) : { d: 0, t: '=', good: null }]);
     if (D.ppd) k.push(['قدور/يوم عمل', String(D.ppd), wrDelta(D.ppd, D.pppd)]);
     k.push(['صافي الفترة', wrNet(D.net), wrDelta(D.net, D.pnet)]);
     S1.push({ k: 'kpi', t: k });
@@ -4922,7 +4922,6 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
     S1.push({ k: 'row', l: 'وارد الفترة', v: money(D.inI), tone: D.inI > 0 ? 'ok' : '' });
     if (D.colI > 0) S1.push({ k: 'row', l: 'منه: محصَّل من الجهات', v: money(D.colI), sub: 1 });
     S1.push({ k: 'row', l: 'مصروفات الفترة', v: money(D.outI), tone: D.outI > 0 ? 'bad' : '' });
-    if (D.pc.per > 0) S1.push({ k: 'row', l: 'التكلفة التشغيلية / قدر', v: money(D.pc.per), sub: 1, s: D.opAll !== D.outI ? 'مع الدولار' : '' });
     if (D.paidW > 0) S1.push({ k: 'row', l: 'منها: دُفع للعمال', v: money(D.paidW), sub: 1 });
     if (D.inU || D.outU) { S1.push({ k: 'row', l: 'وارد بالدولار', v: usdTxt(D.inU), tone: D.inU > 0 ? 'ok' : '' }); S1.push({ k: 'row', l: 'مصروفات بالدولار', v: usdTxt(D.outU), tone: D.outU > 0 ? 'bad' : '' }); }
     S1.push({ k: 'row', l: 'صافي الفترة', v: wrNet(D.net), tone: D.net < 0 ? 'bad' : D.net > 0 ? 'ok' : '', tot: 1, s: 'وارد − مصروفات' });
@@ -5025,7 +5024,7 @@ function pgWrep() {
   var VB = ['#E8F1EB', '#FFF1D0', '#FDEBE9'];
   wrRows(D, { hd: true, ex: true, nx: true, kpi: true, bars: false, ext: true, wk: true, stk: true, mon: true, cmp: true, note: '' }).forEach(function (r) {
     if (r.k === 'verdict') bl.push(B('rows', { all: true, items: [X({ icon: 'i-alert', icTone: r.lvl === 0 ? 'ok' : r.lvl === 1 ? 'warn' : 'bad', title: r.l, sub: r.t, rbg: VB[r.lvl] })] }));
-    else if (r.k === 'kpi') { for (var i = 0; i < r.t.length; i += 2) bl.push(B('kpi', { items: r.t.slice(i, i + 2).map(function (z) { return X({ label: z[0], value: z[1], sub: z[2].d ? (z[2].d > 0 ? '▲ ' : '▼ ') + z[2].t.replace(/^[+\u2212]/, '') + ' عن السابق' : 'كالسابق' }); }) })); }
+    else if (r.k === 'kpi') { for (var i = 0; i < r.t.length; i += 2) bl.push(B('kpi', { items: r.t.slice(i, i + 2).map(function (z) { return X({ label: z[0], value: z[1], sub: z[2].d ? (z[2].d > 0 ? '▲ ' : '▼ ') + z[2].t.replace(/^[+\u2212]/, '') + ' عن السابق' : (z[1] === '—' ? 'لا قدور' : 'كالسابق') }); }) })); }
     else if (r.k === 'sec') { flush(); items.push(X({ sect: true, title: r.t, end: r.n || '' })); }
     else if (r.k === 'row') items.push(X({ title: r.l, sub: r.s || '', end: r.v, endTone: wrTone(r.tone), total: !!r.tot, mini: !!r.sub }));
   });
