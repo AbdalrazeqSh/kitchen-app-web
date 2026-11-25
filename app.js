@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.190';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.192';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4762,8 +4762,10 @@ function wrData(from, to) {
   D.owW = oweWork(); D.owI = oweInst();
   D.paidW = r2(wlOn().filter(function (e) { return e.kind === 'pay' && wrIn(e.date, from, to); }).reduce(function (a, e) { return a + e.amt; }, 0));
   D.colI = r2((S.insts || []).reduce(function (a, i) { return a + (i.pay || []).filter(function (c) { return wrIn(c.date, from, to); }).reduce(function (z, c) { return z + c.amt; }, 0); }, 0));
+  var OD = ownData(from, to); D.inI = OD.P.i.inn; D.outI = OD.P.i.out; D.inU = OD.P.u.inn; D.outU = OD.P.u.out; D.net = r2(D.inI - D.outI); D.netU = r2(D.inU - D.outU); D.netNow = r2(D.owI - D.owW);
   return D;
 }
+function wrNet(v) { return v < 0 ? '\u2066\u2212' + money(-v) + '\u2069' : money(v); }
 function wrLabel(D) { return 'من ' + dshow(D.from) + ' إلى ' + dshow(D.to); }
 function wrDelta(c, p) { var d = r2(c - p); return { d: d, t: d === 0 ? '=' : (d > 0 ? '+' : '−') + achNum(Math.abs(d)), tone: d > 0 ? 'ok' : d < 0 ? 'bad' : 'mute' }; }
 function wrDayName(s) { return DN[new Date(s + 'T12:00:00').getDay()]; }
@@ -4791,11 +4793,18 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
   }
   if (o.mon) {
     S1.push({ k: 'sec', t: 'المال', c: '#14563A', n: '' });
-    S1.push({ k: 'row', l: 'دُفع للعمال هذه الفترة', v: money(D.paidW) });
-    S1.push({ k: 'row', l: 'مستحق للعمال الآن', v: money(D.owW), tone: D.owW > 0 ? 'warn' : '' });
-    if (D.extCost > 0) S1.push({ k: 'row', l: 'تكلفة الطبخ الخارجي', v: money(D.extCost) });
-    S1.push({ k: 'row', l: 'حُصّل من المؤسسات', v: money(D.colI), tone: D.colI > 0 ? 'ok' : '' });
-    S1.push({ k: 'row', l: 'مستحق لنا من المؤسسات', v: money(D.owI), tone: D.owI > 0 ? 'warn' : '', tot: 1 });
+    S1.push({ k: 'row', l: 'وارد الفترة', v: money(D.inI), tone: D.inI > 0 ? 'ok' : '' });
+    if (D.colI > 0) S1.push({ k: 'row', l: 'منه: محصَّل من المؤسسات', v: money(D.colI), sub: 1 });
+    S1.push({ k: 'row', l: 'مصروفات الفترة', v: money(D.outI), tone: D.outI > 0 ? 'bad' : '' });
+    if (D.paidW > 0) S1.push({ k: 'row', l: 'منها: دُفع للعمال', v: money(D.paidW), sub: 1 });
+    if (D.inU || D.outU) { S1.push({ k: 'row', l: 'وارد بالدولار', v: usdTxt(D.inU), tone: D.inU > 0 ? 'ok' : '' }); S1.push({ k: 'row', l: 'مصروفات بالدولار', v: usdTxt(D.outU), tone: D.outU > 0 ? 'bad' : '' }); }
+    S1.push({ k: 'row', l: 'صافي الفترة', v: wrNet(D.net), tone: D.net < 0 ? 'bad' : D.net > 0 ? 'ok' : '', tot: 1, s: 'وارد − مصروفات' });
+    if (D.inU || D.outU) S1.push({ k: 'row', l: 'صافي الفترة بالدولار', v: D.netU < 0 ? '\u2066\u2212' + usdTxt(-D.netU) + '\u2069' : usdTxt(D.netU), tone: D.netU < 0 ? 'bad' : D.netU > 0 ? 'ok' : '', tot: 1 });
+    S1.push({ k: 'sec', t: 'المستحقات الآن', c: '#14563A', n: '' });
+    S1.push({ k: 'row', l: 'مستحق للعمال', v: money(D.owW), tone: D.owW > 0 ? 'warn' : '' });
+    if (D.extCost > 0) S1.push({ k: 'row', l: 'تكلفة الطبخ الخارجي هذه الفترة', v: money(D.extCost) });
+    S1.push({ k: 'row', l: 'مستحق لنا من المؤسسات', v: money(D.owI), tone: D.owI > 0 ? 'warn' : '' });
+    S1.push({ k: 'row', l: 'صافي المستحق', v: wrNet(D.netNow), tone: D.netNow < 0 ? 'bad' : D.netNow > 0 ? 'ok' : '', tot: 1, s: 'لنا − علينا' });
   }
   if (o.note) S1.push({ k: 'note', t: o.note });
   return S1;
@@ -4851,9 +4860,9 @@ function wrCanvas(D, o) {
     } else if (r.k === 'row') {
       var col2 = r.tone === 'bad' ? '#B3261E' : r.tone === 'warn' ? '#8A5A00' : r.tone === 'ok' ? G : '#1B2421';
       if (r.tot) { x.fillStyle = '#E8F1EB'; x.fillRect(PAD, y, W - 2 * PAD, 52); }
-      x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = (r.tot ? '700 ' : '500 ') + '26px ' + F; x.fillText(r.l, W - PAD - 10, y + 35);
+      x.fillStyle = r.sub ? '#5B6660' : '#1B2421'; x.textAlign = 'right'; x.font = (r.tot ? '700 ' : '500 ') + (r.sub ? '22' : '26') + 'px ' + F; x.fillText(r.l, W - PAD - (r.sub ? 30 : 10), y + 35);
       if (r.s) { var wl = x.measureText(r.l).width; x.fillStyle = '#8A948E'; x.font = '500 20px ' + F; x.fillText(r.s, W - PAD - 10 - wl - 16, y + 35); }
-      x.fillStyle = col2; x.textAlign = 'left'; x.font = '600 26px ' + F; x.fillText(r.v, PAD + 10, y + 35);
+      x.fillStyle = col2; x.textAlign = 'left'; x.font = (r.sub ? '500 22px ' : '600 26px ') + F; x.fillText(r.v, PAD + 10, y + 35);
       x.fillStyle = '#EEF0EC'; x.fillRect(PAD, y + 52, W - 2 * PAD, 1); y += 54;
     } else if (r.k === 'note') {
       x.fillStyle = '#FFF6DD'; x.fillRect(PAD, y + 12, W - 2 * PAD, 96); x.fillStyle = '#8A5A00'; x.fillRect(W - PAD - 6, y + 12, 6, 96);
