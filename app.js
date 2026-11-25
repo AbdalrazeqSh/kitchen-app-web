@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.188';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.189';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -5028,7 +5028,8 @@ function wstSend(w, o, how) {
   };
   if (document.fonts && document.fonts.load) document.fonts.load("700 28px 'IBM Plex Sans Arabic'").then(go, go); else go();
 }
-function wstWeekFrom() { var d = new Date(today() + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 6); return d.toISOString().slice(0, 10); }
+/* «هذا الأسبوع»: من آخر جمعة (اليوم إن كان جمعة) حتى اليوم؛ والاختيار الحر من/إلى يبقى (المالك 2026-11-25) */
+function wstWeekFrom() { var d = new Date(today() + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() - 5 + 7) % 7); return d.toISOString().slice(0, 10); }
 function wstOpen(w) { openSh({ t: 'wst', wid: w.id }, { from: wstWeekFrom(), to: today(), sum: '0', det: '1' }); }
 function wstOpts() { var f = fv('from') || wstWeekFrom(), t = fv('to') || today(); if (t > today()) t = today(); if (f > t) f = t; return { from: f, to: t, sum: fv('sum') === '1', det: fv('det') !== '0' }; }
 function wstSheet(sh) {
