@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.192';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.193';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4712,7 +4712,7 @@ function achSheet(sh) {
 
 /* ===== 02w4-wrep.js ===== */
 /* ---------- ملخص المتابعة الأسبوعي للمدير (المالك 2026-11-25): الإنجاز، الطبخ الخارجي، العمال، المخزن، المال؛ فترة من/إلى ومقارنة بالفترة السابقة ---------- */
-var WR_BL = [['kpi', 'الأرقام الرئيسية'], ['bars', 'رسم القدور اليومي'], ['ext', 'الطبخ الخارجي'], ['wk', 'العمال'], ['stk', 'المخزن'], ['mon', 'المال'], ['cmp', 'المقارنة بالفترة السابقة']];
+var WR_BL = [['hd', 'الحكم العام'], ['kpi', 'الأرقام الرئيسية'], ['ex', 'نقاط المتابعة'], ['bars', 'رسم القدور اليومي'], ['ext', 'الطبخ الخارجي'], ['wk', 'العمال'], ['stk', 'المخزن'], ['mon', 'المال'], ['nx', 'الأسبوع القادم'], ['cmp', 'المقارنة بالفترة السابقة']];
 function wrOpt() {
   var s = (S.settings.wrOpt || {}), o = {};
   WR_BL.forEach(function (k) { o[k[0]] = s[k[0]] !== '0'; });
@@ -4763,21 +4763,49 @@ function wrData(from, to) {
   D.paidW = r2(wlOn().filter(function (e) { return e.kind === 'pay' && wrIn(e.date, from, to); }).reduce(function (a, e) { return a + e.amt; }, 0));
   D.colI = r2((S.insts || []).reduce(function (a, i) { return a + (i.pay || []).filter(function (c) { return wrIn(c.date, from, to); }).reduce(function (z, c) { return z + c.amt; }, 0); }, 0));
   var OD = ownData(from, to); D.inI = OD.P.i.inn; D.outI = OD.P.i.out; D.inU = OD.P.u.inn; D.outU = OD.P.u.out; D.net = r2(D.inI - D.outI); D.netU = r2(D.inU - D.outU); D.netNow = r2(D.owI - D.owW);
+  /* مؤشرات الإدارة: تكلفة القدر (مواد المطبخ الخاص ÷ قدوره)، إنتاجية العمل (قدور لكل يوم عمل)، صافي الفترة السابقة */
+  var pc = function (A0) { var c = 0, q = 0; A0.bs.forEach(function (b) { if (b.kind !== 'external') { c += b.cost || 0; q += b.pots || 0; } }); return { c: r2(c), q: q, per: q > 0 ? r2(c / q) : 0 }; };
+  D.pc = pc(A1); D.ppc = pc(P); D.ppd = A1.wd > 0 ? r2(A1.pots / A1.wd) : 0; D.pppd = P.wd > 0 ? r2(P.pots / P.wd) : 0;
+  var OP = ownData(pr.from, pr.to); D.pnet = r2(OP.P.i.inn - OP.P.i.out);
+  /* الأسبوع القادم: طبخات مخططة بعد نهاية الفترة، وتوريدات قادمة */
+  D.nxB = plans().filter(function (z) { return z.date > to; }); D.nxPots = r2(D.nxB.reduce(function (a, z) { return a + (z.pots || 0); }, 0));
+  D.outNames = []; ledgers().forEach(function (l) { itemsIn(l.id).forEach(function (it) { var q = E.balance(S, l.id, it.id), st = stStatus(q, it.id); if (alertable(l, it, q) && st.rank === 0 && D.outNames.length < 40) D.outNames.push(it.name); }); });
+  /* نقاط المتابعة: الاستثناءات فقط */
+  D.exc = []; var oc = D.stk.reduce(function (a, z) { return a + z.out; }, 0), lc = D.stk.reduce(function (a, z) { return a + z.low; }, 0);
+  if (oc) D.exc.push({ t: pl(oc, 'صنف واحد نفد', 'صنفان نفدا', 'أصناف نفدت') + (D.outNames.length ? ': ' + D.outNames.slice(0, 3).join('، ') + (D.outNames.length > 3 ? '…' : '') : ''), tone: 'bad' });
+  if (lc) D.exc.push({ t: pl(lc, 'صنف حرج', 'صنفان حرجان', 'أصناف حرجة'), tone: 'warn' });
+  if (D.noAtt) D.exc.push({ t: 'حضور ' + pl(D.noAtt, 'عامل واحد', 'عاملين', 'عمال') + ' لم يُسجَّل اليوم', tone: 'warn' });
+  if (D.net < 0) D.exc.push({ t: 'المصروفات أكثر من الوارد هذه الفترة', tone: 'bad' });
+  if (P.pots > 0 && A1.pots < P.pots * 0.7) D.exc.push({ t: 'القدور أقل من الفترة السابقة بأكثر من 30%', tone: 'warn' });
+  if (D.ppc.per > 0 && D.pc.per > D.ppc.per * 1.15) D.exc.push({ t: 'تكلفة القدر ارتفعت أكثر من 15% عن السابق', tone: 'warn' });
+  D.lvl = D.net < 0 || D.exc.length >= 3 ? 2 : D.exc.length ? 1 : 0;
   return D;
 }
 function wrNet(v) { return v < 0 ? '\u2066\u2212' + money(-v) + '\u2069' : money(v); }
 function wrLabel(D) { return 'من ' + dshow(D.from) + ' إلى ' + dshow(D.to); }
-function wrDelta(c, p) { var d = r2(c - p); return { d: d, t: d === 0 ? '=' : (d > 0 ? '+' : '−') + achNum(Math.abs(d)), tone: d > 0 ? 'ok' : d < 0 ? 'bad' : 'mute' }; }
+function wrDelta(c, p, inv) { var d = r2(c - p); return { d: d, t: d === 0 ? '=' : (d > 0 ? '+' : '\u2212') + achNum(Math.abs(d)), good: d === 0 ? null : (inv ? d < 0 : d > 0) }; }
 function wrDayName(s) { return DN[new Date(s + 'T12:00:00').getDay()]; }
+function wrHead(D) {
+  var a = D.a, L = ['جيد', 'يحتاج متابعة', 'يحتاج تدخّلًا'][D.lvl], t = a.pots ? achNum(a.pots) + ' قدر في ' + pl(a.nd, 'يوم واحد', 'يومين', 'أيام') + ' من الطبخ' : 'لا طبخ في هذه الفترة';
+  if (a.pots && D.p.pots) t += ' (' + (a.pots >= D.p.pots ? 'أعلى' : 'أقل') + ' من الفترة السابقة)';
+  t += ' · صافي الفترة ' + wrNet(D.net);
+  return { lvl: D.lvl, l: L, t: t };
+}
 function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده الشاشة والنص والصورة معًا فلا يختلف بينها شيء */
   var S1 = [], a = D.a, p = D.p;
+  if (o.hd) { var h = wrHead(D); S1.push({ k: 'verdict', lvl: h.lvl, l: h.l, t: h.t }); }
   if (o.kpi) {
-    var k = [['قدور', achNum(a.pots), wrDelta(a.pots, p.pots)], ['طبخات', String(a.n), wrDelta(a.n, p.n)], ['أيام الطبخ', String(a.nd), wrDelta(a.nd, p.nd)]];
-    if (a.meals) k.splice(1, 0, ['وجبات', achNum(a.meals), wrDelta(a.meals, p.meals)]);
+    var k = [['قدور', achNum(a.pots), wrDelta(a.pots, p.pots)]];
+    if (D.pc.per) k.push(['تكلفة القدر', money(D.pc.per), wrDelta(D.pc.per, D.ppc.per, true)]);
+    if (D.ppd) k.push(['قدور/يوم عمل', String(D.ppd), wrDelta(D.ppd, D.pppd)]);
+    k.push(['صافي الفترة', wrNet(D.net), wrDelta(D.net, D.pnet)]);
     S1.push({ k: 'kpi', t: k });
-    if (a.nc || a.ni) S1.push({ k: 'row', l: 'مخيمات', v: achNum(a.pv) + ' قدر', s: a.nc ? pl(a.nc, 'نقطة واحدة', 'نقطتان', 'نقاط') : '' });
+    var m2 = [pl(a.n, 'طبخة واحدة', 'طبختان', 'طبخات'), pl(a.nd, 'يوم طبخ', 'يومان', 'أيام طبخ')]; if (a.meals) m2.unshift(achNum(a.meals) + ' وجبة');
+    if (a.nc) m2.push(pl(a.nc, 'مخيم واحد', 'مخيمان', 'مخيمات'));
+    if (a.n) S1.push({ k: 'row', l: m2.join(' · '), v: '' });
     if (a.top.length) S1.push({ k: 'row', l: 'الأكثر طبخًا: ' + a.top[0].n, v: achNum(a.top[0].p) + ' قدر' });
   }
+  if (o.ex) { S1.push({ k: 'sec', t: 'نقاط المتابعة', c: '#B3261E', n: D.exc.length ? String(D.exc.length) : '' }); if (!D.exc.length) S1.push({ k: 'row', l: 'لا شيء يحتاج متابعة', v: '✓', tone: 'ok' }); D.exc.forEach(function (z) { S1.push({ k: 'row', l: z.t, v: '', tone: z.tone, ex: 1 }); }); }
   if (o.bars && D.days.length > 1 && D.days.length <= 14 && D.days.some(function (z) { return z.v > 0; })) S1.push({ k: 'bars', t: D.days });
   if (o.ext && D.ext.length) { S1.push({ k: 'sec', t: 'الطبخ الخارجي', c: '#7A4A1E', n: achNum(a.ext) + ' قدر' }); D.ext.forEach(function (e) { S1.push({ k: 'row', l: e.n, v: achNum(e.pots) + ' قدر', s: pl(e.nd, 'يوم واحد', 'يومان', 'أيام') }); }); }
   if (o.wk && (D.st.length || D.noAtt)) {
@@ -4789,7 +4817,6 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
     S1.push({ k: 'sec', t: 'المخزن', c: '#8A5A00', n: D.sup ? 'وصل: ' + pl(D.sup, 'توريد واحد', 'توريدان', 'توريدات') : '' });
     if (!D.stk.length) S1.push({ k: 'row', l: 'لا أصناف ناقصة', v: '✓', tone: 'ok' });
     D.stk.forEach(function (z) { var p2 = []; if (z.out) p2.push(z.out + ' نفد'); if (z.low) p2.push(z.low + ' حرج'); if (z.soon) p2.push(z.soon + ' ينقص قريبًا'); S1.push({ k: 'row', l: z.n, v: p2.join(' · '), tone: z.out || z.low ? 'bad' : 'warn' }); });
-    if (D.nextN) S1.push({ k: 'row', l: 'توريد قادم', v: dshow(D.nextD) + (D.nextN > 1 ? ' (+' + (D.nextN - 1) + ')' : '') });
   }
   if (o.mon) {
     S1.push({ k: 'sec', t: 'المال', c: '#14563A', n: '' });
@@ -4806,15 +4833,21 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
     S1.push({ k: 'row', l: 'مستحق لنا من المؤسسات', v: money(D.owI), tone: D.owI > 0 ? 'warn' : '' });
     S1.push({ k: 'row', l: 'صافي المستحق', v: wrNet(D.netNow), tone: D.netNow < 0 ? 'bad' : D.netNow > 0 ? 'ok' : '', tot: 1, s: 'لنا − علينا' });
   }
+  if (o.nx && (D.nxB.length || D.nextN)) {
+    S1.push({ k: 'sec', t: 'الأسبوع القادم', c: '#243C8F', n: '' });
+    if (D.nxB.length) S1.push({ k: 'row', l: 'طبخات مخططة', v: pl(D.nxB.length, 'طبخة واحدة', 'طبختان', 'طبخات') + ' · ' + achNum(D.nxPots) + ' قدر' });
+    if (D.nextN) S1.push({ k: 'row', l: 'توريد قادم', v: dshow(D.nextD) + (D.nextN > 1 ? ' (+' + (D.nextN - 1) + ')' : '') });
+  }
   if (o.note) S1.push({ k: 'note', t: o.note });
   return S1;
 }
 function wrText(D, o) {
   o = o || wrOpt(); var L = ['ملخص المتابعة الأسبوعي · مطبخ عهد', wrLabel(D), ''];
   wrRows(D, o).forEach(function (r) {
-    if (r.k === 'kpi') r.t.forEach(function (z) { L.push(z[0] + ': ' + z[1] + (o.cmp && z[2].d ? ' (' + z[2].t + ' عن الفترة السابقة)' : '')); });
+    if (r.k === 'verdict') { L.push('الحكم العام: ' + r.l); L.push(r.t); L.push(''); }
+    else if (r.k === 'kpi') r.t.forEach(function (z) { L.push(z[0] + ': ' + z[1] + (o.cmp && z[2].d ? ' (' + z[2].t + ' عن الفترة السابقة)' : '')); });
     else if (r.k === 'sec') { L.push(''); L.push(r.t + (r.n ? ' · ' + r.n : '')); }
-    else if (r.k === 'row') L.push('- ' + r.l + ': ' + r.v + (r.s ? ' (' + r.s + ')' : ''));
+    else if (r.k === 'row') L.push('- ' + r.l + (r.v ? ': ' + r.v : '') + (r.s ? ' (' + r.s + ')' : ''));
     else if (r.k === 'note') { L.push(''); L.push(r.t); }
   });
   return L.join('\n');
@@ -4822,7 +4855,7 @@ function wrText(D, o) {
 function wrCanvas(D, o) {
   o = o || wrOpt();
   var W = 840, PAD = 40, F = "'IBM Plex Sans Arabic', sans-serif", R = wrRows(D, o), G = '#14563A', HD = 170, y, H = HD + 24;
-  R.forEach(function (r) { H += r.k === 'kpi' ? 168 : r.k === 'bars' ? 232 : r.k === 'sec' ? 76 : r.k === 'note' ? 120 : 54; });
+  R.forEach(function (r) { H += r.k === 'verdict' ? 150 : r.k === 'kpi' ? 168 : r.k === 'bars' ? 232 : r.k === 'sec' ? 76 : r.k === 'note' ? 120 : 54; });
   H += 70;
   var c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'); x.direction = 'rtl';
   x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H);
@@ -4835,12 +4868,20 @@ function wrCanvas(D, o) {
   y = HD + 24;
   var tri = function (cx, cy, up, col) { x.fillStyle = col; x.beginPath(); if (up) { x.moveTo(cx, cy - 7); x.lineTo(cx - 7, cy + 5); x.lineTo(cx + 7, cy + 5); } else { x.moveTo(cx, cy + 7); x.lineTo(cx - 7, cy - 5); x.lineTo(cx + 7, cy - 5); } x.closePath(); x.fill(); };
   R.forEach(function (r) {
-    if (r.k === 'kpi') {
-      var n = r.t.length, gap = 14, bw = (W - 2 * PAD - (n - 1) * gap) / n;
+    if (r.k === 'verdict') {
+      var VC = [['#E8F1EB', '#14563A'], ['#FFF1D0', '#8A5A00'], ['#FDEBE9', '#B3261E']][r.lvl];
+      x.fillStyle = VC[0]; x.fillRect(PAD, y, W - 2 * PAD, 130); x.fillStyle = VC[1]; x.fillRect(W - PAD - 8, y, 8, 130);
+      x.beginPath(); x.arc(W - PAD - 44, y + 40, 12, 0, 7); x.fill();
+      x.textAlign = 'right'; x.font = '700 32px ' + F; x.fillText(r.l, W - PAD - 70, y + 52);
+      x.fillStyle = '#1B2421'; x.font = '500 23px ' + F; wrapLines(x, r.t, W - 2 * PAD - 60).slice(0, 2).forEach(function (ln, i) { x.fillText(ln, W - PAD - 30, y + 90 + i * 30 - (i ? 0 : 6)); });
+      y += 150;
+    } else if (r.k === 'kpi') {
+      var n = r.t.length, gap = 12, bw = (W - 2 * PAD - (n - 1) * gap) / n;
       r.t.forEach(function (z, i) {
         var bx = W - PAD - bw - i * (bw + gap); x.fillStyle = i === 0 ? G : '#E8F1EB'; x.fillRect(bx, y, bw, 148);
-        x.fillStyle = i === 0 ? '#FFFFFF' : G; x.textAlign = 'center'; x.font = '700 56px ' + F; x.fillText(z[1], bx + bw / 2, y + 74); x.font = '500 22px ' + F; x.fillText(z[0], bx + bw / 2, y + 108);
-        if (o.cmp && (z[2].d || +String(z[1]).replace(/,/g, ''))) { var d = z[2], col = i === 0 ? '#FFFFFF' : d.d > 0 ? '#14563A' : d.d < 0 ? '#B3261E' : '#8A948E'; x.fillStyle = col; x.font = '600 20px ' + F; if (d.d) { tri(bx + bw / 2 - 26, y + 132, d.d > 0, col); x.textAlign = 'left'; x.fillText(d.t.replace(/^[+−]/, ''), bx + bw / 2 - 12, y + 138); } else { x.textAlign = 'center'; x.fillText('كالسابق', bx + bw / 2, y + 138); } }
+        x.fillStyle = i === 0 ? '#FFFFFF' : G; x.textAlign = 'center'; var fs0 = 48; do { x.font = '700 ' + fs0 + 'px ' + F; fs0 -= 2; } while (x.measureText(z[1]).width > bw - 16 && fs0 > 22);
+        x.fillText(z[1], bx + bw / 2, y + 72); x.font = '500 21px ' + F; x.fillText(z[0], bx + bw / 2, y + 106);
+        if (o.cmp && (z[2].d || +String(z[1]).replace(/[^0-9.]/g, ''))) { var d = z[2], col = i === 0 ? '#FFFFFF' : d.good === true ? '#14563A' : d.good === false ? '#B3261E' : '#8A948E'; x.fillStyle = col; x.font = '600 19px ' + F; if (d.d) { tri(bx + bw / 2 - 24, y + 130, d.d > 0, col); x.textAlign = 'left'; x.fillText(d.t.replace(/^[+\u2212]/, ''), bx + bw / 2 - 11, y + 136); } else { x.textAlign = 'center'; x.fillText('كالسابق', bx + bw / 2, y + 136); } }
       });
       y += 168;
     } else if (r.k === 'bars') {
@@ -4860,7 +4901,8 @@ function wrCanvas(D, o) {
     } else if (r.k === 'row') {
       var col2 = r.tone === 'bad' ? '#B3261E' : r.tone === 'warn' ? '#8A5A00' : r.tone === 'ok' ? G : '#1B2421';
       if (r.tot) { x.fillStyle = '#E8F1EB'; x.fillRect(PAD, y, W - 2 * PAD, 52); }
-      x.fillStyle = r.sub ? '#5B6660' : '#1B2421'; x.textAlign = 'right'; x.font = (r.tot ? '700 ' : '500 ') + (r.sub ? '22' : '26') + 'px ' + F; x.fillText(r.l, W - PAD - (r.sub ? 30 : 10), y + 35);
+      if (r.ex) { x.fillStyle = col2; x.beginPath(); x.arc(W - PAD - 16, y + 27, 6, 0, 7); x.fill(); }
+      x.fillStyle = r.sub ? '#5B6660' : '#1B2421'; x.textAlign = 'right'; x.font = (r.tot ? '700 ' : '500 ') + (r.sub ? '22' : '26') + 'px ' + F; x.fillText(r.l, W - PAD - (r.sub ? 30 : r.ex ? 36 : 10), y + 35);
       if (r.s) { var wl = x.measureText(r.l).width; x.fillStyle = '#8A948E'; x.font = '500 20px ' + F; x.fillText(r.s, W - PAD - 10 - wl - 16, y + 35); }
       x.fillStyle = col2; x.textAlign = 'left'; x.font = (r.sub ? '500 22px ' : '600 26px ') + F; x.fillText(r.v, PAD + 10, y + 35);
       x.fillStyle = '#EEF0EC'; x.fillRect(PAD, y + 52, W - 2 * PAD, 1); y += 54;
@@ -4879,8 +4921,9 @@ function pgWrep() {
   bl.push(B('chips', { scroll: true, items: wrPresets().map(function (p) { return X({ label: p[0], on: R.from === p[1] && R.to === p[2], go: function () { wrSetRange(p[1], p[2]); } }); }).concat([X({ label: 'فترة محددة', icon: 'i-calendar', go: function () { openSh({ t: 'wrp' }, { from: R.from, to: R.to }); } })]) }));
   bl.push(B('acts', { items: [X({ title: 'إرسال للمدير', icon: 'i-send', go: function () { openSh({ t: 'wrs' }); } }), X({ title: 'الخيارات', icon: 'i-sliders', go: function () { openSh({ t: 'wrs', opt: 1 }); } })] }));
   var items = [], flush = function (t) { if (items.length) bl.push(B('rows', { title: t || '', all: true, items: items })); items = []; }, cur = '';
-  wrRows(D, { kpi: true, bars: false, ext: true, wk: true, stk: true, mon: true, cmp: true, note: '' }).forEach(function (r) {
-    if (r.k === 'kpi') { bl.push(B('kpi', { items: r.t.slice(0, 2).map(function (z) { return X({ label: z[0], value: z[1], sub: z[2].d ? z[2].t + ' عن السابق' : '' }); }) })); r.t.slice(2).forEach(function (z) { items.push(X({ title: z[0], end: z[1] })); }); }
+  wrRows(D, { hd: true, ex: true, nx: true, kpi: true, bars: false, ext: true, wk: true, stk: true, mon: true, cmp: true, note: '' }).forEach(function (r) {
+    if (r.k === 'verdict') bl.push(B('rows', { all: true, items: [X({ icon: 'i-alert', icTone: r.lvl === 0 ? 'ok' : r.lvl === 1 ? 'warn' : 'bad', title: r.l, sub: r.t })] }));
+    else if (r.k === 'kpi') { bl.push(B('kpi', { items: r.t.slice(0, 2).map(function (z) { return X({ label: z[0], value: z[1], sub: z[2].d ? z[2].t + ' عن السابق' : '' }); }) })); r.t.slice(2).forEach(function (z) { items.push(X({ title: z[0], end: z[1] })); }); }
     else if (r.k === 'sec') { flush(cur); cur = r.t; }
     else if (r.k === 'row') items.push(X({ title: r.l, sub: r.s || '', end: r.v, endTone: wrTone(r.tone), total: !!r.tot }));
   });
