@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.186';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.187';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4545,8 +4545,9 @@ function ownText(D, o) {
 function ownCanvas(D, o) {
   o = o || ownOpts();
   var W = 840, PAD = 36, F = "'IBM Plex Sans Arabic', sans-serif", hdr = 150, L = [], brk = [];
+  L.push({ k: 'sum' });
   if (o.bal) D.recs.forEach(function (r) {
-    L.push({ k: 'sec', t: ownRecName(r), brk: 1, v: ownNet(r).txt, tone: ownNet(r).tone, cap: 'صافي الفترة' });
+    L.push({ k: 'sec', cc: r.cur, t: ownRecName(r), brk: 1, v: ownNet(r).txt, tone: ownNet(r).tone, cap: 'صافي الفترة' });
     L.push({ k: 'rec', l: 'رصيد أول الفترة', v: fTxt(r.cur, r.open) });
     if (r.inN) L.push({ k: 'rec', fl: 1, l: 'وارد (' + r.inN + ')', v: sg('in', fTxt(r.cur, r.inn)), tone: 'ok' });
     if (r.outN) L.push({ k: 'rec', fl: 1, l: 'مصروفات (' + r.outN + ')', v: sg('out', fTxt(r.cur, r.out)), tone: 'bad' });
@@ -4562,7 +4563,7 @@ function ownCanvas(D, o) {
   if (o.ins) mvs('الوارد', D.ins, 'in'); if (o.outs) mvs('المصروفات', D.outs, 'out');
   if (o.xf && D.xs.length) { L.push({ k: 'sec', t: 'تحويلات بين الحسابات', brk: 1 }); D.xs.forEach(function (m) { L.push(mv(m, '')); }); }
   var H = hdr + 30, i;
-  for (i = 0; i < L.length; i++) H += L[i].k === 'mv' ? (L[i].a || L[i].d ? 70 : 52) : L[i].k === 'sec' ? 58 : L[i].fl ? 44 : 52;
+  for (i = 0; i < L.length; i++) H += L[i].k === 'mv' ? (L[i].a || L[i].d ? 70 : 52) : L[i].k === 'sum' ? 262 : L[i].k === 'sec' ? 58 : L[i].fl ? 44 : 52;
   H += 70;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
   var x = c.getContext('2d'); x.direction = 'rtl'; x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H);
@@ -4573,7 +4574,21 @@ function ownCanvas(D, o) {
   var fit = function (t, w) { if (x.measureText(t).width <= w) return t; while (t.length > 1 && x.measureText(t + '…').width > w) t = t.slice(0, -1); return t + '…'; };
   var y = hdr + 30;
   L.forEach(function (r) {
-    if (r.k === 'sec') { if (r.brk) brk.push(y); var cardH = !!r.cap; x.fillStyle = cardH ? '#FFFFFF' : '#E4EFE8'; x.fillRect(0, y, W, 58); if (cardH) { x.fillStyle = '#DDE2DC'; x.fillRect(0, y, W, 2); } x.fillStyle = cardH ? '#1B2421' : '#14563A'; x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText(fit(r.t, W - 2 * PAD - (r.v ? 300 : 0)), W - PAD, y + 38); if (r.v) { x.textAlign = 'left'; x.fillStyle = CO[r.tone || ''] === '#1B2421' ? '#14563A' : CO[r.tone]; x.font = '700 27px ' + F; x.fillText(r.v, PAD, y + 38); if (r.cap) { var vw = x.measureText(r.v).width; x.fillStyle = '#6B756F'; x.font = '500 19px ' + F; x.fillText(r.cap, PAD + vw + 14, y + 37); } } y += 58; return; }
+    if (r.k === 'sum') {
+      brk.push(y); var P0 = D.P, N0 = D.N, two = !!(P0.u.inn || P0.u.out || N0.u), xI = two ? 440 : 230, xU = 170, cs = function (cur, v, dir) { return v ? sg(dir, fTxt(cur, v)) : fTxt(cur, 0); };
+      x.fillStyle = '#E4EFE8'; x.fillRect(0, y, W, 58); x.fillStyle = '#14563A'; x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText('ملخص الفترة', W - PAD, y + 38); y += 58;
+      x.fillStyle = '#F3F6F3'; x.fillRect(0, y, W, 40); x.fillStyle = '#14563A'; x.font = '600 20px ' + F; x.textAlign = 'center'; x.fillText('شيكل', xI, y + 27); if (two) x.fillText('دولار', xU, y + 27); y += 40;
+      [['وارد', '+', '#14563A', '#DFF1E7', P0.i.inn, P0.u.inn, 'in'], ['مصروفات', '−', '#B3261E', '#FDE7E4', P0.i.out, P0.u.out, 'out']].forEach(function (q) {
+        x.fillStyle = q[3]; x.beginPath(); x.arc(W - PAD - 17, y + 26, 17, 0, 7); x.fill(); x.fillStyle = q[2]; x.font = '700 26px ' + F; x.textAlign = 'center'; x.fillText(q[1], W - PAD - 17, y + 35);
+        x.textAlign = 'right'; x.fillStyle = '#1B2421'; x.font = '500 25px ' + F; x.fillText(q[0], W - PAD - 48, y + 34);
+        x.textAlign = 'center'; x.fillStyle = q[4] ? q[2] : '#1B2421'; x.font = '600 25px ' + F; x.fillText(cs('ils', q[4], q[6]), xI, y + 34); if (two) { x.fillStyle = q[5] ? q[2] : '#1B2421'; x.fillText(cs('usd', q[5], q[6]), xU, y + 34); }
+        x.fillStyle = '#EEF0EC'; x.fillRect(PAD, y + 51, W - 2 * PAD, 1); y += 52; });
+      var nz = function (v) { return v < 0 ? '#B3261E' : '#14563A'; };
+      x.fillStyle = '#DCEBE2'; x.fillRect(0, y, W, 64); x.fillStyle = '#14563A'; x.fillRect(0, y, W, 2); x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText('صافي الفترة', W - PAD, y + 41);
+      x.textAlign = 'center'; x.fillStyle = nz(N0.i); x.fillText(ownNetTxt(N0.i, 'ils'), xI, y + 41); if (two) { x.fillStyle = nz(N0.u); x.fillText(ownNetTxt(N0.u, 'usd'), xU, y + 41); }
+      var xa = ownNetNote(P0.i, 'ils'), xu = ownNetNote(P0.u, 'usd'); y += 64; return;
+    }
+    if (r.k === 'sec') { if (r.brk) brk.push(y); var cardH = !!r.cap; x.fillStyle = cardH ? '#FFFFFF' : '#E4EFE8'; x.fillRect(0, y, W, 58); if (cardH) { x.fillStyle = '#DDE2DC'; x.fillRect(0, y, W, 2); x.fillStyle = r.cc === 'usd' ? '#243C8F' : '#14563A'; x.fillRect(W - 8, y, 8, 58); } x.fillStyle = cardH ? '#1B2421' : '#14563A'; x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText(fit(r.t, W - 2 * PAD - (r.v ? 300 : 0)), W - PAD, y + 38); if (r.v) { x.textAlign = 'left'; x.fillStyle = CO[r.tone || ''] === '#1B2421' ? '#14563A' : CO[r.tone]; x.font = '700 27px ' + F; x.fillText(r.v, PAD, y + 38); if (r.cap) { var vw = x.measureText(r.v).width; x.fillStyle = '#6B756F'; x.font = '500 19px ' + F; x.fillText(r.cap, PAD + vw + 14, y + 37); } } y += 58; return; }
     if (r.k === 'rec' && r.fl) { x.fillStyle = '#4A554F'; x.textAlign = 'right'; x.font = '400 22px ' + F; x.fillText(r.l, W - PAD - 24, y + 30); x.textAlign = 'left'; x.fillStyle = CO[r.tone || '']; x.font = '500 22px ' + F; x.fillText(r.v, PAD, y + 30); x.fillStyle = '#EEF0EC'; x.fillRect(PAD, y + 43, W - 2 * PAD, 1); y += 44; return; }
     if (r.k === 'rec') { x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '500 25px ' + F; x.fillText(r.l, W - PAD, y + 34); x.textAlign = 'left'; x.fillStyle = CO[r.tone || '']; x.font = '600 25px ' + F; x.fillText(r.v, PAD, y + 34); x.fillStyle = '#EEF0EC'; x.fillRect(PAD, y + 51, W - 2 * PAD, 1); y += 52; return; }
     if (r.k === 'tot') { x.fillStyle = '#DCEBE2'; x.fillRect(0, y, W, 52); x.fillStyle = '#14563A'; x.fillRect(0, y, W, 2); x.textAlign = 'right'; x.font = '700 26px ' + F; x.fillText(r.l, W - PAD, y + 35); x.textAlign = 'left'; x.fillText(r.v, PAD, y + 35); y += 52; return; }
