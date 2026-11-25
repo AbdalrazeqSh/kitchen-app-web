@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.184';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.185';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4459,7 +4459,9 @@ function ownData(from, to) {
     return Object.keys(o).map(function (k) { return o[k]; }).sort(function (a, b) { return (b.ils + b.usd * 3.2) - (a.ils + a.usd * 3.2); });
   };
   var N = { i: 0, u: 0 }; recs.forEach(function (r) { var d = r2(r.close - r.open); if (r.cur === 'usd') N.u = r2(N.u + d); else N.i = r2(N.i + d); });
-  return { N: N, from: from, to: to, recs: recs, ins: grp(inR), outs: grp(outR), xs: xR, adjs: adjR, T: T };
+  /* وارد ومصروفات كل عملة من أرصدتها وحدها فيتّسق: أول + وارد − مصروفات ± تحويل/جرد = آخر (المالك 2026-11-25: «الصافي بالموجب والفرق بين الوارد والمصروفات مختلف»: كان الدولار المدفوع محسوبًا بالشيكل في المصروفات وخارج صافي الشيكل) */
+  var P = { i: { inn: 0, out: 0, xa: 0 }, u: { inn: 0, out: 0, xa: 0 } }; recs.forEach(function (r) { var q = P[r.cur === 'usd' ? 'u' : 'i']; q.inn = r2(q.inn + r.inn); q.out = r2(q.out + r.out); q.xa = r2(q.xa + r.x + r.adj); });
+  return { P: P, N: N, from: from, to: to, recs: recs, ins: grp(inR), outs: grp(outR), xs: xR, adjs: adjR, T: T };
 }
 function ownSub() { var R = ownRange(); return R.from === '2000-01-01' ? 'كل المدة حتى ' + dshow(R.to) : dshow(R.from) + ' ← ' + dshow(R.to); }
 function ownRecName(r) { return r.f.name + (r.f.curs.length > 1 ? ' · ' + (r.cur === 'usd' ? 'دولار' : 'شيكل') : ''); }
@@ -4479,14 +4481,16 @@ function ownOpen() { setState({ ofrom: ownRange().from, oto: ownRange().to }); o
 function ownSetRange(f, t) { A.ofrom = f; A.oto = t; render(); }
 /* صافي الفترة الإجمالي لكل الأرصدة: مجموع صافي كل رصيد، بالشيكل وبالدولار بوزن واحد (المالك 2026-11-24: «ليش مش كاتب الإجمالي فوق؟») */
 function ownNetTxt(n, cur) { return n === 0 ? fTxt(cur, 0) : n < 0 ? sg('out', fTxt(cur, -n)) : sg('in', fTxt(cur, n)); }
-function ownNetCards(N, D) { var cur = D.recs.reduce(function (a, r) { if (a.indexOf(r.cur) < 0) a.push(r.cur); return a; }, []), o = []; if (cur.indexOf('ils') >= 0) o.push(ownNetCard1(N.i, 'ils')); if (cur.indexOf('usd') >= 0) o.push(ownNetCard1(N.u, 'usd')); return o; }
-function ownNetCard1(n, cur) { return X({ label: 'صافي الفترة · ' + (cur === 'usd' ? 'دولار' : 'شيكل'), value: ownNetTxt(n, cur), endTone: n < 0 ? 'bad' : n > 0 ? 'ok' : undefined }); }
+function ownNetNote(q, cur) { return q && q.xa ? 'منه تحويل وجرد ' + ownNetTxt(q.xa, cur) : ''; }
+function ownNetCards(N, D) { var cur = D.recs.reduce(function (a, r) { if (a.indexOf(r.cur) < 0) a.push(r.cur); return a; }, []), o = []; if (cur.indexOf('ils') >= 0) o.push(ownNetCard1(N.i, 'ils', ownNetNote(D.P.i, 'ils'))); if (cur.indexOf('usd') >= 0) o.push(ownNetCard1(N.u, 'usd', ownNetNote(D.P.u, 'usd'))); return o; }
+function ownNetCard1(n, cur, note) { return X({ label: 'صافي الفترة · ' + (cur === 'usd' ? 'دولار' : 'شيكل'), value: ownNetTxt(n, cur), sub: note || undefined, endTone: n < 0 ? 'bad' : n > 0 ? 'ok' : undefined }); }
 function pgOwnSt() {
   var R = ownRange(), D = ownData(R.from, R.to), bl = [], T = D.T;
   bl.push(B('chips', { items: ownPresets().map(function (p) { return X({ label: p[0], on: R.from === p[1] && R.to === p[2], go: function () { ownSetRange(p[1], p[2]); } }); }).concat([X({ label: 'فترة محددة', icon: 'i-calendar', go: function () { ownPrev(); } })]) }));
   bl.push(B('acts', { items: [X({ title: 'مشاركة الكشف', icon: 'i-send', go: function () { ownPrev(); } })] }));
+  var P = D.P, hasU = P.u.inn || P.u.out;
+  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(P.i.inn), value2: P.u.inn ? usdTxt(P.u.inn) : '', endTone: 'ok' }), X({ label: 'مصروفات', value: money(P.i.out), value2: P.u.out ? usdTxt(P.u.out) : '', endTone: 'bad' })] }));
   bl.push(B('kpi', { items: ownNetCards(D.N, D) }));
-  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(T.inI), value2: uTxt(T.inU, T.inX), endTone: 'ok', sub: (T.inU || T.inX) ? '' : 'مكافئ بالشيكل' }), X({ label: 'مصروفات', value: money(T.outI), value2: uTxt(T.outU, T.outX), endTone: 'bad', sub: (T.outU || T.outX) ? '' : 'مكافئ بالشيكل' })] }));
   D.recs.forEach(function (r) { bl.push(B('rows', { all: true, items: ownRecRows(r) })); });
   if (!D.recs.length) bl.push(B('rows', { title: 'الأرصدة', items: [], empty: 'لا حركات في هذه الفترة' }));
   D.ins.forEach(function (g) { bl.push(B('rows', { title: 'الوارد · ' + catName(g.c) + ' · ' + ownTot(g), items: g.ms.map(function (m) { return moveRowX(m, true); }) })); });
