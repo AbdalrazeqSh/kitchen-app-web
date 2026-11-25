@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.185';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.186';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4468,7 +4468,7 @@ function ownRecName(r) { return r.f.name + (r.f.curs.length > 1 ? ' · ' + (r.cu
 /* صافي الفترة للرصيد = آخره − أوله (وارد − صرف ± تحويل ± جرد)؛ يظهر في صف عنوان البطاقة نفسه مقابل الاسم (المالك 2026-11-24) */
 function ownNet(r) { var n = r2(r.close - r.open); return { n: n, txt: n === 0 ? fTxt(r.cur, 0) : n < 0 ? sg('out', fTxt(r.cur, -n)) : sg('in', fTxt(r.cur, n)), tone: n < 0 ? 'bad' : n > 0 ? 'ok' : '' }; }
 function ownRecRows(r) {
-  var nt = ownNet(r), o = [X({ par: true, title: ownRecName(r), sub: 'صافي الفترة', end: nt.txt, endTone: nt.tone || undefined }), X({ title: 'رصيد أول الفترة', end: fTxt(r.cur, r.open) })];
+  var nt = ownNet(r), o = [X({ par: true, icon: 'i-wallet', icTone: r.cur === 'usd' ? 'info' : 'ok', title: ownRecName(r), sub: 'صافي الفترة', end: nt.txt, endTone: nt.tone || undefined }), X({ title: 'رصيد أول الفترة', end: fTxt(r.cur, r.open) })];
   if (r.inN) o.push(X({ kid: true, title: 'وارد', sub: pl(r.inN, 'حركة واحدة', 'حركتان', 'حركات'), end: sg('in', fTxt(r.cur, r.inn)), endTone: 'ok' }));
   if (r.outN) o.push(X({ kid: true, title: 'مصروفات', sub: pl(r.outN, 'حركة واحدة', 'حركتان', 'حركات'), end: sg('out', fTxt(r.cur, r.out)), endTone: 'bad' }));
   if (r.xN) o.push(X({ kid: true, title: 'تحويلات', sub: pl(r.xN, 'حركة واحدة', 'حركتان', 'حركات'), end: (r.x < 0 ? sg('out', fTxt(r.cur, -r.x)) : sg('in', fTxt(r.cur, r.x))), endTone: r.x < 0 ? 'bad' : 'ok' }));
@@ -4482,15 +4482,26 @@ function ownSetRange(f, t) { A.ofrom = f; A.oto = t; render(); }
 /* صافي الفترة الإجمالي لكل الأرصدة: مجموع صافي كل رصيد، بالشيكل وبالدولار بوزن واحد (المالك 2026-11-24: «ليش مش كاتب الإجمالي فوق؟») */
 function ownNetTxt(n, cur) { return n === 0 ? fTxt(cur, 0) : n < 0 ? sg('out', fTxt(cur, -n)) : sg('in', fTxt(cur, n)); }
 function ownNetNote(q, cur) { return q && q.xa ? 'منه تحويل وجرد ' + ownNetTxt(q.xa, cur) : ''; }
-function ownNetCards(N, D) { var cur = D.recs.reduce(function (a, r) { if (a.indexOf(r.cur) < 0) a.push(r.cur); return a; }, []), o = []; if (cur.indexOf('ils') >= 0) o.push(ownNetCard1(N.i, 'ils', ownNetNote(D.P.i, 'ils'))); if (cur.indexOf('usd') >= 0) o.push(ownNetCard1(N.u, 'usd', ownNetNote(D.P.u, 'usd'))); return o; }
-function ownNetCard1(n, cur, note) { return X({ label: 'صافي الفترة · ' + (cur === 'usd' ? 'دولار' : 'شيكل'), value: ownNetTxt(n, cur), sub: note || undefined, endTone: n < 0 ? 'bad' : n > 0 ? 'ok' : undefined }); }
+/* ملخص الفترة بطاقة واحدة بعمودين (شيكل | دولار): وارد (أخضر +)، مصروفات (أحمر −)، ثم صافي الفترة صف إجمالي؛ الأيقونة والصف يميّزان الدور (المالك 2026-11-25: «حاجات شبه بعض لا تدل على اختلافها») */
+function ownSumRows(D) {
+  var P = D.P, N = D.N, two = !!(P.u.inn || P.u.out || N.u), o = [];
+  var col = function (cur, v, dir) { return v ? sg(dir, fTxt(cur, v)) : fTxt(cur, 0); };
+  if (two) o.push(X({ hdr: true, colw: 104, title: '', end: 'شيكل', end2: 'دولار' }));
+  var row = function (o2, ti, ic, tn, qi, qu, dir) { var r = { title: ti, icon: ic, icTone: tn, end: col('ils', qi, dir), endTone: qi ? tn : undefined }; if (two) { r.colw = 104; r.end2 = col('usd', qu, dir); if (qu && tn === 'bad') r.end2Tone = 'bad'; } o2.push(X(r)); };
+  row(o, 'وارد', 'i-plus', 'ok', P.i.inn, P.u.inn, 'in');
+  row(o, 'مصروفات', 'i-minus', 'bad', P.i.out, P.u.out, 'out');
+  var t = { total: true, title: 'صافي الفترة', end: ownNetTxt(N.i, 'ils'), endTone: N.i < 0 ? 'bad' : undefined };
+  if (two) { t.colw = 104; t.end2 = ownNetTxt(N.u, 'usd'); if (N.u < 0) t.end2Tone = 'bad'; }
+  var xa = ownNetNote(P.i, 'ils'), xu = ownNetNote(P.u, 'usd'); if (xa || xu) t.sub = [xa, xu].filter(Boolean).join(' · ');
+  o.push(X(t));
+  return o;
+}
 function pgOwnSt() {
   var R = ownRange(), D = ownData(R.from, R.to), bl = [], T = D.T;
   bl.push(B('chips', { items: ownPresets().map(function (p) { return X({ label: p[0], on: R.from === p[1] && R.to === p[2], go: function () { ownSetRange(p[1], p[2]); } }); }).concat([X({ label: 'فترة محددة', icon: 'i-calendar', go: function () { ownPrev(); } })]) }));
   bl.push(B('acts', { items: [X({ title: 'مشاركة الكشف', icon: 'i-send', go: function () { ownPrev(); } })] }));
   var P = D.P, hasU = P.u.inn || P.u.out;
-  bl.push(B('kpi', { items: [X({ label: 'وارد', value: money(P.i.inn), value2: P.u.inn ? usdTxt(P.u.inn) : '', endTone: 'ok' }), X({ label: 'مصروفات', value: money(P.i.out), value2: P.u.out ? usdTxt(P.u.out) : '', endTone: 'bad' })] }));
-  bl.push(B('kpi', { items: ownNetCards(D.N, D) }));
+  bl.push(B('rows', { title: 'ملخص الفترة', all: true, items: ownSumRows(D) }));
   D.recs.forEach(function (r) { bl.push(B('rows', { all: true, items: ownRecRows(r) })); });
   if (!D.recs.length) bl.push(B('rows', { title: 'الأرصدة', items: [], empty: 'لا حركات في هذه الفترة' }));
   D.ins.forEach(function (g) { bl.push(B('rows', { title: 'الوارد · ' + catName(g.c) + ' · ' + ownTot(g), items: g.ms.map(function (m) { return moveRowX(m, true); }) })); });

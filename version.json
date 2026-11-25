@@ -1,10 +1,10 @@
 {
- "ver": "1.0.185",
+ "ver": "1.0.186",
  "minPkg": "0.9.6",
  "files": {
   "ui-tpl.js": "59dc6d34013b62adfab07d6779d125dd15549daf20156a1dc6520b2ef920a427",
   "ui.js": "ec22642c4d94f612a72315b896dc7f9c7d7670706df083611a9689200e15648c",
   "engine.js": "15ec82384302ad9ccd7bca2826f6441660d930ce7979946c5bf26f2d2d57388f",
-  "app.js": "bcbfd23d940961a1197faba0c5dfd7efe5f5ba5caa387e6e0cee0efeb73c5d4f"
+  "app.js": "19dd01fab7812934b4bd911b9e1b537c105f140d7abb4ae56c2e1cd1e5be603c"
  }
 }
