@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.203';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.204';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1972,7 +1972,8 @@ function recentMoves(n, fid) { return movesDesc(fmOn(fid)).slice(0, n); }
 /* أرصدة الصندوق بالعملتين بحجم واحد */
 function fBalEq(f) { var x = { end: fBalTxt(f) }; if (f.curs.length > 1) { x.endSub = fTxt(f.curs[1], fBal(f.id, f.curs[1])); x.endEq = true; } return x; }
 function todayMoney() { var t = today(), ms = fmOn().filter(function (m) { return m.date === t && !m.x; }); return ms.length; }
-function defFund() { var l = fund(S.settings.lastFund); if (l && !l.arch) return l.id; var c = funds().filter(function (f) { return !hasCur(f, 'usd'); })[0]; return (c || funds()[0] || {}).id; }
+/* الافتراضي في كل الحركات هو البنك دائمًا، لا آخر رصيد استُعمل (المالك 2026-11-26) */
+function defFund() { var b = funds().filter(function (f) { return f.name === 'البنك' && !f.arch; })[0]; if (b) return b.id; var c = funds().filter(function (f) { return !hasCur(f, 'usd'); })[0]; return (c || funds()[0] || {}).id; }
 function dayBack(n) { return iso(new Date(Date.now() - 864e5 * (+n || 0))); }
 function movesDesc(list) { return list.map(function (m, i) { return { m: m, i: i }; }).sort(function (a, b) { return a.m.date < b.m.date ? 1 : a.m.date > b.m.date ? -1 : b.i - a.i; }).map(function (o) { return o.m; }); }
 function moreRow(n, go) { return X({ more: true, icon: 'i-chevD', icTone: 'mute', title: 'عرض ' + n + ' أخرى', sub: 'الأحدث أولًا', chev: false, go: go }); }
@@ -2000,7 +2001,6 @@ function fundFields() {
 }
 function payFund(fid, w, ils, note, kind, rate, wl, date) {
   var f = fund(fid), pl_ = payPlan(f, ils, rate); if (!pl_.ok) return;
-  S.settings.lastFund = fid;
   S.fm.push({ id: mid(S.fm, 'm'), date: date || today(), h: fid, dir: 'out', cur: pl_.cur, amt: pl_.amt, ils: pl_.ils, rate: pl_.rate, note: (kind || 'راتب') + ' ' + w.name + (note ? ' — ' + note : ''), w: w.id, wl: wl || null, wils: ils });
 }
 
@@ -2069,7 +2069,7 @@ function modesOf(f, dir) {
 function doMove() {
   var dir = fv('dir') || 'out', f = fund(fv('fund')), ms0 = modesOf(f, dir), md = ms0.some(function (x) { return x[0] === fv('mode'); }) ? fv('mode') : ms0[0][0], a = num('amt'), rt = num('rate'), note = cleanNote(fv('note')), m = { id: mid(S.fm, 'm'), date: moveDate(), h: f.id, dir: dir, note: note }; if (fv('cat')) m.cat = fv('cat'); phTag(m, phTake());
   if (md === 'conv') { m.cur = 'usd'; m.ils = a; m.rate = rt; m.amt = r2(a / rt); } else { m.cur = md; m.amt = a; m.ils = 0; m.rate = 0; }
-  S.fm.push(m); S.settings.lastFund = f.id; shut();
+  S.fm.push(m); shut();
   mutated((dir === 'in' ? 'سُجّل وارد ' : 'سُجّل ناقص ') + (md === 'conv' ? money(a) : fTxt(md, a)) + ' — ' + f.name);
 }
 function doXfer() {
@@ -2717,7 +2717,7 @@ function iniFundMove(i, e, fid, rate, pid) {
 function doIniPay(id, amt, fid, note, rate, date) {
   var i = inst(id), pid = phTake(), e = { amt: amt, date: date || today(), note: note || '', fund: fid || '' }; phTag(e, pid);
   i.pay = (i.pay || []).concat([e]);
-  if (fid) { iniFundMove(i, e, fid, rate, pid); S.settings.lastFund = fid; }
+  if (fid) { iniFundMove(i, e, fid, rate, pid); }
   audit('دفعة ' + money(amt) + ' من «' + i.name + '»');
   iniBack(id); mutated('سُجّلت دفعة ' + money(amt) + ' من ' + i.name);
 }
@@ -2725,7 +2725,7 @@ function doIniPayEdit(id, k, rate) {
   var i = inst(id), e = (i.pay || [])[k]; if (!e) return; var old = iniPayMove(i, e), was = { amt: e.amt, date: e.date, note: e.note, fund: e.fund, mv: e.mv }, fid = fv('fund'), nm = null;
   e.amt = num('amt'); e.note = (fv('note') || '').trim(); e.date = moveDate(); e.fund = fid || '';
   if (old) old.void = true;
-  if (fid) { nm = iniFundMove(i, e, fid, rate); S.settings.lastFund = fid; } else e.mv = '';
+  if (fid) { nm = iniFundMove(i, e, fid, rate); } else e.mv = '';
   if (old && nm) old.edTo = nm.id;
   audit('تعديل دفعة من «' + i.name + '»: ' + money(was.amt) + ' ← ' + money(e.amt));
   iniBack(id); mutated('عُدّلت الدفعة', function () { Object.assign(e, was); if (nm) { S.fm = S.fm.filter(function (x) { return x.id !== nm.id; }); } if (old) { old.void = false; delete old.edTo; } save(); render(); });
@@ -2752,7 +2752,7 @@ function initSheet(sh) {
       rows.push(X({ total: true, title: 'المتبقي', tag: money(na.due), tagTone: na.due > 0 ? 'warn' : 'ok' }));
       na.bs.forEach(function (b) { rows.push(X({ icon: 'i-pot', icTone: 'warn', title: batchName(b), sub: dlabel(b.date) + ' · ' + pl(b.pots || 0, 'قدر واحد', 'قدران', 'قدور'), tag: batchCostTxt(b), tagTone: 'mute', chev: true, go: function () { openSh({ t: 'bview', id: b.id }); }, lp: function () { batchQa(b); } })); });
       return { acts: [X({ title: 'كشف الحساب', icon: 'i-doc', go: function () { openSh({ t: 'stmt', id: ni.id }, { m: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { openSh({ t: 'iniChg', id: ni.id }, { amt: '', note: '', kind: '' }); } })], title: ni.name, sub: ni.occ || 'مبادرة', rows: rows,
-        ft: { label: 'تسجيل دفعة', ok: true, go: function () { openSh({ t: 'iniPay', id: ni.id }, { fund: '', amt: '', note: '', rate: '' }); } },
+        ft: { label: 'تسجيل دفعة', ok: true, go: function () { openSh({ t: 'iniPay', id: ni.id }, { fund: defFund(), amt: '', note: '', rate: '' }); } },
         ft2: { label: 'طبخة جديدة', go: function () { startIniBatch(ni.id); } } };
     }
     case 'iniPay': case 'iniPayEd': {
@@ -4024,7 +4024,7 @@ function stmtAllSheet(sh) {
     ft2: { label: 'خيارات الكشف', go: function () { stOptsOpen(ALLI, ym, fv('sv')); } } };
 }
 function stmtSheet(sh) {
-  var i = inst(sh.id), ym = stCurM(i); stSvInit(i); var stActs = [X({ title: 'دفعة', icon: 'i-wallet', go: function () { A.stM = ym; openSh({ t: 'iniPay', id: i.id }, { fund: '', amt: '', note: '', rate: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { A.stM = ym; openSh({ t: 'iniChg', id: i.id }, { amt: '', note: '', kind: '' }); } }), X({ title: 'طبخة جديدة', icon: 'i-pot', go: function () { startIniBatch(i.id); } })], a = stAcct(i, ym), sent = (S.settings.stmtSent || {})[stKey(i, ym)], late = stLate(i, ym, a);
+  var i = inst(sh.id), ym = stCurM(i); stSvInit(i); var stActs = [X({ title: 'دفعة', icon: 'i-wallet', go: function () { A.stM = ym; openSh({ t: 'iniPay', id: i.id }, { fund: defFund(), amt: '', note: '', rate: '' }); } }), X({ title: 'إضافة مبلغ', icon: 'i-plus', go: function () { A.stM = ym; openSh({ t: 'iniChg', id: i.id }, { amt: '', note: '', kind: '' }); } }), X({ title: 'طبخة جديدة', icon: 'i-pot', go: function () { startIniBatch(i.id); } })], a = stAcct(i, ym), sent = (S.settings.stmtSent || {})[stKey(i, ym)], late = stLate(i, ym, a);
   var ms = stMonths(i), rows = [];
   if (a.prev) rows.push(X({ title: 'الرصيد السابق', sub: 'قبل ' + (ym === 'all' ? '' : monthLabel(ym)), tag: money(a.prev), tagTone: a.prev > 0 ? 'warn' : 'ok' }));
   a.bs.forEach(function (b) {
