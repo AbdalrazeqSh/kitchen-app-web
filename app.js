@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.202';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.203';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -5362,7 +5362,7 @@ function wstSend(w, o, how) {
   var d = wstDoc(w, o.from, o.to, o), ym = o.from + '_' + o.to;
   if (how === 'txt') { copyText(wstText(d), 'نُسخ كشف ' + w.name); return; }
   var ttl = d.sub + ' — ' + w.name, nm = fnName(['كشف-عامل', w.name, ym], '');
-  if (how !== 'pdf') { imgPreview(function () { return wstCanvas(d); }, nm + '.png', ttl, d.closeV); return; }
+  if (how !== 'pdf') { imgPreview(function () { return wstCanvas(d); }, nm + '.png', ttl, w.name + '\n' + d.closeV); return; }
   say('جارٍ تجهيز الكشف…');
   var go = function () {
     try { saveFile(nm + '.pdf', u8b64(pdfFromCanvas(wstCanvas(d))), 'application/pdf', ttl).then(function (r) { say(savedMsg(r, 'ملف PDF')); }).catch(function (e) { if (!(e && /cancel|dismiss/i.test(String(e.message || e)))) say('تعذّر تجهيز الكشف'); }); }
