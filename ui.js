@@ -184,6 +184,10 @@ function guard(f, a) { try { f(a); } catch (er) { if (UI.onError) UI.onError(er)
 function mount(el, props) {
   root = el; getProps = props;
   /* لمس أي خانة كتابة يحدّد كل محتواها، فالكتابة تستبدل القيمة بدل أن تُضاف إليها */
+  /* لوحة المفاتيح مفتوحة: النافذة تأخذ كل الارتفاع المتاح وتُخفي ما لا علاقة له بالكتابة (data-kbhide) وتصغّر المعاينة */
+  var kbT = 0;
+  root.addEventListener('focusin', function (e) { var t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && !/^(checkbox|radio|date|file|range)$/i.test(t.type || '')) { clearTimeout(kbT); root.classList.add('kb'); } });
+  root.addEventListener('focusout', function () { clearTimeout(kbT); kbT = setTimeout(function () { var ae = document.activeElement; if (!ae || (ae.tagName !== 'INPUT' && ae.tagName !== 'TEXTAREA')) root.classList.remove('kb'); }, 200); });
   root.addEventListener('focusin', function (e) {
     var t = e.target; if (restoring || !t || !t.tagName) return;
     if (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA') return;
