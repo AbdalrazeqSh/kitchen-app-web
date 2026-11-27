@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.214';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.215';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -5059,7 +5059,7 @@ function pgWrep() {
     b.rows.forEach(function (r, i) {
       if (i === 0 && hs) return;
       if (r.k === 'verdict') { flush(); bl.push(B('rows', { all: true, items: [X({ icon: 'i-alert', icTone: r.lvl === 0 ? 'ok' : r.lvl === 1 ? 'warn' : 'bad', title: r.l, sub: r.t, rbg: VB[r.lvl] })] })); }
-      else if (r.k === 'kpi') { flush(); for (var j = 0; j < r.t.length; j += 2) bl.push(B('kpi', { items: r.t.slice(j, j + 2).map(function (z) { return X({ label: z[0], value: z[1], sub: !o.cmp ? '' : z[2].d ? (z[2].d > 0 ? '▲ ' : '▼ ') + z[2].t.replace(/^[+−]/, '') + ' عن السابق' : (z[1] === '—' ? 'لا قدر' : 'كالسابق') }); }) })); }
+      else if (r.k === 'kpi') { flush(); for (var j = 0; j < r.t.length; j += 2) bl.push(B('kpi', { items: r.t.slice(j, j + 2).map(function (z) { return X({ label: z[0], value: z[1], sub: !o.cmp ? '' : z[2].d ? (z[2].d > 0 ? '▲ ' : '▼ ') + z[2].t.replace(/^[+−]/, '') + ' عن السابق' : (z[1] === '—' ? 'لا قدور' : 'كالسابق') }); }) })); }
       else if (r.k === 'sec') items.push(X({ sect: true, title: r.t, end: r.n || '' }));
       else if (r.k === 'row') items.push(X({ title: r.l, sub: r.s || '', end: r.v, endTone: wrTone(r.tone), total: !!r.tot, mini: !!r.sub }));
     });
