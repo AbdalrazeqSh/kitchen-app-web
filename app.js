@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.211';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.212';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4810,10 +4810,10 @@ function achSheet(sh) {
 
 /* ===== 02w4-wrep.js ===== */
 /* ---------- ملخص المتابعة للمدير (المالك 2026-11-25): الإنجاز، الطبخ الخارجي، العمال، المخزن، المال؛ فترة من/إلى ومقارنة بالفترة السابقة ---------- */
-var WR_BL = [['hd', 'الحكم العام'], ['kpi', 'الأرقام الرئيسية'], ['ex', 'نقاط المتابعة'], ['bars', 'رسم القدور اليومي'], ['ext', 'الطبخ الخارجي'], ['wk', 'العمال'], ['stk', 'المخزن'], ['mon', 'المال'], ['nx', 'الأسبوع القادم'], ['cmp', 'المقارنة بالفترة السابقة']];
+var WR_BL = [['hd', 'الحكم العام'], ['kpi', 'الأرقام الرئيسية'], ['ex', 'نقاط المتابعة'], ['bars', 'رسم القدور اليومي'], ['ext', 'الطبخ الخارجي'], ['wk', 'العمال'], ['stk', 'المخزن'], ['mon', 'المال'], ['usd', 'صافي الدولار'], ['nx', 'الأسبوع القادم'], ['cmp', 'المقارنة بالفترة السابقة']];
 function wrOpt() {
   var s = (S.settings.wrOpt || {}), o = {};
-  WR_BL.forEach(function (k) { o[k[0]] = k[0] === 'stk' ? s.stk === '1' : s[k[0]] !== '0'; }); /* المخزن إداري: مطفأ افتراضيًا */
+  WR_BL.forEach(function (k) { o[k[0]] = (k[0] === 'stk' || k[0] === 'usd') ? s[k[0]] === '1' : s[k[0]] !== '0'; }); /* المخزن إداري وصافي الدولار: مطفآن افتراضيًا */
   o.note = (s.note || '').trim(); o.who = (s.who || '').trim();
   return o;
 }
@@ -4948,7 +4948,7 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
     cat('وارد الفترة', D.cIn, D.inI, D.inU, 'ok');
     cat('مصروفات الفترة', D.cOut, D.outI, D.outU, 'bad');
     S1.push({ k: 'row', l: 'صافي الفترة', v: wrNet(D.net), tone: D.net < 0 ? 'bad' : D.net > 0 ? 'ok' : '', tot: 1, s: 'وارد − مصروفات' });
-    if (D.inU || D.outU) S1.push({ k: 'row', l: 'صافي الفترة بالدولار', v: D.netU < 0 ? '\u2066\u2212' + usdTxt(-D.netU) + '\u2069' : usdTxt(D.netU), tone: D.netU < 0 ? 'bad' : D.netU > 0 ? 'ok' : '', tot: 1 });
+    if (o.usd && (D.inU || D.outU)) S1.push({ k: 'row', l: 'صافي الفترة بالدولار', v: D.netU < 0 ? '\u2066\u2212' + usdTxt(-D.netU) + '\u2069' : usdTxt(D.netU), tone: D.netU < 0 ? 'bad' : D.netU > 0 ? 'ok' : '', tot: 1 });
     S1.push({ k: 'sec', t: 'المستحقات الآن', c: '#14563A', n: '' });
     S1.push({ k: 'row', l: 'مستحق للعمال', v: money(D.owW), tone: D.owW > 0 ? 'warn' : '' });
     if (D.extCost > 0) S1.push({ k: 'row', l: 'تكلفة الطبخ الخارجي هذه الفترة', v: money(D.extCost) });
@@ -5045,7 +5045,7 @@ function pgWrep() {
   bl.push(B('acts', { items: [X({ title: 'إرسال للمدير', icon: 'i-send', go: function () { openSh({ t: 'wrs' }); } }), X({ title: 'الخيارات', icon: 'i-sliders', go: function () { openSh({ t: 'wrs', opt: 1 }); } })] }));
   var items = [], flush = function () { if (items.length) bl.push(B('rows', { all: true, items: items })); items = []; };
   var VB = ['#E8F1EB', '#FFF1D0', '#FDEBE9'];
-  wrRows(D, { hd: true, ex: true, nx: true, kpi: true, bars: false, ext: true, wk: true, stk: wrOpt().stk, mon: true, cmp: true, note: '' }).forEach(function (r) {
+  wrRows(D, { hd: true, ex: true, nx: true, kpi: true, bars: false, ext: true, wk: true, stk: wrOpt().stk, usd: wrOpt().usd, mon: true, cmp: true, note: '' }).forEach(function (r) {
     if (r.k === 'verdict') bl.push(B('rows', { all: true, items: [X({ icon: 'i-alert', icTone: r.lvl === 0 ? 'ok' : r.lvl === 1 ? 'warn' : 'bad', title: r.l, sub: r.t, rbg: VB[r.lvl] })] }));
     else if (r.k === 'kpi') { for (var i = 0; i < r.t.length; i += 2) bl.push(B('kpi', { items: r.t.slice(i, i + 2).map(function (z) { return X({ label: z[0], value: z[1], sub: z[2].d ? (z[2].d > 0 ? '▲ ' : '▼ ') + z[2].t.replace(/^[+\u2212]/, '') + ' عن السابق' : (z[1] === '—' ? 'لا قدور' : 'كالسابق') }); }) })); }
     else if (r.k === 'sec') { flush(); items.push(X({ sect: true, title: r.t, end: r.n || '' })); }
