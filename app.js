@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.215';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.216';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4816,6 +4816,7 @@ var WR_BL = [['hd', 'الحكم العام'], ['kpi', 'الأرقام الرئي
 function wrOpt() {
   var s = (S.settings.wrOpt || {}), o = {};
   WR_BL.forEach(function (k) { o[k[0]] = (k[0] === 'stk' || k[0] === 'usd') ? s[k[0]] === '1' : s[k[0]] !== '0'; }); /* المخزن إداري وصافي الدولار: مطفآن افتراضيًا */
+  ['din', 'dout'].forEach(function (k) { o[k] = s[k] !== '0'; }); ['qin', 'qout'].forEach(function (k) { o[k] = s[k] === '1'; }); /* تفصيل الوارد والمصروفات ظاهر، والمكافئ بالشيكل مطفأ حتى يطلبه المالك */
   o.note = (s.note || '').trim(); o.who = (s.who || '').trim();
   return o;
 }
@@ -4941,12 +4942,13 @@ function wrBlocks(D, o) { /* كتل الملخص بترتيبها: لكل كتل
   blk('stk', T1);
   var M1 = [{ k: 'sec', t: 'المال', c: '#14563A', n: '' }];
   var cv = function (o) { var q = []; if (o.i) q.push(money(o.i)); if (o.u) q.push(usdTxt(o.u)); return q.join(' · '); };
-  var cat = function (title, arr, ti, tu, tone) {
-    M1.push({ k: 'row', l: title, v: [ti ? money(ti) : '', tu ? usdTxt(tu) : ''].filter(Boolean).join(' · ') || money(0), tone: (ti || tu) ? tone : '', tot: 0 });
-    arr.forEach(function (o) { M1.push({ k: 'row', l: o.n, v: cv(o), sub: 1 }); });
+  var cat = function (title, arr, ti, tu, tone, det, eq) {
+    var qv = eq && tu > 0 && D.rate > 0 ? 'المكافئ ' + money(r2(ti + tu * D.rate)) : '';
+    M1.push({ k: 'row', l: title, v: [ti ? money(ti) : '', tu ? usdTxt(tu) : ''].filter(Boolean).join(' · ') || money(0), tone: (ti || tu) ? tone : '', tot: 0, s: qv });
+    if (det) arr.forEach(function (o) { M1.push({ k: 'row', l: o.n, v: cv(o), sub: 1 }); });
   };
-  cat('وارد الفترة', D.cIn, D.inI, D.inU, 'ok');
-  cat('مصروفات الفترة', D.cOut, D.outI, D.outU, 'bad');
+  cat('وارد الفترة', D.cIn, D.inI, D.inU, 'ok', o.din !== false, o.qin);
+  cat('مصروفات الفترة', D.cOut, D.outI, D.outU, 'bad', o.dout !== false, o.qout);
   M1.push({ k: 'row', l: 'صافي الفترة', v: wrNet(D.net), tone: D.net < 0 ? 'bad' : D.net > 0 ? 'ok' : '', tot: 1, s: 'وارد − مصروفات' });
   if (o.usd && (D.inU || D.outU)) M1.push({ k: 'row', l: 'صافي الفترة بالدولار', v: D.netU < 0 ? '⁦−' + usdTxt(-D.netU) + '⁩' : usdTxt(D.netU), tone: D.netU < 0 ? 'bad' : D.netU > 0 ? 'ok' : '', tot: 1 });
   M1.push({ k: 'sec', t: 'المستحقات الآن', c: '#14563A', n: '' });
@@ -5064,6 +5066,7 @@ function pgWrep() {
       else if (r.k === 'row') items.push(X({ title: r.l, sub: r.s || '', end: r.v, endTone: wrTone(r.tone), total: !!r.tot, mini: !!r.sub }));
     });
     if (b.k === 'kpi') ctl('cmp', 'المقارنة بالفترة السابقة', 'ظاهرة', 'مخفية');
+    if (b.k === 'mon') { ctl('din', 'تفصيل الوارد', 'ظاهر', 'مخفي'); ctl('dout', 'تفصيل المصروفات', 'ظاهر', 'مخفي'); if (D.inU) ctl('qin', 'المكافئ بالشيكل في الوارد', 'ظاهر', 'مخفي'); if (D.outU) ctl('qout', 'المكافئ بالشيكل في المصروفات', 'ظاهر', 'مخفي'); }
     if (b.k === 'mon' && (D.inU || D.outU)) ctl('usd', 'صافي الفترة بالدولار', 'ظاهر', 'مخفي');
   });
   flush();
