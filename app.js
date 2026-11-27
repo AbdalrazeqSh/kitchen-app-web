@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.212';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.213';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4656,7 +4656,8 @@ function ownCanvas(D, o) {
     if (r.outN) L.push({ k: 'rec', fl: 1, l: 'مصروفات (' + r.outN + ')', v: sg('out', fTxt(r.cur, r.out)), tone: 'bad' });
     if (r.xN) L.push({ k: 'rec', fl: 1, l: 'تحويلات', v: sg(r.x < 0 ? 'out' : 'in', fTxt(r.cur, Math.abs(r.x))), tone: r.x < 0 ? 'bad' : 'ok' });
     if (r.adjN) L.push({ k: 'rec', fl: 1, l: 'تسوية جرد', v: sg(r.adj < 0 ? 'out' : 'in', fTxt(r.cur, Math.abs(r.adj))), tone: r.adj < 0 ? 'bad' : 'ok' });
-    L.push({ k: 'tot', l: 'رصيد آخر الفترة', v: fTxt(r.cur, r.close) });
+    L.push({ k: 'tot', l: 'رصيد آخر الفترة · ' + ownRecName(r), v: fTxt(r.cur, r.close) });
+    L.push({ k: 'gap' });
   });
   var mv = function (m, dir) { var f0 = fund(m.h), cv = m.cur === 'usd' && m.ils > 0; return { k: 'mv', d: dshow(m.date), n: m.note || (dir === 'in' ? 'وارد' : dir === 'out' ? 'مصروف' : 'تحويل'), a: o.acc && f0 ? (dir === 'in' ? 'إلى ' : 'من ') + f0.name : '', v: (dir ? sg(dir, cv ? money(m.ils) : fTxt(m.cur, m.amt)) : (cv ? money(m.ils) : fTxt(m.cur, m.amt))), s: cv ? usdTxt(m.amt) : '', tone: dir === 'in' ? 'ok' : dir === 'out' ? 'bad' : '' }; };
   var mvs = function (pre, gs, dir) {
@@ -4666,7 +4667,7 @@ function ownCanvas(D, o) {
   if (o.ins) mvs('الوارد', D.ins, 'in'); if (o.outs) mvs('المصروفات', D.outs, 'out');
   if (o.xf && D.xs.length) { L.push({ k: 'sec', t: 'تحويلات بين الحسابات', brk: 1 }); D.xs.forEach(function (m) { L.push(mv(m, '')); }); }
   var H = hdr + 30, i;
-  for (i = 0; i < L.length; i++) H += L[i].k === 'mv' ? (L[i].a || L[i].d ? 70 : 52) : L[i].k === 'sum' ? 262 : L[i].k === 'sec' ? 58 : L[i].fl ? 44 : 52;
+  for (i = 0; i < L.length; i++) H += L[i].k === 'mv' ? (L[i].a || L[i].d ? 70 : 52) : L[i].k === 'sum' ? 262 : L[i].k === 'gap' ? 30 : L[i].k === 'sec' ? 58 : L[i].fl ? 44 : 52;
   H += 70;
   var c = document.createElement('canvas'); c.width = W; c.height = H;
   var x = c.getContext('2d'); x.direction = 'rtl'; x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H);
@@ -4694,7 +4695,8 @@ function ownCanvas(D, o) {
     if (r.k === 'sec') { if (r.brk) brk.push(y); var cardH = !!r.cap; x.fillStyle = cardH ? '#FFFFFF' : '#E4EFE8'; x.fillRect(0, y, W, 58); if (cardH) { x.fillStyle = '#DDE2DC'; x.fillRect(0, y, W, 2); x.fillStyle = r.cc === 'usd' ? '#243C8F' : '#14563A'; x.fillRect(W - 8, y, 8, 58); } x.fillStyle = cardH ? '#1B2421' : '#14563A'; x.textAlign = 'right'; x.font = '700 27px ' + F; x.fillText(fit(r.t, W - 2 * PAD - (r.v ? 300 : 0)), W - PAD, y + 38); if (r.v) { x.textAlign = 'left'; x.fillStyle = CO[r.tone || ''] === '#1B2421' ? '#14563A' : CO[r.tone]; x.font = '700 27px ' + F; x.fillText(r.v, PAD, y + 38); if (r.cap) { var vw = x.measureText(r.v).width; x.fillStyle = '#6B756F'; x.font = '500 19px ' + F; x.fillText(r.cap, PAD + vw + 14, y + 37); } } y += 58; return; }
     if (r.k === 'rec' && r.fl) { x.fillStyle = '#4A554F'; x.textAlign = 'right'; x.font = '400 22px ' + F; x.fillText(r.l, W - PAD - 24, y + 30); x.textAlign = 'left'; x.fillStyle = CO[r.tone || '']; x.font = '500 22px ' + F; x.fillText(r.v, PAD, y + 30); x.fillStyle = '#EEF0EC'; x.fillRect(PAD, y + 43, W - 2 * PAD, 1); y += 44; return; }
     if (r.k === 'rec') { x.fillStyle = '#1B2421'; x.textAlign = 'right'; x.font = '500 25px ' + F; x.fillText(r.l, W - PAD, y + 34); x.textAlign = 'left'; x.fillStyle = CO[r.tone || '']; x.font = '600 25px ' + F; x.fillText(r.v, PAD, y + 34); x.fillStyle = '#EEF0EC'; x.fillRect(PAD, y + 51, W - 2 * PAD, 1); y += 52; return; }
-    if (r.k === 'tot') { x.fillStyle = '#DCEBE2'; x.fillRect(0, y, W, 52); x.fillStyle = '#14563A'; x.fillRect(0, y, W, 2); x.textAlign = 'right'; x.font = '700 26px ' + F; x.fillText(r.l, W - PAD, y + 35); x.textAlign = 'left'; x.fillText(r.v, PAD, y + 35); y += 52; return; }
+    if (r.k === 'gap') { x.fillStyle = '#F1F3EF'; x.fillRect(0, y, W, 30); y += 30; return; }
+    if (r.k === 'tot') { x.fillStyle = '#DCEBE2'; x.fillRect(0, y, W, 52); x.fillStyle = '#14563A'; x.fillRect(0, y, W, 2); x.textAlign = 'right'; x.font = '700 26px ' + F; x.fillText(fit(r.l, W - 2 * PAD - 190), W - PAD, y + 35); x.textAlign = 'left'; x.fillText(r.v, PAD, y + 35); y += 52; return; }
     var two = !!(r.a || r.d), h = two ? 70 : 52;
     x.textAlign = 'right'; x.fillStyle = '#1B2421'; x.font = '600 24px ' + F; x.fillText(fit(r.n, W - 2 * PAD - 210), W - PAD, y + 30);
     x.fillStyle = '#6B756F'; x.font = '500 20px ' + F; x.fillText(r.d + (r.a ? ' · ' + r.a : ''), W - PAD, y + 58);
