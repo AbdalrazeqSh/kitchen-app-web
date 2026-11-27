@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.210';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.211';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4928,9 +4928,9 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
     D.st.forEach(function (s) { S1.push({ k: 'row', l: s.n, v: achNum(s.c) + ' يوم', tone: s.tone === 'bad' ? 'bad' : s.tone === 'warn' ? 'warn' : '' }); });
     if (D.wk.length) {
       S1.push({ k: 'sec', t: 'تفصيل العمال', c: '#243C8F', n: '' });
-      D.wk.forEach(function (z) { var q = []; if (z.took) q.push('أخذ ' + money(z.took)); if (z.ded) q.push('خصم ' + money(z.ded)); if (z.add) q.push('إضافة ' + money(z.add)); if (z.earn) q.push('استحقاق ' + money(z.earn));
+      D.wk.forEach(function (z) { var q = []; if (z.took) q.push('مدفوع ' + money(z.took)); if (z.ded) q.push('خصم ' + money(z.ded)); if (z.add) q.push('إضافة ' + money(z.add)); if (z.earn) q.push('استحقاق ' + money(z.earn));
         S1.push({ k: 'row', l: z.n, v: wrNet(z.bal), s: q.join(' · ') || 'بلا حركة', tone: z.bal < 0 ? 'bad' : z.bal > 0 ? 'warn' : '' }); });
-      S1.push({ k: 'row', l: 'المجموع', v: 'أخذوا ' + money(D.wkT.took), s: (D.wkT.ded ? 'خصومات ' + money(D.wkT.ded) : '') + (D.wkT.ded && D.wkT.add ? ' · ' : '') + (D.wkT.add ? 'إضافات ' + money(D.wkT.add) : ''), tot: 1 });
+      S1.push({ k: 'row', l: 'المجموع', v: 'المدفوع ' + money(D.wkT.took), s: (D.wkT.ded ? 'خصومات ' + money(D.wkT.ded) : '') + (D.wkT.ded && D.wkT.add ? ' · ' : '') + (D.wkT.add ? 'إضافات ' + money(D.wkT.add) : ''), tot: 1 });
     }
   }
   if (o.stk) {
