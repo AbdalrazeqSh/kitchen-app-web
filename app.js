@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.206';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.207';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4810,7 +4810,7 @@ function achSheet(sh) {
 var WR_BL = [['hd', 'الحكم العام'], ['kpi', 'الأرقام الرئيسية'], ['ex', 'نقاط المتابعة'], ['bars', 'رسم القدور اليومي'], ['ext', 'الطبخ الخارجي'], ['wk', 'العمال'], ['stk', 'المخزن'], ['mon', 'المال'], ['nx', 'الأسبوع القادم'], ['cmp', 'المقارنة بالفترة السابقة']];
 function wrOpt() {
   var s = (S.settings.wrOpt || {}), o = {};
-  WR_BL.forEach(function (k) { o[k[0]] = s[k[0]] !== '0'; });
+  WR_BL.forEach(function (k) { o[k[0]] = k[0] === 'stk' ? s.stk === '1' : s[k[0]] !== '0'; }); /* المخزن إداري: مطفأ افتراضيًا */
   o.note = (s.note || '').trim(); o.who = (s.who || '').trim();
   return o;
 }
@@ -4883,14 +4883,12 @@ function wrData(from, to) {
   D.nxB = plans().filter(function (z) { return z.date > to; }); D.nxPots = r2(D.nxB.reduce(function (a, z) { return a + (z.pots || 0); }, 0));
   D.outNames = []; ledgers().forEach(function (l) { itemsIn(l.id).forEach(function (it) { var q = E.balance(S, l.id, it.id), st = stStatus(q, it.id); if (alertable(l, it, q) && st.rank === 0 && D.outNames.length < 40) D.outNames.push(it.name); }); });
   /* نقاط المتابعة: الاستثناءات فقط */
-  D.exc = []; var oc = D.stk.reduce(function (a, z) { return a + z.out; }, 0), lc = D.stk.reduce(function (a, z) { return a + z.low; }, 0);
-  if (oc) D.exc.push({ t: pl(oc, 'صنف واحد نفد', 'صنفان نفدا', 'أصناف نفدت') + (D.outNames.length ? ': ' + D.outNames.slice(0, 3).join('، ') + (D.outNames.length > 3 ? '…' : '') : ''), tone: 'bad' });
-  if (lc) D.exc.push({ t: pl(lc, 'صنف حرج', 'صنفان حرجان', 'أصناف حرجة'), tone: 'warn' });
-  if (D.noAtt) D.exc.push({ t: 'حضور ' + pl(D.noAtt, 'عامل واحد', 'عاملين', 'عمال') + ' لم يُسجَّل اليوم', tone: 'warn' });
-  if (D.opNoRate) D.exc.push({ t: 'مصروفات بالدولار بلا سعر صرف: لم تدخل التكلفة التشغيلية', tone: 'warn' });
-  if (D.net < 0) D.exc.push({ t: 'المصروفات أكثر من الوارد هذه الفترة', tone: 'bad' });
-  if (P.pots > 0 && A1.pots < P.pots * 0.7) D.exc.push({ t: 'القدور أقل من الفترة السابقة بأكثر من 30%', tone: 'warn' });
-  if (D.ppc.per > 0 && D.pc.per > D.ppc.per * 1.15) D.exc.push({ t: 'التكلفة التشغيلية للقدر ارتفعت أكثر من 15% عن السابق', tone: 'warn' });
+  /* نقاط المتابعة للمدير: أعمال وأرقام فقط بعربي بسيط؛ لا مخزن ولا أصناف ولا حضور (إداريات لا تعنيه، المالك 2026-11-27) */
+  D.exc = [];
+  if (D.net < 0) D.exc.push({ t: 'المصروفات أكثر من الوارد بمقدار ' + money(-D.net), tone: 'bad' });
+  if (P.pots > 0 && A1.pots < P.pots) { var dp = Math.round((1 - A1.pots / P.pots) * 100); if (dp >= 10) D.exc.push({ t: 'القدور أقل من الفترة السابقة بنسبة ' + dp + '%', tone: dp >= 30 ? 'bad' : 'warn' }); }
+  if (D.ppc.per > 0 && D.pc.per > D.ppc.per * 1.1) D.exc.push({ t: 'تكلفة القدر ارتفعت ' + Math.round((D.pc.per / D.ppc.per - 1) * 100) + '% عن الفترة السابقة', tone: 'warn' });
+  if (D.opNoRate) D.exc.push({ t: 'تكلفة القدر لا تشمل المصروفات بالدولار (لا سعر صرف مسجَّل)', tone: 'warn' });
   D.lvl = D.net < 0 || D.exc.length >= 3 ? 2 : D.exc.length ? 1 : 0;
   return D;
 }
@@ -4922,7 +4920,7 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
   if (o.ex) { S1.push({ k: 'sec', t: 'نقاط المتابعة', c: '#B3261E', n: D.exc.length ? String(D.exc.length) : '' }); if (!D.exc.length) S1.push({ k: 'row', l: 'لا شيء يحتاج متابعة', v: '✓', tone: 'ok' }); D.exc.forEach(function (z) { S1.push({ k: 'row', l: z.t, v: '', tone: z.tone, ex: 1 }); }); }
   if (o.bars && D.days.length > 1 && D.days.length <= 14 && D.days.some(function (z) { return z.v > 0; })) S1.push({ k: 'bars', t: D.days });
   if (o.ext && D.ext.length) { S1.push({ k: 'sec', t: 'الطبخ الخارجي', c: '#7A4A1E', n: achNum(a.ext) + ' قدر' }); D.ext.forEach(function (e) { S1.push({ k: 'row', l: e.n, v: achNum(e.pots) + ' قدر', s: pl(e.nd, 'يوم واحد', 'يومان', 'أيام') }); }); }
-  if (o.wk && (D.st.length || D.noAtt || D.wk.length)) {
+  if (o.wk && (D.st.length || D.wk.length)) {
     S1.push({ k: 'sec', t: 'العمال', c: '#243C8F', n: achNum(a.wd) + ' يوم عمل' });
     D.st.forEach(function (s) { S1.push({ k: 'row', l: s.n, v: achNum(s.c) + ' يوم', tone: s.tone === 'bad' ? 'bad' : s.tone === 'warn' ? 'warn' : '' }); });
     if (D.wk.length) {
@@ -4931,7 +4929,6 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
         S1.push({ k: 'row', l: z.n, v: wrNet(z.bal), s: q.join(' · ') || 'بلا حركة', tone: z.bal < 0 ? 'bad' : z.bal > 0 ? 'warn' : '' }); });
       S1.push({ k: 'row', l: 'المجموع', v: 'أخذوا ' + money(D.wkT.took), s: (D.wkT.ded ? 'خصومات ' + money(D.wkT.ded) : '') + (D.wkT.ded && D.wkT.add ? ' · ' : '') + (D.wkT.add ? 'إضافات ' + money(D.wkT.add) : ''), tot: 1 });
     }
-    if (D.noAtt) S1.push({ k: 'row', l: 'لم يُسجَّل حضورهم اليوم', v: pl(D.noAtt, 'عامل واحد', 'عاملان', 'عمال'), tone: 'warn' });
   }
   if (o.stk) {
     S1.push({ k: 'sec', t: 'المخزن', c: '#8A5A00', n: D.sup ? 'وصل: ' + pl(D.sup, 'توريد واحد', 'توريدان', 'توريدات') : '' });
@@ -5045,7 +5042,7 @@ function pgWrep() {
   bl.push(B('acts', { items: [X({ title: 'إرسال للمدير', icon: 'i-send', go: function () { openSh({ t: 'wrs' }); } }), X({ title: 'الخيارات', icon: 'i-sliders', go: function () { openSh({ t: 'wrs', opt: 1 }); } })] }));
   var items = [], flush = function () { if (items.length) bl.push(B('rows', { all: true, items: items })); items = []; };
   var VB = ['#E8F1EB', '#FFF1D0', '#FDEBE9'];
-  wrRows(D, { hd: true, ex: true, nx: true, kpi: true, bars: false, ext: true, wk: true, stk: true, mon: true, cmp: true, note: '' }).forEach(function (r) {
+  wrRows(D, { hd: true, ex: true, nx: true, kpi: true, bars: false, ext: true, wk: true, stk: wrOpt().stk, mon: true, cmp: true, note: '' }).forEach(function (r) {
     if (r.k === 'verdict') bl.push(B('rows', { all: true, items: [X({ icon: 'i-alert', icTone: r.lvl === 0 ? 'ok' : r.lvl === 1 ? 'warn' : 'bad', title: r.l, sub: r.t, rbg: VB[r.lvl] })] }));
     else if (r.k === 'kpi') { for (var i = 0; i < r.t.length; i += 2) bl.push(B('kpi', { items: r.t.slice(i, i + 2).map(function (z) { return X({ label: z[0], value: z[1], sub: z[2].d ? (z[2].d > 0 ? '▲ ' : '▼ ') + z[2].t.replace(/^[+\u2212]/, '') + ' عن السابق' : (z[1] === '—' ? 'لا قدور' : 'كالسابق') }); }) })); }
     else if (r.k === 'sec') { flush(); items.push(X({ sect: true, title: r.t, end: r.n || '' })); }
