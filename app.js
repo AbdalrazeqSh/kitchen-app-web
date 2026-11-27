@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.219';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.220';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4917,7 +4917,7 @@ function wrBlocks(D, o) { /* كتل الملخص بترتيبها: لكل كتل
   var h = wrHead(D); blk('hd', [{ k: 'verdict', lvl: h.lvl, l: h.l, t: h.t }]);
   var K = [], k = [['قدر', achNum(a.pots), wrDelta(a.pots, p.pots)]];
   k.push(['التكلفة التشغيلية للقدر', D.pc.per > 0 ? money(D.pc.per) : '—', D.pc.per > 0 ? wrDelta(D.pc.per, D.ppc.per, true) : { d: 0, t: '=', good: null }]);
-  k.push(['صافي الفترة', wrNet(D.net), wrDelta(D.net, D.pnet)]);
+  k.push(['صافي الفترة', wrNet(D.net), wrDelta(D.net, D.pnet), D.net < 0 ? 'bad' : '']);
   K.push({ k: 'kpi', t: k });
   var m2 = [pl(a.n, 'طبخة واحدة', 'طبختان', 'طبخات'), pl(a.nd, 'يوم طبخ', 'يومان', 'أيام طبخ')]; if (a.meals) m2.unshift(achNum(a.meals) + ' وجبة');
   if (a.nc) m2.push(pl(a.nc, 'مخيم واحد', 'مخيمان', 'مخيمات'));
@@ -5012,7 +5012,7 @@ function wrCanvas(D, o) {
       var n = r.t.length, gap = 12, bw = (W - 2 * PAD - (n - 1) * gap) / n;
       r.t.forEach(function (z, i) {
         var bx = W - PAD - bw - i * (bw + gap); x.fillStyle = i === 0 ? G : '#E8F1EB'; x.fillRect(bx, y, bw, 148);
-        x.fillStyle = i === 0 ? '#FFFFFF' : G; x.textAlign = 'center'; var fs0 = 48; do { x.font = '700 ' + fs0 + 'px ' + F; fs0 -= 2; } while (x.measureText(z[1]).width > bw - 16 && fs0 > 22);
+        x.fillStyle = i === 0 ? '#FFFFFF' : z[3] === 'bad' ? '#B3261E' : G; x.textAlign = 'center'; var fs0 = 48; do { x.font = '700 ' + fs0 + 'px ' + F; fs0 -= 2; } while (x.measureText(z[1]).width > bw - 16 && fs0 > 22);
         x.fillText(z[1], bx + bw / 2, y + 72); x.font = '500 21px ' + F; x.fillText(z[0], bx + bw / 2, y + 106);
         if (o.cmp && (z[2].d || +String(z[1]).replace(/[^0-9.]/g, ''))) { var d = z[2], col = i === 0 ? '#FFFFFF' : d.good === true ? '#14563A' : d.good === false ? '#B3261E' : '#8A948E'; x.fillStyle = col; x.font = '600 19px ' + F; if (d.d) { tri(bx + bw / 2 - 24, y + 130, d.d > 0, col); x.textAlign = 'left'; x.fillText(d.t.replace(/^[+\u2212]/, ''), bx + bw / 2 - 11, y + 136); } else { x.textAlign = 'center'; x.fillText('كالسابق', bx + bw / 2, y + 136); } }
       });
@@ -5080,7 +5080,7 @@ function pgWrep() {
       }
       if (r.br && !cbOn) return;
       if (r.k === 'verdict') { flush(); bl.push(B('rows', { all: true, items: [X({ icon: 'i-alert', icTone: r.lvl === 0 ? 'ok' : r.lvl === 1 ? 'warn' : 'bad', title: r.l, sub: r.t, rbg: VB[r.lvl] })] })); }
-      else if (r.k === 'kpi') { flush(); for (var j = 0; j < r.t.length; j += 2) bl.push(B('kpi', { items: r.t.slice(j, j + 2).map(function (z) { return X({ label: z[0], value: z[1], sub: !o.cmp ? '' : z[2].d ? (z[2].d > 0 ? '▲ ' : '▼ ') + z[2].t.replace(/^[+\u2212]/, '') + ' عن السابق' : (z[1] === '—' ? 'لا قدور' : 'كالسابق') }); }) })); }
+      else if (r.k === 'kpi') { flush(); for (var j = 0; j < r.t.length; j += 2) bl.push(B('kpi', { items: r.t.slice(j, j + 2).map(function (z) { return X({ label: z[0], value: z[1], endTone: z[3] || '', sub: !o.cmp ? '' : z[2].d ? (z[2].d > 0 ? '▲ ' : '▼ ') + z[2].t.replace(/^[+\u2212]/, '') + ' عن السابق' : (z[1] === '—' ? 'لا قدور' : 'كالسابق') }); }) })); }
       else if (r.k === 'sec') items.push(X({ sect: true, title: r.t, end: r.n || '' }));
       else if (r.k === 'row') { items.push(X({ title: r.l, sub: r.s || '', end: r.v, endTone: wrTone(r.tone), total: !!r.tot, mini: !!r.sub })); if (r.ctl === 'usd' && (D.inU || D.outU)) ctl('usd', 'صافي الفترة بالدولار', 'ظاهر', 'مخفي'); }
     });
