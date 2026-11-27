@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.216';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.217';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4872,7 +4872,7 @@ function wrData(from, to) {
   D.owW = oweWork(); D.owI = oweInst();
   D.paidW = r2(wlOn().filter(function (e) { return e.kind === 'pay' && wrIn(e.date, from, to); }).reduce(function (a, e) { return a + e.amt; }, 0));
   D.colI = r2((S.insts || []).reduce(function (a, i) { return a + (i.pay || []).filter(function (c) { return wrIn(c.date, from, to); }).reduce(function (z, c) { return z + c.amt; }, 0); }, 0));
-  var OD = ownData(from, to); D.inI = OD.P.i.inn; D.outI = OD.P.i.out; D.inU = OD.P.u.inn; D.outU = OD.P.u.out; D.net = r2(D.inI - D.outI); D.netU = r2(D.inU - D.outU); D.netNow = r2(D.owI - D.owW);
+  var OD = ownData(from, to); D.inI = OD.P.i.inn; D.outI = OD.P.i.out; D.inU = OD.P.u.inn; D.outU = OD.P.u.out; D.rt = lastRate() || 0; D.net = r2(D.inI + D.inU * D.rt - D.outI - D.outU * D.rt); /* الصافي بالشيكل شاملًا الدولار بسعر الصرف: لا يُخفى عجز الدولار */ D.netU = r2(D.inU - D.outU); D.netNow = r2(D.owI - D.owW);
   /* مؤشرات الإدارة: التكلفة التشغيلية / قدر = كل مصروفات الفترة (عمال، صيانة، نقل، تشغيل...) ÷ كل قدور الفترة؛ المواد مجانية فلا تدخل (المالك 2026-11-25)، وإنتاجية العمل (قدور لكل يوم عمل)، وصافي الفترة السابقة */
   /* الوارد والمصروفات مصنَّفة بنوعها، كل عملة بمبلغها (من أرصدتها وحدها فتطابق المجاميع) */
   D.rate = lastRate();
@@ -4884,7 +4884,7 @@ function wrData(from, to) {
   D.rate = lastRate(); var opAll = function (O) { return r2(O.T.outI + O.T.outU * D.rate); };
   D.opAll = opAll(OD); D.opNoRate = OD.T.outU > 0 && !(D.rate > 0);
   D.pc = opc(D.opAll, A1.pots); D.ppc = opc(opAll(OP), P.pots);
-  D.pnet = r2(OP.P.i.inn - OP.P.i.out);
+  D.pnet = r2(OP.P.i.inn + OP.P.u.inn * D.rt - OP.P.i.out - OP.P.u.out * D.rt);
   /* الأسبوع القادم: طبخات مخططة بعد نهاية الفترة، وتوريدات قادمة */
   D.nxB = plans().filter(function (z) { return z.date > to; }); D.nxPots = r2(D.nxB.reduce(function (a, z) { return a + (z.pots || 0); }, 0));
   D.outNames = []; ledgers().forEach(function (l) { itemsIn(l.id).forEach(function (it) { var q = E.balance(S, l.id, it.id), st = stStatus(q, it.id); if (alertable(l, it, q) && st.rank === 0 && D.outNames.length < 40) D.outNames.push(it.name); }); });
@@ -4949,7 +4949,7 @@ function wrBlocks(D, o) { /* كتل الملخص بترتيبها: لكل كتل
   };
   cat('وارد الفترة', D.cIn, D.inI, D.inU, 'ok', o.din !== false, o.qin);
   cat('مصروفات الفترة', D.cOut, D.outI, D.outU, 'bad', o.dout !== false, o.qout);
-  M1.push({ k: 'row', l: 'صافي الفترة', v: wrNet(D.net), tone: D.net < 0 ? 'bad' : D.net > 0 ? 'ok' : '', tot: 1, s: 'وارد − مصروفات' });
+  M1.push({ k: 'row', l: 'صافي الفترة', v: wrNet(D.net), tone: D.net < 0 ? 'bad' : D.net > 0 ? 'ok' : '', tot: 1, s: (D.inU || D.outU) && D.rt > 0 ? 'وارد − مصروفات · الدولار بالشيكل' : 'وارد − مصروفات' });
   if (o.usd && (D.inU || D.outU)) M1.push({ k: 'row', l: 'صافي الفترة بالدولار', v: D.netU < 0 ? '⁦−' + usdTxt(-D.netU) + '⁩' : usdTxt(D.netU), tone: D.netU < 0 ? 'bad' : D.netU > 0 ? 'ok' : '', tot: 1 });
   M1.push({ k: 'sec', t: 'المستحقات الآن', c: '#14563A', n: '' });
   M1.push({ k: 'row', l: 'مستحق للعمال', v: money(D.owW), tone: D.owW > 0 ? 'warn' : '' });
