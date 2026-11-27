@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.220';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.221';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -5056,7 +5056,6 @@ function wrTone(t) { return t === 'bad' ? 'bad' : t === 'warn' ? 'warn' : t === 
 function pgWrep() {
   var R = wrRange(), D = wrData(R.from, R.to), o = wrOpt(), bl = [], PR = wrPresets(), isP = PR.some(function (p) { return R.from === p[1] && R.to === p[2]; });
   bl.push(B('chips', { scroll: true, items: PR.map(function (p) { return X({ label: p[0], on: R.from === p[1] && R.to === p[2], go: function () { wrSetRange(p[1], p[2]); } }); }).concat([X({ label: 'من / إلى', icon: 'i-calendar', on: !isP, go: function () { openSh({ t: 'wrp' }, { from: R.from, to: R.to }); } })]) }));
-  bl.push(B('rows', { all: true, items: [X({ icon: 'i-calendar', icTone: isP ? 'mute' : 'ok', title: 'من ' + dshow(R.from) + ' إلى ' + dshow(R.to), sub: 'تغيير الفترة', chev: true, go: function () { openSh({ t: 'wrp' }, { from: R.from, to: R.to }); } })] }));
   bl.push(B('acts', { items: [X({ title: 'إرسال للمدير', icon: 'i-send', go: function () { openSh({ t: 'wrs' }); } })] }));
   var items = [], flush = function () { if (items.length) bl.push(B('rows', { all: true, items: items })); items = []; };
   var VB = ['#E8F1EB', '#FFF1D0', '#FDEBE9'], TT = { hd: 'الحكم العام', kpi: 'الأرقام الرئيسية', bars: 'رسم القدور اليومي' };

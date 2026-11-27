@@ -59,7 +59,7 @@ function B(t, o) {
     items: o.items || [],
     hasSort: !!o.sort, sortLabel: o.sort ? o.sort.label : '', sortRot: o.sort && o.sort.asc ? 'rotate(180deg)' : 'none', sortGo: o.sort ? o.sort.go : noop,
     hasHeadBtn: !!o.headBtn, headLabel: o.headBtn ? o.headBtn.label : '', headGo: o.headBtn ? o.headBtn.go : noop,
-    agt: (function () { var n = (o.items || []).length; return n === 6 ? 'repeat(3,1fr)' : n >= 7 ? 'repeat(4,1fr)' : 'repeat(auto-fit,minmax(58px,1fr))'; })(), cwrap: o.scroll ? 'nowrap' : 'wrap', covx: o.scroll ? 'auto' : 'visible', cfl: o.scroll ? 'none' : '0 1 auto', cws: o.scroll ? 'nowrap' : 'normal',
+    agt: (function () { var n = (o.items || []).length; return n === 6 ? 'repeat(3,1fr)' : n >= 7 ? 'repeat(4,1fr)' : 'repeat(auto-fit,minmax(58px,1fr))'; })(), cwrap: 'wrap', covx: 'visible', cfl: o.scroll ? '1 1 calc(33.333% - 6px)' : '0 1 auto', cws: o.scroll ? 'nowrap' : 'normal',
     title: o.title || '', hasTitle: !!o.title, actLabel: o.act || '', hasAct: !!o.act, actGo: o.actGo || noop,
     emptyText: o.empty || '', hasEmpty: !!o.empty && !(o.items && o.items.length),
     text: o.text || '', label: o.label || '', value: o.value == null ? '' : String(o.value), value2: o.value2 == null ? '' : String(o.value2), hasV2: o.value2 != null && o.value2 !== '', hasSide: !!o.side, sideLabel: o.side ? o.side.label : '', sideValue: o.side ? o.side.value : '', sideGo: o.side ? o.side.go : function () {},
