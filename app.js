@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.204';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.205';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4806,7 +4806,7 @@ function achSheet(sh) {
 }
 
 /* ===== 02w4-wrep.js ===== */
-/* ---------- ملخص المتابعة الأسبوعي للمدير (المالك 2026-11-25): الإنجاز، الطبخ الخارجي، العمال، المخزن، المال؛ فترة من/إلى ومقارنة بالفترة السابقة ---------- */
+/* ---------- ملخص المتابعة للمدير (المالك 2026-11-25): الإنجاز، الطبخ الخارجي، العمال، المخزن، المال؛ فترة من/إلى ومقارنة بالفترة السابقة ---------- */
 var WR_BL = [['hd', 'الحكم العام'], ['kpi', 'الأرقام الرئيسية'], ['ex', 'نقاط المتابعة'], ['bars', 'رسم القدور اليومي'], ['ext', 'الطبخ الخارجي'], ['wk', 'العمال'], ['stk', 'المخزن'], ['mon', 'المال'], ['nx', 'الأسبوع القادم'], ['cmp', 'المقارنة بالفترة السابقة']];
 function wrOpt() {
   var s = (S.settings.wrOpt || {}), o = {};
@@ -4841,6 +4841,15 @@ function wrData(from, to) {
   var am = {}; (S.att || []).forEach(function (a) { if (wrIn(a.date, from, to)) am[a.date + '|' + a.w] = a; });
   var cnt = {}; Object.keys(am).forEach(function (k) { var a = am[k]; cnt[a.st] = (cnt[a.st] || 0) + 1; });
   D.st = (S.stats || []).filter(function (s) { return s.id !== 'h' && cnt[s.id]; }).map(function (s) { return { n: s.name, c: cnt[s.id], tone: s.tone }; });
+  /* تفصيل كل عامل في الفترة: استحقاق الحضور، ما أخذه (دفعات وسلف)، الخصومات والمخالفات، الإضافات، والرصيد الآن */
+  var wm = {}; Object.keys(am).forEach(function (k) { var a = am[k]; wm[a.w] = (wm[a.w] || 0) + E.attAmt(a); });
+  var wk = {}; var wget = function (id) { return wk[id] = wk[id] || { earn: 0, took: 0, ded: 0, add: 0 }; };
+  Object.keys(wm).forEach(function (id) { wget(id).earn = r2(wm[id]); });
+  wlOn().forEach(function (e) { if (!wrIn(e.date, from, to)) return; var c = wCat(e), o = wget(e.w);
+    if (c === 'pay' || c === 'adv') o.took += e.amt; else if (c === 'ded' || c === 'buy' || c === 'viol') o.ded += e.amt; else if (wPlusC(c)) o.add += e.amt; });
+  D.wk = Object.keys(wk).map(function (id) { var w = (S.workers || []).filter(function (x) { return x.id === id; })[0]; if (!w) return null; var o = wk[id]; return { n: w.name, earn: r2(o.earn), took: r2(o.took), ded: r2(o.ded), add: r2(o.add), bal: wBal(w) }; })
+    .filter(function (o) { return o && (o.earn || o.took || o.ded || o.add); }).sort(function (a, b) { return b.took - a.took || (a.n < b.n ? -1 : 1); });
+  D.wkT = { took: r2(D.wk.reduce(function (a, o) { return a + o.took; }, 0)), ded: r2(D.wk.reduce(function (a, o) { return a + o.ded; }, 0)), add: r2(D.wk.reduce(function (a, o) { return a + o.add; }, 0)) };
   D.nw = activeW().length;
   D.noAtt = to === today() && !isHol() ? activeW().filter(function (w) { return !wAtt(w); }).length : 0;
   D.earn = r2(Object.keys(am).reduce(function (a, k) { return a + E.attAmt(am[k]); }, 0));
@@ -4881,6 +4890,7 @@ function wrData(from, to) {
   return D;
 }
 function wrNet(v) { return v < 0 ? '\u2066\u2212' + money(-v) + '\u2069' : money(v); }
+function wrTitle(D) { var n = Math.round((new Date(D.to + 'T12:00:00Z') - new Date(D.from + 'T12:00:00Z')) / 864e5) + 1; return n <= 7 ? 'ملخص المتابعة الأسبوعي' : 'ملخص المتابعة'; }
 function wrLabel(D) { return 'من ' + dshow(D.from) + ' إلى ' + dshow(D.to); }
 function wrDelta(c, p, inv) { var d = r2(c - p); return { d: d, t: d === 0 ? '=' : (d > 0 ? '+' : '\u2212') + achNum(Math.abs(d)), good: d === 0 ? null : (inv ? d < 0 : d > 0) }; }
 function wrDayName(s) { return DN[new Date(s + 'T12:00:00').getDay()]; }
@@ -4907,9 +4917,15 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
   if (o.ex) { S1.push({ k: 'sec', t: 'نقاط المتابعة', c: '#B3261E', n: D.exc.length ? String(D.exc.length) : '' }); if (!D.exc.length) S1.push({ k: 'row', l: 'لا شيء يحتاج متابعة', v: '✓', tone: 'ok' }); D.exc.forEach(function (z) { S1.push({ k: 'row', l: z.t, v: '', tone: z.tone, ex: 1 }); }); }
   if (o.bars && D.days.length > 1 && D.days.length <= 14 && D.days.some(function (z) { return z.v > 0; })) S1.push({ k: 'bars', t: D.days });
   if (o.ext && D.ext.length) { S1.push({ k: 'sec', t: 'الطبخ الخارجي', c: '#7A4A1E', n: achNum(a.ext) + ' قدر' }); D.ext.forEach(function (e) { S1.push({ k: 'row', l: e.n, v: achNum(e.pots) + ' قدر', s: pl(e.nd, 'يوم واحد', 'يومان', 'أيام') }); }); }
-  if (o.wk && (D.st.length || D.noAtt)) {
+  if (o.wk && (D.st.length || D.noAtt || D.wk.length)) {
     S1.push({ k: 'sec', t: 'العمال', c: '#243C8F', n: achNum(a.wd) + ' يوم عمل' });
     D.st.forEach(function (s) { S1.push({ k: 'row', l: s.n, v: achNum(s.c) + ' يوم', tone: s.tone === 'bad' ? 'bad' : s.tone === 'warn' ? 'warn' : '' }); });
+    if (D.wk.length) {
+      S1.push({ k: 'sec', t: 'تفصيل العمال', c: '#243C8F', n: '' });
+      D.wk.forEach(function (z) { var q = []; if (z.took) q.push('أخذ ' + money(z.took)); if (z.ded) q.push('خصم ' + money(z.ded)); if (z.add) q.push('إضافة ' + money(z.add)); if (z.earn) q.push('استحقاق ' + money(z.earn));
+        S1.push({ k: 'row', l: z.n, v: wrNet(z.bal), s: q.join(' · ') || 'بلا حركة', tone: z.bal < 0 ? 'bad' : z.bal > 0 ? 'warn' : '' }); });
+      S1.push({ k: 'row', l: 'المجموع', v: 'أخذوا ' + money(D.wkT.took), s: (D.wkT.ded ? 'خصومات ' + money(D.wkT.ded) : '') + (D.wkT.ded && D.wkT.add ? ' · ' : '') + (D.wkT.add ? 'إضافات ' + money(D.wkT.add) : ''), tot: 1 });
+    }
     if (D.noAtt) S1.push({ k: 'row', l: 'لم يُسجَّل حضورهم اليوم', v: pl(D.noAtt, 'عامل واحد', 'عاملان', 'عمال'), tone: 'warn' });
   }
   if (o.stk) {
@@ -4933,7 +4949,7 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
     S1.push({ k: 'row', l: 'صافي المستحق', v: wrNet(D.netNow), tone: D.netNow < 0 ? 'bad' : D.netNow > 0 ? 'ok' : '', tot: 1, s: 'لنا − علينا' });
   }
   if (o.nx && (D.nxB.length || D.nextN)) {
-    S1.push({ k: 'sec', t: 'الأسبوع القادم', c: '#243C8F', n: '' });
+    S1.push({ k: 'sec', t: 'القادم', c: '#243C8F', n: '' });
     if (D.nxB.length) S1.push({ k: 'row', l: 'طبخات مخططة', v: pl(D.nxB.length, 'طبخة واحدة', 'طبختان', 'طبخات') + ' · ' + achNum(D.nxPots) + ' قدر' });
     if (D.nextN) S1.push({ k: 'row', l: 'توريد قادم', v: dshow(D.nextD) + (D.nextN > 1 ? ' (+' + (D.nextN - 1) + ')' : '') });
   }
@@ -4941,7 +4957,7 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
   return S1;
 }
 function wrText(D, o) {
-  o = o || wrOpt(); var L = ['ملخص المتابعة الأسبوعي · مطبخ عهد', wrLabel(D), ''];
+  o = o || wrOpt(); var L = [wrTitle(D) + ' · مطبخ عهد', wrLabel(D), ''];
   wrRows(D, o).forEach(function (r) {
     if (r.k === 'verdict') { L.push('الحكم العام: ' + r.l); L.push(r.t); L.push(''); }
     else if (r.k === 'kpi') r.t.forEach(function (z) { L.push(z[0] + ': ' + z[1] + (o.cmp && z[2].d ? ' (' + z[2].t + ' عن الفترة السابقة)' : '')); });
@@ -4960,7 +4976,7 @@ function wrCanvas(D, o) {
   x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W, H);
   /* الترويسة */
   x.fillStyle = G; x.fillRect(0, 0, W, HD); x.fillStyle = '#0F4430'; x.beginPath(); x.arc(40, 20, 150, 0, 7); x.fill();
-  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 44px ' + F; x.fillText('ملخص المتابعة الأسبوعي', W - PAD, 78);
+  x.fillStyle = '#FFFFFF'; x.textAlign = 'right'; x.font = '700 44px ' + F; x.fillText(wrTitle(D), W - PAD, 78);
   x.font = '500 26px ' + F; x.fillText(wrLabel(D), W - PAD, 124);
   x.textAlign = 'left'; x.font = '600 24px ' + F; x.fillText('مطبخ عهد', PAD, 70);
   if (o.who) { x.font = '500 20px ' + F; x.fillText(o.who, PAD, 106); }
@@ -5037,7 +5053,7 @@ function wrSheet(sh) {
     return { title: 'فترة محددة', fields: [fDate('from', 'من يوم', '', today()), fDate('to', 'إلى يوم', '', today())], ft: { label: 'عرض', ok: f0 <= t0 && t0 <= today(), go: function () { shut(); wrSetRange(f0, t0); } } };
   }
   if (sh.t === 'wrs') {
-    var R = wrRange(), o = wrOpt(), D = wrData(R.from, R.to), cv = wrCanvas(D, o), url = cv.toDataURL('image/png'), nm = fnName(['ملخص المتابعة', R.from, R.to], ''), ttl = 'ملخص المتابعة الأسبوعي';
+    var R = wrRange(), o = wrOpt(), D = wrData(R.from, R.to), cv = wrCanvas(D, o), url = cv.toDataURL('image/png'), nm = fnName(['ملخص المتابعة', R.from, R.to], ''), ttl = wrTitle(D);
     var fail = function (er) { if (!/cancel|dismiss/i.test(String((er && er.message) || er))) say('تعذّر فتح المشاركة'); };
     var grid = ['البنود'].concat(WR_BL.map(function (k) { return { label: k[1], tog: function () { return wrOpt()[k[0]]; }, set: function (v) { wrSetOpt(k[0], v ? '1' : '0'); } }; }));
     if (A.form.wn == null) A.form.wn = o.note; if (A.form.ww == null) A.form.ww = o.who;
