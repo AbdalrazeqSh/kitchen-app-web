@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.207';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.208';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -130,6 +130,8 @@ function mergeHistory() {
 function lsj(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
 function lss(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 var OUT = [];
+/* «متى» لحظة مسجّلة: اليوم/أمس + الساعة (لا «اليوم» وحدها) بتوقيت الجهاز (المالك 2026-11-27: «آخر إرسال اليوم وقتيش؟») */
+function atLabel(ts) { var d = new Date(ts), h = d.getHours(), m = d.getMinutes(); return dlabel(iso(d)) + ' ' + h + ':' + (m < 10 ? '0' : '') + m; }
 function tlog(t) { OUT.unshift(new Date().toLocaleTimeString('ar') + ' — ' + t); OUT = OUT.slice(0, 12); }
 function LN() { return P.LocalNotifications; }
 function armDaily() { if (!LN()) return Promise.reject(new Error('الإضافة غير متاحة')); return LN().requestPermissions().then(function (r) { if (r.display !== 'granted') throw new Error('لم يُمنح الإذن'); return LN().schedule({ notifications: [{ id: 1, title: 'المطبخ', body: 'صباح الخير — راجع ما ينتظرك اليوم', schedule: { on: { hour: 8, minute: 0 }, allowWhileIdle: true } }] }); }); }
@@ -2360,7 +2362,7 @@ function gwSub() {
   if (!gwUrl()) return '';
   if (!gwOk()) return '';
   var n = gwOps().length;
-  return (S.settings.syncGwAuto ? '' : 'الإرسال التلقائي موقوف · ') + (GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : n ? n + ' بانتظار الإرسال' : 'كل الحركات في الشيت') + (S.settings.syncGwAt ? ' · آخر إرسال ' + dlabel(new Date(S.settings.syncGwAt).toISOString().slice(0, 10)) : '');
+  return (S.settings.syncGwAuto ? '' : 'الإرسال التلقائي موقوف · ') + (GW_ERR ? 'تعذّر الإرسال: ' + GW_ERR : n ? n + ' بانتظار الإرسال' : 'كل الحركات في الشيت') + (S.settings.syncGwAt ? ' · آخر إرسال ' + atLabel(S.settings.syncGwAt) : '');
 }
 function gwTag() { return !gwUrl() ? { t: 'غير مربوط', tone: 'mute' } : !gwOk() ? { t: 'يحتاج فحصًا', tone: 'warn' } : !S.settings.syncGwAuto ? { t: 'موقوف', tone: 'mute' } : GW_ERR ? { t: 'خطأ', tone: 'bad' } : gwOps().length ? { t: 'بانتظار', tone: 'warn' } : { t: 'متزامن', tone: 'ok' }; }
 function gwSave() { S.settings.syncGwUrl = (fv('gwurl') || '').trim(); S.settings.syncGwKey = (fv('gwkey') || '').trim(); save(); }
@@ -4040,8 +4042,8 @@ function stmtSheet(sh) {
   a.chg.forEach(function (c) { rows.push(X({ title: chgTitle(c), sub: c.date ? dlabel(c.date) : '', tag: money(c.amt), tagTone: 'mute', chev: true, go: function () { iniChgOpen(i, c); } })); });
   a.pay.forEach(function (c) { rows.push(X({ title: 'دفعة' + (c.note ? ': ' + c.note : ''), sub: c.date ? dlabel(c.date) : '', tag: '− ' + money(c.amt), tagTone: 'ok', chev: true, go: function () { iniPayOpen(i, c); } })); });
   rows.push(X({ total: true, title: stOpt(i).lbl, tag: money(a.due), tagTone: a.due > 0 ? 'warn' : 'ok' }));
-  var nt = late ? { text: 'عُدّل ' + pl(late, 'طبخة واحدة', 'طبختان', 'طبخات') + ' بعد إرسال الكشف (' + dlabel(new Date(sent).toISOString().slice(0, 10)) + '): أرسل نسخة جديدة.', tone: 'warn' }
-    : sent ? { text: 'أُرسل هذا الكشف في ' + dlabel(new Date(sent).toISOString().slice(0, 10)) + '.', tone: 'info' }
+  var nt = late ? { text: 'عُدّل ' + pl(late, 'طبخة واحدة', 'طبختان', 'طبخات') + ' بعد إرسال الكشف (' + atLabel(sent) + '): أرسل نسخة جديدة.', tone: 'warn' }
+    : sent ? { text: 'أُرسل هذا الكشف في ' + atLabel(sent) + '.', tone: 'info' }
     : { text: 'قبل الإرسال: اضغط أي طبخة لتعديل أصنافها وكمياتها وأسعارها، ثم عاين الكشف وشاركه.', tone: 'info' };
   return { acts: stActs, title: 'كشف حساب ' + i.name, sub: stmtSub(i, ym), fields: [fChips('m', 'الشهر', ms.map(function (m) { return [m, monthLabel(m)]; }).concat([['all', 'الكل']])), fSeg('sv', 'شكل الكشف عند المشاركة', [['full', 'مفصّل بالمواد'], ['sum', 'مختصر']])],
     rows: rows, note: nt,
@@ -7396,7 +7398,7 @@ function syncStart() {
   setInterval(function () { if (!document.hidden) syncNow(false); }, 60000);
 }
 function syncTag() { var s = syncSess(); return !s ? { t: 'غير مفعّل', tone: 'mute' } : S.settings.syncConflict ? { t: 'تعارض', tone: 'bad' } : { t: 'مفعّل', tone: 'ok' }; }
-function syncSub() { var s = syncSess(); if (!s) return ''; return s.email + (S.settings.syncAt ? ' · آخر مزامنة ' + new Date(S.settings.syncAt).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }) : '') + (SYNCMSG ? ' · ' + SYNCMSG : ''); }
+function syncSub() { var s = syncSess(); if (!s) return ''; return s.email + (S.settings.syncAt ? ' · آخر مزامنة ' + atLabel(S.settings.syncAt) : '') + (SYNCMSG ? ' · ' + SYNCMSG : ''); }
 function syncAttn(att) { if (syncSess() && S.settings.syncConflict) att.push({ rank: 0.1, row: X({ icon: 'i-clock', icTone: 'bad', title: 'تعارض في المزامنة', sub: 'عدّلتَ هنا وعلى جهاز آخر: اختر أي نسخة تُعتمد', tag: 'اختر', tagTone: 'bad', chev: true, go: function () { openSh({ t: 'syncc' }); } }) }); }
 function doSyncLogin() {
   var em = fv('email').trim(), pw = fv('pw'); if (!em || !pw) { say('اكتب البريد وكلمة السر'); return; }
