@@ -192,6 +192,29 @@ function mount(el, props) {
     go(); setTimeout(go, 0); setTimeout(go, 60);
   });
 
+  /* سحب للتحديث كالتطبيقات المعروفة: من أعلى الصفحة الرئيسية للأسفل يشغّل UI.onRefresh (المزامنة الآن) (المالك 2026-11-27) */
+  (function () {
+    var y0 = null, dy = 0, sc0 = null, ind = null, busy = false;
+    var mk = function () { if (ind) return ind; ind = document.createElement('div'); ind.style.cssText = 'position:fixed;top:0;left:50%;transform:translate(-50%,-60px);z-index:50;background:#14563A;color:#fff;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:500;box-shadow:0 2px 10px rgba(0,0,0,.2);pointer-events:none;transition:transform .15s'; document.body.appendChild(ind); return ind; };
+    root.addEventListener('touchstart', function (e) {
+      y0 = null; if (busy || !UI.onRefresh || e.touches.length !== 1) return;
+      var sc = root.querySelector('[style*="overflow-y:auto"]'); if (!sc || !sc.contains(e.target) || sc.scrollTop > 0 || (e.target.closest && e.target.closest('[data-dg],input,textarea'))) return;
+      sc0 = sc; y0 = e.touches[0].clientY; dy = 0;
+    }, { passive: true });
+    root.addEventListener('touchmove', function (e) {
+      if (y0 == null) return; dy = e.touches[0].clientY - y0;
+      if (dy <= 0 || sc0.scrollTop > 0) { if (ind) ind.style.transform = 'translate(-50%,-60px)'; return; }
+      var i = mk(); i.textContent = dy > 80 ? 'أفلت للمزامنة' : 'اسحب للمزامنة'; i.style.transform = 'translate(-50%,' + Math.min(dy / 2, 60) + 'px)';
+    }, { passive: true });
+    root.addEventListener('touchend', function () {
+      if (y0 == null) return; var go = dy > 80; y0 = null; dy = 0;
+      if (!go) { if (ind) ind.style.transform = 'translate(-50%,-60px)'; return; }
+      busy = true; var i = mk(); i.textContent = 'جارٍ المزامنة…'; i.style.transform = 'translate(-50%,16px)';
+      var done = function () { busy = false; if (ind) ind.style.transform = 'translate(-50%,-60px)'; };
+      try { Promise.resolve(UI.onRefresh()).then(done, done); } catch (er) { done(); }
+    }, { passive: true });
+  })();
+
   /* سحب لإعادة الترتيب: مقبض [data-dg] داخل صف .ff[data-did]؛ الصفوف المتجاورة بالمعرّف نفسه تتحرك معًا، وعند الإفلات يُستدعى window.__reorder(ids) */
   root.addEventListener('pointerdown', function (e) {
     var h = e.target && e.target.closest && e.target.closest('[data-dg]'); if (!h) return;

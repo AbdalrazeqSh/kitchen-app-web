@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.208';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.210';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -2386,6 +2386,7 @@ function gwSheet(sh) {
   gwGrp(typeof eaRows === 'function' ? eaRows : null, 'طبخ خارجي', eaDry, EA_PV, eaWrite);
   gwGrp(typeof wfRows === 'function' ? wfRows : null, 'WFP', wfDry, WF_PV, wfWrite);
   var acts = [
+    X({ title: 'مزامنة الآن', icon: 'i-sync', go: function () { syncAll(); } }),
     X({ title: 'اختبار الاتصال', icon: 'i-wifi', go: function () { gwSave(); say('جارٍ الاختبار…'); gwPost({ ping: 1 }).then(function () { GW_ERR = ''; say('البوابة تعمل وكلمة السر صحيحة'); render(); }).catch(function (e) { GW_ERR = String((e && e.message) || e); say('تعذّر الاتصال: ' + GW_ERR); render(); }); } })
   ];
   if (gwOk()) acts.push(X({ title: S.settings.syncGwAuto ? 'إيقاف الإرسال' : 'تشغيل الإرسال', icon: 'i-wifi', go: gwOnOff }));
@@ -4829,13 +4830,13 @@ function wrPresets() {
 }
 function wrPrev(f, t) { var n = Math.round((new Date(t + 'T12:00:00Z') - new Date(f + 'T12:00:00Z')) / 864e5) + 1; return { from: ownAddDays(f, -n), to: ownAddDays(f, -1) }; }
 function wrIn(d, f, t) { return d >= f && d <= t; }
-function wrInstName(id) { var i = (S.insts || []).filter(function (x) { return x.id === id; })[0]; return i ? i.name : 'جهة'; }
+function wrInstName(id) { var i = (S.insts || []).filter(function (x) { return x.id === id; })[0]; return i ? i.name : 'طبخ خارجي'; }
 function wrData(from, to) {
   var pr = wrPrev(from, to), A1 = achData(from, to), P = achData(pr.from, pr.to), D = { from: from, to: to, pf: pr.from, pt: pr.to, a: A1, p: P };
   /* قدور كل يوم (خاص + خارجي + قدور سابقة مُدخلة) */
   var per = {}; A1.bs.forEach(function (b) { per[b.date] = r2((per[b.date] || 0) + (b.pots || 0)); }); A1.ex.forEach(function (e) { per[e.date] = r2((per[e.date] || 0) + e.pots); });
   D.days = []; for (var d = from, n = 0; d <= to && n < 62; d = ownAddDays(d, 1), n++) D.days.push({ d: d, v: per[d] || 0 });
-  /* الطبخ الخارجي لكل جهة */
+  /* الطبخ الخارجي لكل مؤسسة أو فرد */
   var im = {}; A1.bs.filter(function (b) { return b.kind === 'external'; }).forEach(function (b) { var o = im[b.inst] = im[b.inst] || { n: wrInstName(b.inst), pots: 0, days: {}, cost: 0 }; o.pots += b.pots || 0; o.days[b.date] = 1; o.cost += b.cost || 0; });
   D.ext = Object.keys(im).map(function (k) { var o = im[k]; return { n: o.n, pots: r2(o.pots), nd: Object.keys(o.days).length, cost: r2(o.cost) }; }).sort(function (a, b) { return b.pots - a.pots; });
   D.extCost = r2(D.ext.reduce(function (a, o) { return a + o.cost; }, 0));
@@ -4872,7 +4873,7 @@ function wrData(from, to) {
   /* مؤشرات الإدارة: التكلفة التشغيلية / قدر = كل مصروفات الفترة (عمال، صيانة، نقل، تشغيل...) ÷ كل قدور الفترة؛ المواد مجانية فلا تدخل (المالك 2026-11-25)، وإنتاجية العمل (قدور لكل يوم عمل)، وصافي الفترة السابقة */
   /* الوارد والمصروفات مصنَّفة بنوعها، كل عملة بمبلغها (من أرصدتها وحدها فتطابق المجاميع) */
   D.rate = lastRate();
-  var cg = { in: {}, out: {} }; fmOn().forEach(function (m) { if (!wrIn(m.date, from, to)) return; var c = catOf(m); if (c === 'xfer' || c === 'adj') return; var g = cg[m.dir === 'in' ? 'in' : 'out'], o = g[c] = g[c] || { n: catName(c), i: 0, u: 0 }; if (m.cur === 'usd') o.u = r2(o.u + m.amt); else o.i = r2(o.i + m.amt); });
+  var cg = { in: {}, out: {} }; fmOn().forEach(function (m) { if (!wrIn(m.date, from, to)) return; var c = catOf(m); if (c === 'xfer' || c === 'adj') return; var g = cg[m.dir === 'in' ? 'in' : 'out'], o = g[c] = g[c] || { n: c === 'inst' ? 'من الطبخ الخارجي' : catName(c), i: 0, u: 0 }; if (m.cur === 'usd') o.u = r2(o.u + m.amt); else o.i = r2(o.i + m.amt); });
   var cl = function (g) { return Object.keys(g).map(function (k) { return g[k]; }).sort(function (a, b) { return (b.i + b.u * (D.rate || 1)) - (a.i + a.u * (D.rate || 1)); }); };
   D.cIn = cl(cg.in); D.cOut = cl(cg.out);
   var OP = ownData(pr.from, pr.to), opc = function (out, q) { return { c: r2(out), q: q, per: q > 0 ? r2(out / q) : 0 }; };
@@ -4951,7 +4952,7 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
     S1.push({ k: 'sec', t: 'المستحقات الآن', c: '#14563A', n: '' });
     S1.push({ k: 'row', l: 'مستحق للعمال', v: money(D.owW), tone: D.owW > 0 ? 'warn' : '' });
     if (D.extCost > 0) S1.push({ k: 'row', l: 'تكلفة الطبخ الخارجي هذه الفترة', v: money(D.extCost) });
-    S1.push({ k: 'row', l: 'مستحق لنا من الجهات', v: money(D.owI), tone: D.owI > 0 ? 'warn' : '' });
+    S1.push({ k: 'row', l: 'مستحق لنا من الطبخ الخارجي', v: money(D.owI), tone: D.owI > 0 ? 'warn' : '' });
     S1.push({ k: 'row', l: 'صافي المستحق', v: wrNet(D.netNow), tone: D.netNow < 0 ? 'bad' : D.netNow > 0 ? 'ok' : '', tot: 1, s: 'لنا − علينا' });
   }
   if (o.nx && (D.nxB.length || D.nextN)) {
@@ -7244,7 +7245,7 @@ function onBack() {
 
 /* ---------- البدء ---------- */
 load().then(function () { runMigrations(); return mergeHistory(); }).then(mergeMoney).then(function () { return bkAdd('auto'); }).then(loadProposal).then(loadExtProposal).then(function () {
-  UI.mount($('app'), shell); render(); syncStart();
+  UI.onRefresh = syncAll; UI.mount($('app'), shell); render(); syncStart();
   if (lsj('ahd_daily', false)) armDaily().catch(function () {}); // يُعاد جدولة التنبيه عند كل فتح
   armCal();
   if (P.App && P.App.addListener) P.App.addListener('backButton', onBack);
@@ -7435,6 +7436,19 @@ function syncSheet(sh) {
       ft: { label: 'اعتماد نسخة هذا الجهاز', ok: true, go: function () { doSyncChoose(true); } }, ft2: { label: 'اعتماد نسخة الخادم', go: function () { doSyncChoose(false); } } };
   }
   return null;
+}
+
+/* «مزامنة الآن» الشاملة (سحب للتحديث، وزر في مزامنة الشيت): حساب السحابة، إرسال ما ينتظر للشيت، ورصيد حميدا منه؛ والرسالة تذكر ما جرى بالوقت (المالك 2026-11-27: «كيف بدي أعمل مزامنة الآن زي باقي التطبيقات») */
+function syncAll() {
+  var cloud = !!syncSess(), gw = !!(gwUrl() && gwOk());
+  if (!cloud && !gw) { say('لا مزامنة مفعّلة: فعّلها من «مزامنة الشيت» أو «الحساب والمزامنة»'); return Promise.resolve(); }
+  var jobs = [];
+  if (cloud) jobs.push(syncNow(false));
+  if (gw) { try { clearTimeout(GW_T); } catch (e) {} jobs.push(gwSend()); jobs.push(gwHamPull(true)); }
+  return Promise.all(jobs.map(function (p) { return Promise.resolve(p).catch(function () {}); })).then(function () {
+    var bad = typeof GW_ERR === 'string' && GW_ERR ? GW_ERR : (cloud && /تعذّر|لا اتصال/.test(SYNCMSG || '') ? SYNCMSG : '');
+    say(bad ? 'تعذّرت المزامنة: ' + bad : 'تمت المزامنة · ' + atLabel(Date.now())); try { render(); } catch (e) {}
+  });
 }
 
 })();
