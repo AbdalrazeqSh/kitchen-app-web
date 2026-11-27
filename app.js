@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.221';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.222';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -6292,7 +6292,8 @@ function pgWorker() {
     X({ title: 'شراء للمطبخ', icon: 'i-truck', tone: 'info', go: ent('شراء للمطبخ') }),
     X({ title: 'مسحوبات', icon: 'i-minus', tone: 'bad', go: ent('مسحوبات') }),
     X({ title: 'خصم', icon: 'i-minus', tone: 'bad', go: ent('خصم') }),
-    X({ title: 'مخالفة', icon: 'i-alert', tone: 'warn', go: ent('مخالفة') })
+    X({ title: 'مخالفة', icon: 'i-alert', tone: 'warn', go: ent('مخالفة') }),
+    X({ title: 'اليومية', icon: 'i-pencil', tone: 'mute', go: function () { openSh({ t: 'wwage', wid: w.id }, { wage: String(w.daily || ''), wfrom: today() }); } })
   ] }));
   if (mc.bonus || mc.ded || mc.pay) bl.push(B('kpi', { items: [
     X({ label: 'إضافات', value: money(mc.bonus), endTone: mc.bonus ? 'ok' : undefined, sub: 'هذا الأسبوع' }),
@@ -6645,6 +6646,12 @@ function shDesc() {
         { title: 'على أي عامل؟', sub: 'اختر عاملًا لتسجيل دفعة أو خصم أو إضافة', plural: 'العمال', addLabel: 'إضافة عامل جديد', sel: '',
           onPick: function (id) { openSh({ t: 'entry', wid: id }, { type: 'دفعة نقدية', amt: '', note: '', sev: 'warn' }); },
           onAdd: function (name) { openSh({ t: 'addWorker', then: true }, { name: name, wage: '' }); } });
+      break;
+    }
+    case 'wwage': {
+      var ww = wk(sh.wid), nw = num('wage'), wfrom = fv('wfrom') || today();
+      R = { title: 'يومية ' + ww.name, fields: [fText('wage', 'اليومية الجديدة (₪)', String(ww.daily || ''), 'decimal'), fDate('wfrom', 'تسري من', '', today())],
+        ft: { label: 'حفظ اليومية', ok: nw > 0 && nw !== ww.daily && /^\d{4}-\d\d-\d\d$/.test(wfrom), go: function () { doWage(sh.wid); } } };
       break;
     }
     case 'addWorker': {
@@ -7032,6 +7039,13 @@ function doCount2(l, diffs) {
 function doIssue(it, l) {
   var q = num('qty'); E.addMove(S, { date: today(), led: l, item: it.id, q: -q, kind: 'issue', note: (fv('why') || '').trim() });
   shut(); mutated('سُجّل صرف ' + fmt(q) + ' ' + it.unit + ' من ' + it.name);
+}
+function doWage(wid) {
+  var w = wk(wid), nw = num('wage'), from = fv('wfrom') || today(), n = 0, was = w.daily;
+  (S.att || []).forEach(function (a) { if (a.w === wid && a.date >= from && a.d !== nw) { a.d = nw; n++; } });
+  w.wages = (w.wages || []).concat([{ from: from, was: was, now: nw, ts: Date.now() }]); w.daily = nw;
+  audit('تعديل يومية «' + w.name + '» من ' + money(was) + ' إلى ' + money(nw) + ' اعتبارًا من ' + from);
+  shut(); mutated('يومية ' + w.name + ' ' + money(nw) + ' من ' + dshow(from));
 }
 function doAddWorker(then) {
   var name = fv('name').trim(), wage = num('wage'), id = newId('w', S.workers);
