@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.217';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.218';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4941,11 +4941,13 @@ function wrBlocks(D, o) { /* كتل الملخص بترتيبها: لكل كتل
   D.stk.forEach(function (z) { var p2 = []; if (z.out) p2.push(z.out + ' نفد'); if (z.low) p2.push(z.low + ' حرج'); if (z.soon) p2.push(z.soon + ' ينقص قريبًا'); T1.push({ k: 'row', l: z.n, v: p2.join(' · '), tone: z.out || z.low ? 'bad' : 'warn' }); });
   blk('stk', T1);
   var M1 = [{ k: 'sec', t: 'المال', c: '#14563A', n: '' }];
-  var cv = function (o) { var q = []; if (o.i) q.push(money(o.i)); if (o.u) q.push(usdTxt(o.u)); return q.join(' · '); };
-  var cat = function (title, arr, ti, tu, tone, det, eq) {
-    var qv = eq && tu > 0 && D.rate > 0 ? 'المكافئ ' + money(r2(ti + tu * D.rate)) : '';
-    M1.push({ k: 'row', l: title, v: [ti ? money(ti) : '', tu ? usdTxt(tu) : ''].filter(Boolean).join(' · ') || money(0), tone: (ti || tu) ? tone : '', tot: 0, s: qv });
-    if (det) arr.forEach(function (o) { M1.push({ k: 'row', l: o.n, v: cv(o), sub: 1 }); });
+  var both = function (i, u) { var q = []; if (i) q.push(money(i)); if (u) q.push(usdTxt(u)); return q.join(' · '); };
+  var eqv = function (i, u) { return r2((i || 0) + (u || 0) * D.rt); };
+  var cv = function (o, eq) { return eq && o.u > 0 && D.rt > 0 ? money(eqv(o.i, o.u)) : both(o.i, o.u); };
+  var cat = function (title, arr, ti, tu, tone, det, eq) { /* المكافئ بالشيكل: الرقم البارز مكافئ واحد، والعملتان تحته إرشادًا خفيفًا */
+    var e = eq && tu > 0 && D.rt > 0;
+    M1.push({ k: 'row', l: title, v: e ? money(eqv(ti, tu)) : both(ti, tu) || money(0), tone: (ti || tu) ? tone : '', tot: 0, s: e ? both(ti, tu) : '' });
+    if (det) arr.forEach(function (o) { var e2 = eq && o.u > 0 && D.rt > 0; M1.push({ k: 'row', l: o.n, v: cv(o, eq), s: e2 ? both(o.i, o.u) : '', sub: 1 }); });
   };
   cat('وارد الفترة', D.cIn, D.inI, D.inU, 'ok', o.din !== false, o.qin);
   cat('مصروفات الفترة', D.cOut, D.outI, D.outU, 'bad', o.dout !== false, o.qout);
