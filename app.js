@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.205';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.206';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -4868,6 +4868,11 @@ function wrData(from, to) {
   D.colI = r2((S.insts || []).reduce(function (a, i) { return a + (i.pay || []).filter(function (c) { return wrIn(c.date, from, to); }).reduce(function (z, c) { return z + c.amt; }, 0); }, 0));
   var OD = ownData(from, to); D.inI = OD.P.i.inn; D.outI = OD.P.i.out; D.inU = OD.P.u.inn; D.outU = OD.P.u.out; D.net = r2(D.inI - D.outI); D.netU = r2(D.inU - D.outU); D.netNow = r2(D.owI - D.owW);
   /* مؤشرات الإدارة: التكلفة التشغيلية / قدر = كل مصروفات الفترة (عمال، صيانة، نقل، تشغيل...) ÷ كل قدور الفترة؛ المواد مجانية فلا تدخل (المالك 2026-11-25)، وإنتاجية العمل (قدور لكل يوم عمل)، وصافي الفترة السابقة */
+  /* الوارد والمصروفات مصنَّفة بنوعها، كل عملة بمبلغها (من أرصدتها وحدها فتطابق المجاميع) */
+  D.rate = lastRate();
+  var cg = { in: {}, out: {} }; fmOn().forEach(function (m) { if (!wrIn(m.date, from, to)) return; var c = catOf(m); if (c === 'xfer' || c === 'adj') return; var g = cg[m.dir === 'in' ? 'in' : 'out'], o = g[c] = g[c] || { n: catName(c), i: 0, u: 0 }; if (m.cur === 'usd') o.u = r2(o.u + m.amt); else o.i = r2(o.i + m.amt); });
+  var cl = function (g) { return Object.keys(g).map(function (k) { return g[k]; }).sort(function (a, b) { return (b.i + b.u * (D.rate || 1)) - (a.i + a.u * (D.rate || 1)); }); };
+  D.cIn = cl(cg.in); D.cOut = cl(cg.out);
   var OP = ownData(pr.from, pr.to), opc = function (out, q) { return { c: r2(out), q: q, per: q > 0 ? r2(out / q) : 0 }; };
   /* كل مصروفات الفترة بالشيكل: الشيكل + الدولار (بسعره المسجَّل في الحركة أو آخر سعر صرف) */
   D.rate = lastRate(); var opAll = function (O) { return r2(O.T.outI + O.T.outU * D.rate); };
@@ -4935,11 +4940,13 @@ function wrRows(D, o) { /* المحتوى كله أسطرًا: تعتمده ال
   }
   if (o.mon) {
     S1.push({ k: 'sec', t: 'المال', c: '#14563A', n: '' });
-    S1.push({ k: 'row', l: 'وارد الفترة', v: money(D.inI), tone: D.inI > 0 ? 'ok' : '' });
-    if (D.colI > 0) S1.push({ k: 'row', l: 'منه: محصَّل من الجهات', v: money(D.colI), sub: 1 });
-    S1.push({ k: 'row', l: 'مصروفات الفترة', v: money(D.outI), tone: D.outI > 0 ? 'bad' : '' });
-    if (D.paidW > 0) S1.push({ k: 'row', l: 'منها: دُفع للعمال', v: money(D.paidW), sub: 1 });
-    if (D.inU || D.outU) { S1.push({ k: 'row', l: 'وارد بالدولار', v: usdTxt(D.inU), tone: D.inU > 0 ? 'ok' : '' }); S1.push({ k: 'row', l: 'مصروفات بالدولار', v: usdTxt(D.outU), tone: D.outU > 0 ? 'bad' : '' }); }
+    var cv = function (o) { var q = []; if (o.i) q.push(money(o.i)); if (o.u) q.push(usdTxt(o.u)); return q.join(' · '); };
+    var cat = function (title, arr, ti, tu, tone) {
+      S1.push({ k: 'row', l: title, v: [ti ? money(ti) : '', tu ? usdTxt(tu) : ''].filter(Boolean).join(' · ') || money(0), tone: (ti || tu) ? tone : '', tot: 0 });
+      arr.forEach(function (o) { S1.push({ k: 'row', l: o.n, v: cv(o), sub: 1 }); });
+    };
+    cat('وارد الفترة', D.cIn, D.inI, D.inU, 'ok');
+    cat('مصروفات الفترة', D.cOut, D.outI, D.outU, 'bad');
     S1.push({ k: 'row', l: 'صافي الفترة', v: wrNet(D.net), tone: D.net < 0 ? 'bad' : D.net > 0 ? 'ok' : '', tot: 1, s: 'وارد − مصروفات' });
     if (D.inU || D.outU) S1.push({ k: 'row', l: 'صافي الفترة بالدولار', v: D.netU < 0 ? '\u2066\u2212' + usdTxt(-D.netU) + '\u2069' : usdTxt(D.netU), tone: D.netU < 0 ? 'bad' : D.netU > 0 ? 'ok' : '', tot: 1 });
     S1.push({ k: 'sec', t: 'المستحقات الآن', c: '#14563A', n: '' });
