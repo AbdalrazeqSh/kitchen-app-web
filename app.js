@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.224';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.225';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1303,6 +1303,8 @@ function pgCal() {
   return bl;
 }
 
+function calWhoList() { return people().filter(function (p) { return p.preset !== 'observer' && p.preset !== 'worker'; }).concat(activeW().filter(function (w) { return !people().some(function (p) { return p.id === w.id; }); })); }
+function calWho(id) { return E.by(people(), id) || E.by(activeW(), id) || null; }
 function calFromForm() {
   var dsel = fv('dsel'), dtxt = fv('dtxt'), off = dsel !== '' ? parseInt(dsel, 10) : (dtxt ? parseDate(dtxt) : null), tNew = fv('tNew').trim(), tp = tNew ? parseTime(tNew) : null;
   return { title: fv('title').trim(), kind: fv('kind') || 'task', off: off, t: tNew ? (tp || '') : fv('t'), tBad: !!tNew && !tp, rep: fv('rep'), rem: fv('rem') || 'at', who: fv('who') || 'p1', party: fv('party').trim(), amt: num('amt'), dir: fv('dir') || 'out', note: fv('note').trim() };
@@ -1362,7 +1364,7 @@ function calSheet(sh) {
       fl.push(fDD('dsel', 'اليوم', days)); fl.push(fDate('dtxt', 'أو اختر من التقويم'));
       fl.push(fDD('t', 'الوقت', [['', 'بدون وقت'], ['08:00', '8 ص'], ['12:00', '12 ظ'], ['16:00', '4 م'], ['20:00', '8 م']])); fl.push(fTime('tNew', 'أو وقت آخر'));
       fl.push(fChips('rep', 'التكرار', [['', 'لا يتكرر'], ['d', 'يوميًا'], ['w', 'أسبوعيًا'], ['m', 'شهريًا']])); fl.push(fDD('rem', 'التنبيه', [['none', 'بلا تنبيه'], ['at', 'وقت الموعد'], ['1h', 'قبله بساعة'], ['1d', 'قبله بيوم'], ['1d+at', 'قبله بيوم وفي الوقت']]));
-      fl.push(fChips('who', 'يخص', people().filter(function (p) { return p.preset !== 'observer' && p.preset !== 'worker'; }).map(function (p) { return [p.id, p.name]; }))); fl.push(fText('note', 'ملاحظة (اختياري)', ''));
+      fl.push(fDD('who', 'يخص', calWhoList().map(function (p) { return [p.id, p.name]; }))); fl.push(fText('note', 'ملاحظة (اختياري)', ''));
       var cfr = cf.off != null ? calFires({ t: cf.t, rem: cf.rem }, cf.off) : [];
       R = { tone: cf.kind === 'pay' ? (fv('dir') === 'in' ? 'in' : fv('dir') === 'out' ? 'out' : '') : '', toneTag: fv('dir') === 'in' ? 'لنا' : 'علينا', title: ced ? (cf.kind === 'event' ? 'تعديل الحدث' : 'تعديل الموعد') : cf.kind === 'event' ? 'حدث جديد' : 'موعد جديد', sub: cf.kind === 'event' ? 'علامة في الأجندة' : 'يُنبّه الشخص المختار على جهازه', fields: fl,
         note: { text: cf.off == null ? 'اختر اليوم لترى متى يصلك التنبيه' : cfr.length ? 'يصلك التنبيه: ' + cfr.join(' ، ') : 'بلا تنبيه', tone: cf.off == null ? 'info' : cfr.length ? 'ok' : 'info' },
@@ -1377,7 +1379,8 @@ function calSheet(sh) {
       if (cev.kind === 'pay') { cr.push(X({ title: 'الجهة', tag: cev.party, tagTone: 'mute' })); if (cev.amt) cr.push(X({ title: cev.dir === 'in' ? 'لنا' : 'علينا', tag: money(cev.amt), tagTone: cev.dir === 'in' ? 'ok' : 'warn' })); cr.push(X({ icon: 'i-wallet', icTone: 'mute', title: 'تسجيل الدفعة نفسها', sub: 'من الأرصدة', chev: true, go: function () { open('funds'); } })); }
       if (cev.note) cr.push(X({ title: 'ملاحظة', sub: cev.note }));
       if (!co.auto) {
-        var pw = E.by(people(), cev.who); cr.push(X({ title: 'يخص', tag: pw ? pw.name : '', tagTone: 'mute' }));
+        var pw = calWho(cev.who); cr.push(X({ title: 'يخص', tag: pw ? pw.name : '', tagTone: 'mute' }));
+        if (pw && smsNum(pw.phone)) cr.push(X({ icon: 'i-chat', icTone: 'info', title: 'إرسال رسالة بالمهمة', sub: pw.name, chev: true, go: function () { smsConfirm('worker', [pw.id], 'مرحبًا {الاسم}، تذكير: ' + cev.title + ' — ' + cLabel(co.off) + (co.t ? ' ' + cTime(co.t) : '') + (cev.note ? ' (' + cev.note + ')' : '')); } }));
         cr.push(X({ icon: 'i-pencil', icTone: 'mute', title: cev.kind === 'event' ? 'تعديل الحدث' : 'تعديل الموعد', chev: true, go: function () { openSh({ t: 'calEdit', id: cev.id }, calForm(cev)); } }));
         (cev.log || []).slice(0, 4).forEach(function (l) { cr.push(X({ title: l.what, sub: dlabel(l.date) })); });
         cr.push(X({ icon: 'i-lock', icTone: 'mute', title: cev.rep ? 'إيقاف التكرار' : cev.kind === 'event' ? 'إلغاء الحدث' : 'إلغاء الموعد', sub: 'يختفي من القائمة ويُحفظ ويمكن استعادته', chev: true, go: function () { doEvArch(cev.id, true); } }));
@@ -5593,7 +5596,7 @@ function wsmsSheet(sh) {
 var SMSLIB_H = { camp: 'المتاح: {المخيم} {المندوب} {الأصناف} {الوقت} {المكان}', worker: 'يمكنك كتابة {الاسم} ليُستبدل باسم كل عامل' };
 function smsLib(kind) { return (S.settings.smsLib || []).filter(function (m) { return m.kind === kind; }); }
 function smsxWho(kind, ids) {
-  return kind === 'camp' ? campsToday().filter(function (c) { return smsNum(c.g.phone) && ids.indexOf(c.g.id) >= 0; }) : activeW().filter(function (w) { return smsNum(w.phone) && ids.indexOf(w.id) >= 0; });
+  return kind === 'camp' ? campsToday().filter(function (c) { return smsNum(c.g.phone) && ids.indexOf(c.g.id) >= 0; }) : activeW().concat(people().filter(function (p) { return !E.by(activeW(), p.id); })).filter(function (w) { return smsNum(w.phone) && ids.indexOf(w.id) >= 0; });
 }
 function smsxId(kind, x) { return kind === 'camp' ? x.g.id : x.id; }
 function smsConfirm(kind, ids, tpl) {
