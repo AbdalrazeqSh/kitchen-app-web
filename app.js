@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.225';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.226';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -1878,7 +1878,7 @@ function phSave(id) {
 /* نافذة الصورة المشتركة: تظهر الصورة داخل التطبيق ثم المشاركة لأي تطبيق والحفظ. تخدم كل صفوف الصور (phRow) */
 function fPhotoView(url, scroll, sticky) {
   return { label: '', hint: '', hasHint: false, isText: false, isChips: false, isArea: false, value: '', ph: '', mode: 'text', onInput: noop, chips: [], isPhView: true,
-    phUrl: url || '', phShow: url ? 'block' : 'none', phWait: url ? 'none' : 'block', phH: url ? '0' : '160px', phAi: scroll ? 'flex-start' : 'center', phBox: sticky ? '30vh' : scroll ? '44vh' : 'none', pos: sticky ? 'sticky' : 'static', pz: sticky ? '6' : '0', pbg: sticky ? '#fff' : 'transparent', ppb: sticky ? '10px' : '0', pov: sticky ? 'hidden' : 'auto', phMax: scroll ? 'none' : '55vh', fd: 'column', ai: 'stretch', gp: '0', lf: 'none' };
+    phUrl: url || '', phShow: url ? 'block' : 'none', phWait: url ? 'none' : 'block', phH: url ? '0' : '160px', phAi: scroll ? 'flex-start' : 'center', phBox: sticky ? '46vh' : scroll ? '44vh' : 'none', pos: sticky ? 'sticky' : 'static', pz: sticky ? '6' : '0', pbg: sticky ? '#fff' : 'transparent', ppb: sticky ? '10px' : '0', pov: 'auto', phMax: scroll ? 'none' : '55vh', fd: 'column', ai: 'stretch', gp: '0', lf: 'none' };
 }
 function photoSheet(sh) {
   if (sh.t !== 'phv') return null;
