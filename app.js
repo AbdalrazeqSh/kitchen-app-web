@@ -1,7 +1,7 @@
 (function () {
 'use strict';
 /* ===== 00-core.js ===== */
-var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.223';
+var E = window.Engine, UI = window.UI, X = UI.X, B = UI.B, T = UI.T, noop = UI.noop, VERSION = '1.0.224';
 var Cap = window.Capacitor || {}, P = Cap.Plugins || {};
 var S = null, PROP = null;
 var $ = function (i) { return document.getElementById(i); };
@@ -6415,9 +6415,11 @@ function itemTotal(id) { return totalQty(id); }
 function aliasList(txt) { var seen = {}; return String(txt || '').split(/[,،\n]/).map(function (x) { return x.trim(); }).filter(function (x) { var k = norm(x); if (!x || seen[k]) return false; seen[k] = 1; return true; }); }
 function packTypes() { var o = ['شوال', 'كرتونة', 'كيس', 'جركن']; S.items.forEach(function (i) { packsOf(i).forEach(function (p) { if (o.indexOf(p.name) < 0) o.push(p.name); }); }); return o; }
 function conds() { var o = ['جاف', 'بارد', 'مجمّد']; S.items.forEach(function (i) { if (i.cond && o.indexOf(i.cond) < 0) o.push(i.cond); }); return o; }
-function itemList(l) {
+function itemList(l, remFn) {
   var inL = {}; S.moves.forEach(function (m) { if (m.led === l && m.kind !== 'hist') inL[m.item] = 1; });
-  return S.items.slice().sort(function (x, y) { return ((x.grp === 'spice' ? 1 : 0) - (y.grp === 'spice' ? 1 : 0)) || (usedCount(y.id) - usedCount(x.id)); }).map(function (it) {
+  var rem = remFn || function (id) { return E.balance(S, l, id); }, has = function (it) { return rem(it.id) > 0.000001 ? 0 : 1; };
+  /* الموجود رصيده أولًا (أساسيات ثم بهارات، الأكثر استعمالًا أولًا) ثم الصفري والسالب بالترتيب نفسه */
+  return S.items.slice().sort(function (x, y) { return (has(x) - has(y)) || ((x.grp === 'spice' ? 1 : 0) - (y.grp === 'spice' ? 1 : 0)) || (usedCount(y.id) - usedCount(x.id)); }).map(function (it) {
     return { id: it.id, name: it.name, alias: it.alias || [], sub: it.unit + (inL[it.id] ? ' · الرصيد ' + fmt(E.balance(S, l, it.id)) : ' · غير مسجّل في هذا المخزن'), tag: '', tagTone: 'mute' };
   });
 }
@@ -6515,7 +6517,7 @@ function shDesc() {
     case 'count': {
       var cl = fv('led') || (led(A.led) && !led(A.led).arch ? A.led : 'kitchen'), cin = {};
       S.moves.forEach(function (m) { if (m.led === cl && m.kind !== 'hist') cin[m.item] = 1; });
-      var cits = spiceLast(itemList(cl).filter(function (x) { return cin[x.id]; }), function (x) { return x.id; }), cf = [], cdiff = [], cneg = [];
+      var cits = itemList(cl).filter(function (x) { return cin[x.id]; }), cf = [], cdiff = [], cneg = [];
       if (ledgers().length > 1) cf.push(fChips('led', 'المخزن', ledgers().map(function (x) { return [x.id, x.name]; })));
       cits.forEach(function (x) {
         var ci = item(x.id), cb = E.balance(S, cl, x.id), cv = fv('c_' + x.id);
@@ -6790,7 +6792,7 @@ function shDesc() {
     case 'extra': {
       if (!sh.item) {
         var xl0 = E.planOrder(S, d.kind, d.inst)[0], xin = {}; dLines().forEach(function (l) { xin[l.id] = 1; });
-        R = pickOr(itemList(xl0).map(function (x) { var it0 = item(x.id), rm = dRemain(x.id); return Object.assign({}, x, { sub: it0.unit + ' · المتبقي ' + fmt(rm), tag: xin[x.id] ? 'في الخطة' : '', tagTone: 'mute' }); }), { title: 'إضافة مكوّن للطبخة', sub: 'اختر الصنف أو أضف صنفًا جديدًا', plural: 'الأصناف', then: 'extra', addLabel: 'إضافة صنف جديد', sel: '',
+        R = pickOr(itemList(xl0, dRemain).map(function (x) { var it0 = item(x.id), rm = dRemain(x.id); return Object.assign({}, x, { sub: it0.unit + ' · المتبقي ' + fmt(rm), tag: xin[x.id] ? 'في الخطة' : '', tagTone: 'mute' }); }), { title: 'إضافة مكوّن للطبخة', sub: 'اختر الصنف أو أضف صنفًا جديدًا', plural: 'الأصناف', then: 'extra', addLabel: 'إضافة صنف جديد', sel: '',
           onPick: function (id) { openSh({ t: 'extra', item: id }, { qty: '', by: 'pot' }); },
           onAdd: function (name) { openSh({ t: 'addItem', then: 'extra' }, { name: name, unit: 'كيلو', price: '' }); } });
         break;
